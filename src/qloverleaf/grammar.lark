@@ -302,19 +302,19 @@ primary_expr: "(" evaluator ")"
             | "abs" "(" evaluator ")"                                 -> abs_expr
             | "is_number" "(" evaluator ")"                           -> is_number_expr
             | "is_date" "(" evaluator ")"                             -> is_date_expr
-            | (set_name ".")? "u" "(" evaluator ")"                    -> union_expr
-            | (set_name ".")? "min" "(" evaluator ")"                  -> min_expr
-            | (set_name ".")? "max" "(" evaluator ")"                  -> max_expr
-            | (set_name ".")? "sum" "(" evaluator ")"                  -> sum_expr
-            | (set_name ".")? "set" "(" evaluator ")"                  -> set_expr
-            | (set_name ".")? "gcat" "(" evaluator ")"                 -> gcat_expr
-            | (set_name ".")? "count" "(" COUNT_TYPE ")"               -> count_expr
+            | (set_name ".")? "u" "(" evaluator ")"                   -> union_expr
+            | (set_name ".")? "min" "(" evaluator ")"                 -> min_expr
+            | (set_name ".")? "max" "(" evaluator ")"                 -> max_expr
+            | (set_name ".")? "sum" "(" evaluator ")"                 -> sum_expr
+            | (set_name ".")? "set" "(" evaluator ")"                 -> set_expr
+            | (set_name ".")? "gcat" "(" evaluator ")"                -> gcat_expr
+            | (set_name ".")? "count" "(" COUNT_TYPE ")"              -> count_expr
             | "lrs_in" "(" evaluator "," evaluator ")"                -> lrs_in_expr
             | "lrs_isect" "(" evaluator "," evaluator ")"             -> lrs_isect_expr
             | "lrs_union" "(" evaluator "," evaluator ")"             -> lrs_union_expr
             | "lrs_min" "(" evaluator ")"                             -> lrs_min_expr
             | "lrs_max" "(" evaluator ")"                             -> lrs_max_expr
-            | set_name "." "val"                                       -> val_expr
+            | set_name "." "val"                                      -> val_expr
 
 // SET REFERENCES
 

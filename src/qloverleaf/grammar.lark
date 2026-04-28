@@ -87,7 +87,7 @@ statement: simple_stmt ";"
            | if_stmt
            | retro_stmt
 
-set_assignment: ("->" set_ref)
+set_assignment: "->" set_ref
 
 // QUERY STATEMENT
 
@@ -138,7 +138,7 @@ tag_filter: "[" tag_key "]"                                                     
 
 tag_key_regex: STRING
 tag_value_regex: STRING
-regex_case_insensitive: ("," "i")
+regex_case_insensitive: "," "i"
 
 // Coordinates in bbox_filter are (south, west, north, east)
 bbox_filter: "(" number "," number "," number "," number ")"
@@ -258,8 +258,7 @@ DIVIDE_OP: "/"
           | primary_expr
 NEGATE_OP: "-"
 
-// Aggregator functions optionally qualified with a named set: .name.fn(expr)
-// set_ref is "." SET_NAME, so (set_ref ".")? expands to ("." SET_NAME ".")?
+// Aggregator functions optionally qualified with a named set: name.fn(expr)
 primary_expr: "(" evaluator ")"
             | UNSIGNED_NUMBER
             | STRING
@@ -325,7 +324,7 @@ set_ref: "." SET_NAME
 
 tag_key:   STRING | UNQUOTED_KEY
 tag_value: STRING | UNQUOTED_VALUE
-number:    "-"? UNSIGNED_NUMBER
+number:    NUMBER
 
 // TERMINALS
 

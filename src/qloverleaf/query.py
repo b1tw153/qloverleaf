@@ -1,5 +1,7 @@
 import time
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
 
 from lark import Token, Tree
 
@@ -16,7 +18,27 @@ class Stats:
     end_time: float = 0.0
 
 @dataclass
+class Bbox:
+    south: float
+    west: float
+    north: float
+    east: float
+
+class OutputFormat(Enum):
+    XML = "xml"
+    JSON = "json"
+    CSV = "csv"
+    CUSTOM = "custom"
+    POPUP = "popup"
+
+@dataclass
 class Query:
     text: str
     tree: Tree[Token]
     stats: Stats = field(default_factory=Stats)
+    timeout: float = 180.0
+    maxsize: int = 2048 * 1024
+    bbox: Optional[Bbox] = None
+    out: OutputFormat = OutputFormat.XML
+    out_params: Optional[Tree[Token]] = None
+

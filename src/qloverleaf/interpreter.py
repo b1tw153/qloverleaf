@@ -12,6 +12,8 @@ MEDIA_TYPES = {
     OutputFormat.POPUP: "application/html",
 }
 
+# TODO: add types exceptions (QueryError, Execution Error, ...) but collect them in a separate file?
+
 
 async def initialize(query: Query) -> tuple[str, AsyncGenerator[str, None]]:
     _apply_global_settings(query)

@@ -30,12 +30,28 @@ class TagFilterOp(Enum):
     NOT_REGEX = "!~"
 
 
+class RecurseFilterType(Enum):
+    BN = "bn"
+    BW = "bw"
+    BR = "br"
+    W = "w"
+    R = "r"
+
+
 @dataclass
 class BboxFilter:
     south: float
     west: float
     north: float
     east: float
+    token: Token
+
+
+@dataclass
+class RecurseFilter:
+    recurse_type: RecurseFilterType
+    set_ref: SetRef
+    role: str | None
     token: Token
 
 
@@ -163,6 +179,27 @@ class OverpassTransformer(Transformer[Token, Any]):
     def around_radius(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]
+
+    def recurse_role(self, children: list[Any]) -> str:
+        assert isinstance(children[0], Token)
+        return _unquote(children[0])
+
+    def recurse_filter(self, children: list[Any]) -> RecurseFilter:
+        type_tok = children[0]
+        assert isinstance(type_tok, Token)
+        ref = SetRef(name="._", token=None)
+        role: str | None = None
+        for child in children[1:]:
+            if isinstance(child, SetRef):
+                ref = child
+            elif isinstance(child, str):
+                role = child
+        return RecurseFilter(
+            recurse_type=RecurseFilterType(str(type_tok)),
+            set_ref=ref,
+            role=role,
+            token=type_tok,
+        )
 
     def area_set_filter(self, children: list[Any]) -> AreaSetFilter:
         if children:

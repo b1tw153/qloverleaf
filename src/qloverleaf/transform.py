@@ -48,6 +48,14 @@ class BboxFilter:
 
 
 @dataclass
+class WayCountFilter:
+    min_count: int
+    max_count: int | None  # None means open upper bound (N-)
+    exact: bool            # True if no dash (exact match)
+    token: Token
+
+
+@dataclass
 class RecurseFilter:
     recurse_type: RecurseFilterType
     set_ref: SetRef
@@ -179,6 +187,28 @@ class OverpassTransformer(Transformer[Token, Any]):
     def around_radius(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]
+
+    def int_range(self, children: list[Any]) -> tuple[int, int | None, bool, Token]:
+        assert isinstance(children[0], Token)
+        if len(children) == 1:
+            return (int(children[0]), int(children[0]), True, children[0])
+        elif len(children) == 2:
+            return (int(children[0]), None, False, children[0])
+        else:
+            assert isinstance(children[2], Token)
+            return (int(children[0]), int(children[2]), False, children[0])
+
+    def way_count_filter(self, children: list[Any]) -> WayCountFilter:
+        min_count, max_count, exact, token = children[0]
+        return WayCountFilter(
+            min_count=min_count, max_count=max_count, exact=exact, token=token
+        )
+
+    def way_link_filter(self, children: list[Any]) -> None:
+        min_count, max_count, exact, token = children[0]
+        raise UnsupportedFeatureError(
+            "way_link filter is not supported", token
+        )
 
     def recurse_role(self, children: list[Any]) -> str:
         assert isinstance(children[0], Token)

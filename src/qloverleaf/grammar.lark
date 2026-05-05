@@ -93,17 +93,25 @@ set_assignment: "->" set_ref
 
 query_stmt: element_type filter* set_assignment?
 
-// TODO: covert aliases to productions
-element_type: "node"     -> element_type_node
-            | "way"      -> element_type_way
-            | "rel"      -> element_type_relation
-            | "relation" -> element_type_relation
-            | "nwr"      -> element_type_nwr
-            | "nw"       -> element_type_nw
-            | "wr"       -> element_type_wr
-            | "nr"       -> element_type_nr
-            | "area"     -> element_type_area
-            | "derived"  -> element_type_derived
+?element_type: element_type_node
+             | element_type_way
+             | element_type_relation
+             | element_type_nwr
+             | element_type_nw
+             | element_type_wr
+             | element_type_nr
+             | element_type_area
+             | element_type_derived
+
+!element_type_node:     "node"
+!element_type_way:      "way"
+!element_type_relation: "rel" | "relation"
+!element_type_nwr:      "nwr"
+!element_type_nw:       "nw"
+!element_type_wr:       "wr"
+!element_type_nr:       "nr"
+!element_type_area:     "area"
+!element_type_derived:  "derived"
 
 // QUERY FILTERS
 
@@ -129,14 +137,21 @@ element_type: "node"     -> element_type_node
        | pivot_filter
        | if_filter
 
-// TODO: covert aliases to productions
-tag_filter: "[" tag_key "]"                                                       -> tag_filter_exists
-          | "[" "!" tag_key "]"                                                   -> tag_filter_absent
-          | "[" tag_key "=" tag_value "]"                                         -> tag_filter_eq
-          | "[" tag_key "!=" tag_value "]"                                        -> tag_filter_neq
-          | "[" tag_key "~" tag_value_regex regex_case_insensitive? "]"           -> tag_filter_regex
-          | "[" tag_key "!~" tag_value_regex regex_case_insensitive? "]"          -> tag_filter_not_regex
-          | "[" "~" tag_key_regex "~" tag_value_regex regex_case_insensitive? "]" -> tag_filter_key_regex
+?tag_filter: tag_filter_exists
+           | tag_filter_absent
+           | tag_filter_eq
+           | tag_filter_neq
+           | tag_filter_regex
+           | tag_filter_not_regex
+           | tag_filter_key_regex
+
+tag_filter_exists:    "[" tag_key "]"
+tag_filter_absent:    "[" "!" tag_key "]"
+tag_filter_eq:        "[" tag_key "=" tag_value "]"
+tag_filter_neq:       "[" tag_key "!=" tag_value "]"
+tag_filter_regex:     "[" tag_key "~" tag_value_regex regex_case_insensitive? "]"
+tag_filter_not_regex: "[" tag_key "!~" tag_value_regex regex_case_insensitive? "]"
+tag_filter_key_regex: "[" "~" tag_key_regex "~" tag_value_regex regex_case_insensitive? "]"
 
 tag_key_regex: STRING
 tag_value_regex: STRING
@@ -145,9 +160,10 @@ regex_case_insensitive: "," "i"
 // Coordinates in bbox_filter are (south, west, north, east)
 bbox_filter: "(" number "," number "," number "," number ")"
 
-// TODO: covert aliases to productions
-id_filter: "(" INTEGER ")"                                         -> id_filter_single
-         | "(" "id" ":" INTEGER ("," INTEGER)* ")"                 -> id_filter_list
+?id_filter: id_filter_single | id_filter_list
+
+id_filter_single: "(" INTEGER ")"
+id_filter_list:   "(" "id" ":" INTEGER ("," INTEGER)* ")"
 
 // Radius in metres; optional lat/lon pairs define a polyline reference
 around_set_filter: "(" "around" set_ref? ":" around_radius ")"
@@ -259,64 +275,87 @@ DIVIDE_OP: "/"
 NEGATE_OP: "-"
 
 // Aggregator functions optionally qualified with a named set: name.fn(expr)
-// TODO: covert aliases to productions
-// TODO: convert grouped evaluator to production, but is it in the right place for precedence?
-primary_expr: "(" evaluator ")"
-            | UNSIGNED_NUMBER
-            | STRING
-            | "id" "(" ")"                                            -> id_expr
-            | "type" "(" ")"                                          -> type_expr
-            | "t" "[" evaluator "]"                                   -> tag_value_expr
-            | "is_tag" "(" tag_key ")"                                -> is_tag_expr
-            | "keys" "(" ")"                                          -> keys_expr
-            | "::"                                                    -> generic_tag_expr
-            | "version" "(" ")"                                       -> version_expr
-            | "timestamp" "(" ")"                                     -> timestamp_expr
-            | "changeset" "(" ")"                                     -> changeset_expr
-            | "uid" "(" ")"                                           -> uid_expr
-            | "user" "(" ")"                                          -> user_expr
-            | "count_tags" "(" ")"                                    -> count_tags_expr
-            | "count_members" "(" ")"                                 -> count_members_expr
-            | "count_distinct_members" "(" ")"                        -> count_distinct_members_expr
-            | "count_by_role" "(" evaluator ")"                       -> count_by_role_expr
-            | "count_distinct_by_role" "(" evaluator ")"              -> count_distinct_by_role_expr
-            | "is_closed" "(" ")"                                     -> is_closed_expr
-            | "lat" "(" ")"                                           -> lat_expr
-            | "lon" "(" ")"                                           -> lon_expr
-            | "geom" "(" ")"                                          -> geom_expr
-            | "length" "(" ")"                                        -> length_expr
-            | "center" "(" evaluator ")"                              -> center_expr
-            | "trace" "(" evaluator ")"                               -> trace_expr
-            | "hull" "(" evaluator ")"                                -> hull_expr
-            | "pt" "(" evaluator "," evaluator ")"                    -> pt_expr
-            | "lstr" "(" evaluator "," evaluator ("," evaluator)* ")" -> lstr_expr
-            | "poly" "(" evaluator "," evaluator ("," evaluator)* ")" -> poly_expr
-            | "per_member" "(" evaluator ")"                          -> per_member_expr
-            | "per_vertex" "(" evaluator ")"                          -> per_vertex_expr
-            | "pos" "(" ")"                                           -> pos_expr
-            | "mtype" "(" ")"                                         -> mtype_expr
-            | "ref" "(" ")"                                           -> ref_expr
-            | "role" "(" ")"                                          -> role_expr
-            | "angle" "(" ")"                                         -> angle_expr
-            | "number" "(" evaluator ")"                              -> number_expr
-            | "date" "(" evaluator ")"                                -> date_expr
-            | "suffix" "(" evaluator ")"                              -> suffix_expr
-            | "abs" "(" evaluator ")"                                 -> abs_expr
-            | "is_number" "(" evaluator ")"                           -> is_number_expr
-            | "is_date" "(" evaluator ")"                             -> is_date_expr
-            | (set_name ".")? "u" "(" evaluator ")"                   -> union_expr
-            | (set_name ".")? "min" "(" evaluator ")"                 -> min_expr
-            | (set_name ".")? "max" "(" evaluator ")"                 -> max_expr
-            | (set_name ".")? "sum" "(" evaluator ")"                 -> sum_expr
-            | (set_name ".")? "set" "(" evaluator ")"                 -> set_expr
-            | (set_name ".")? "gcat" "(" evaluator ")"                -> gcat_expr
-            | (set_name ".")? "count" "(" COUNT_TYPE ")"              -> count_expr
-            | "lrs_in" "(" evaluator "," evaluator ")"                -> lrs_in_expr
-            | "lrs_isect" "(" evaluator "," evaluator ")"             -> lrs_isect_expr
-            | "lrs_union" "(" evaluator "," evaluator ")"             -> lrs_union_expr
-            | "lrs_min" "(" evaluator ")"                             -> lrs_min_expr
-            | "lrs_max" "(" evaluator ")"                             -> lrs_max_expr
-            | set_name "." "val"                                      -> val_expr
+// grouped_expr is transparent: parentheses affect precedence only, not tree shape
+?primary_expr: grouped_expr
+             | number_literal
+             | string_literal
+             | id_expr | type_expr
+             | tag_value_expr | is_tag_expr | keys_expr | generic_tag_expr
+             | version_expr | timestamp_expr | changeset_expr | uid_expr | user_expr
+             | count_tags_expr | count_members_expr | count_distinct_members_expr
+             | count_by_role_expr | count_distinct_by_role_expr
+             | is_closed_expr | lat_expr | lon_expr | geom_expr | length_expr
+             | center_expr | trace_expr | hull_expr
+             | pt_expr | lstr_expr | poly_expr
+             | per_member_expr | per_vertex_expr
+             | pos_expr | mtype_expr | ref_expr | role_expr | angle_expr
+             | number_expr | date_expr | suffix_expr | abs_expr
+             | is_number_expr | is_date_expr
+             | union_expr | min_expr | max_expr | sum_expr | set_expr | gcat_expr | count_expr
+             | lrs_in_expr | lrs_isect_expr | lrs_union_expr | lrs_min_expr | lrs_max_expr
+             | val_expr
+
+?grouped_expr: "(" evaluator ")"
+
+number_literal: UNSIGNED_NUMBER
+string_literal: STRING
+
+// Zero-arg expressions: use ! to retain the keyword token for line/col reporting
+!id_expr:                    "id" "(" ")"
+!type_expr:                  "type" "(" ")"
+!keys_expr:                  "keys" "(" ")"
+!generic_tag_expr:           "::"
+!version_expr:               "version" "(" ")"
+!timestamp_expr:             "timestamp" "(" ")"
+!changeset_expr:             "changeset" "(" ")"
+!uid_expr:                   "uid" "(" ")"
+!user_expr:                  "user" "(" ")"
+!count_tags_expr:            "count_tags" "(" ")"
+!count_members_expr:         "count_members" "(" ")"
+!count_distinct_members_expr: "count_distinct_members" "(" ")"
+!is_closed_expr:             "is_closed" "(" ")"
+!lat_expr:                   "lat" "(" ")"
+!lon_expr:                   "lon" "(" ")"
+!geom_expr:                  "geom" "(" ")"
+!length_expr:                "length" "(" ")"
+!pos_expr:                   "pos" "(" ")"
+!mtype_expr:                 "mtype" "(" ")"
+!ref_expr:                   "ref" "(" ")"
+!role_expr:                  "role" "(" ")"
+!angle_expr:                 "angle" "(" ")"
+
+// With-arg expressions: child tokens/trees carry position
+tag_value_expr:              "t" "[" evaluator "]"
+is_tag_expr:                 "is_tag" "(" tag_key ")"
+count_by_role_expr:          "count_by_role" "(" evaluator ")"
+count_distinct_by_role_expr: "count_distinct_by_role" "(" evaluator ")"
+center_expr:                 "center" "(" evaluator ")"
+trace_expr:                  "trace" "(" evaluator ")"
+hull_expr:                   "hull" "(" evaluator ")"
+pt_expr:                     "pt" "(" evaluator "," evaluator ")"
+lstr_expr:                   "lstr" "(" evaluator "," evaluator ("," evaluator)* ")"
+poly_expr:                   "poly" "(" evaluator "," evaluator ("," evaluator)* ")"
+per_member_expr:             "per_member" "(" evaluator ")"
+per_vertex_expr:             "per_vertex" "(" evaluator ")"
+number_expr:                 "number" "(" evaluator ")"
+date_expr:                   "date" "(" evaluator ")"
+suffix_expr:                 "suffix" "(" evaluator ")"
+abs_expr:                    "abs" "(" evaluator ")"
+is_number_expr:              "is_number" "(" evaluator ")"
+is_date_expr:                "is_date" "(" evaluator ")"
+union_expr:                  (set_name ".")? "u" "(" evaluator ")"
+min_expr:                    (set_name ".")? "min" "(" evaluator ")"
+max_expr:                    (set_name ".")? "max" "(" evaluator ")"
+sum_expr:                    (set_name ".")? "sum" "(" evaluator ")"
+set_expr:                    (set_name ".")? "set" "(" evaluator ")"
+gcat_expr:                   (set_name ".")? "gcat" "(" evaluator ")"
+count_expr:                  (set_name ".")? "count" "(" COUNT_TYPE ")"
+lrs_in_expr:                 "lrs_in" "(" evaluator "," evaluator ")"
+lrs_isect_expr:              "lrs_isect" "(" evaluator "," evaluator ")"
+lrs_union_expr:              "lrs_union" "(" evaluator "," evaluator ")"
+lrs_min_expr:                "lrs_min" "(" evaluator ")"
+lrs_max_expr:                "lrs_max" "(" evaluator ")"
+val_expr:                    set_name "." "val"
 
 // SET REFERENCES
 

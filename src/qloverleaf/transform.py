@@ -8,11 +8,26 @@ from lark import Token, Transformer
 from qloverleaf.exceptions import UnsupportedFeatureError
 
 
+@dataclass
+class Warning:
+    message: str
+    token: Token
+
+
 class TagFilterOp(Enum):
     EQ = "="
     NEQ = "!="
     REGEX = "~"
     NOT_REGEX = "!~"
+
+
+@dataclass
+class BboxFilter:
+    south: float
+    west: float
+    north: float
+    east: float
+    token: Token
 
 
 @dataclass
@@ -50,6 +65,30 @@ def _unquote(token: Token) -> str:
 
 
 class OverpassTransformer(Transformer[Token, Any]):
+    def __init__(self) -> None:
+        super().__init__()
+        self.warnings: list[Warning] = []
+
+
+    def number(self, children: list[Any]) -> Token:
+        assert isinstance(children[0], Token)
+        return children[0]
+
+    def bbox_filter(self, children: list[Any]) -> BboxFilter:
+        s_tok, w_tok, n_tok, e_tok = children
+        assert isinstance(s_tok, Token)
+        south, west, north, east = (
+            float(s_tok), float(w_tok), float(n_tok), float(e_tok)
+        )
+        if south >= north:
+            self.warnings.append(Warning(
+                "Bounding box south >= north: filter will always be empty",
+                s_tok,
+            ))
+        return BboxFilter(
+            south=south, west=west, north=north, east=east, token=s_tok
+        )
+
     def tag_key(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]

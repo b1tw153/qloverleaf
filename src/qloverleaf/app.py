@@ -23,6 +23,7 @@ async def listener(request: Request) -> Response:
         query_text = request.query_params.get("data", "")
 
     if not query_text:
+        # TODO: handle & in GET method too
         return Response("Missing data parameter", status_code=400)
 
 
@@ -36,7 +37,9 @@ async def listener(request: Request) -> Response:
     query = Query(text=query_text, tree=tree)
     query.stats.parse_time = parse_time
 
+    # TODO: return generator, media_type in the order StreamingResponse takes them
     media_type, generator = await interpreter.initialize(query)
+    #TODO: handle exceptions from generator
     return StreamingResponse(generator, media_type=media_type)
 
 

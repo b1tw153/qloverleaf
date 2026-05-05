@@ -1,7 +1,7 @@
 import pytest
 from lark import Token, Tree
-from lark.exceptions import UnexpectedInput
 
+from qloverleaf.exceptions import ParseError
 from qloverleaf.parser import parse
 
 
@@ -72,7 +72,7 @@ INVALID_QUERIES = [
 
 @pytest.mark.parametrize("query", INVALID_QUERIES)
 def test_parse_invalid(query: str) -> None:
-    with pytest.raises(UnexpectedInput):
+    with pytest.raises(ParseError):
         parse(query)
 
 

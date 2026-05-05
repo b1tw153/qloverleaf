@@ -38,6 +38,12 @@ class BboxFilter:
 
 
 @dataclass
+class PolygonFilter:
+    points: list[tuple[float, float]]
+    token: Token
+
+
+@dataclass
 class AroundSetFilter:
     radius: float
     set_ref: SetRef
@@ -112,6 +118,20 @@ class OverpassTransformer(Transformer[Token, Any]):
     def around_radius(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]
+
+    def poly_lat_lon(self, children: list[Any]) -> tuple[float, float, Token]:
+        lat_tok, lon_tok = children
+        assert isinstance(lat_tok, Token)
+        assert isinstance(lon_tok, Token)
+        return (float(lat_tok), float(lon_tok), lat_tok)
+
+    def polygon_filter(self, children: list[Any]) -> PolygonFilter:
+        first_token = children[0][2]
+        assert isinstance(first_token, Token)
+        return PolygonFilter(
+            points=[(lat, lon) for lat, lon, _ in children],
+            token=first_token,
+        )
 
     def around_lat_lon(self, children: list[Any]) -> tuple[float, float]:
         lat_tok, lon_tok = children

@@ -1,4 +1,5 @@
 import time
+from collections.abc import AsyncGenerator
 from urllib.parse import parse_qs
 
 from starlette.applications import Starlette
@@ -11,6 +12,14 @@ from qloverleaf.parser import parse
 from qloverleaf.query import Query
 
 
+async def _safe_stream(generator: AsyncGenerator[str, None]) -> AsyncGenerator[str, None]:
+    try:
+        async for chunk in generator:
+            yield chunk
+    except Exception as e:
+        yield f"\n\n[ERROR: {e}]"
+
+
 async def listener(request: Request) -> Response:
     if request.method == "POST":
         body = (await request.body()).decode()
@@ -20,12 +29,13 @@ async def listener(request: Request) -> Response:
         print(params)
         query_text = params.get("data", [""])[0]
     else:
+        raw_query = request.url.query
+        if "&" in raw_query:
+            return Response("Unescaped ampersand (&) in query text", status_code=400)
         query_text = request.query_params.get("data", "")
 
     if not query_text:
-        # TODO: handle & in GET method too
         return Response("Missing data parameter", status_code=400)
-
 
     try:
         start_time = time.perf_counter()
@@ -37,10 +47,11 @@ async def listener(request: Request) -> Response:
     query = Query(text=query_text, tree=tree)
     query.stats.parse_time = parse_time
 
-    # TODO: return generator, media_type in the order StreamingResponse takes them
-    media_type, generator = await interpreter.initialize(query)
-    #TODO: handle exceptions from generator
-    return StreamingResponse(generator, media_type=media_type)
+    try:
+        content, media_type = await interpreter.initialize(query)
+    except Exception as e:
+        return Response(str(e), status_code=400)
+    return StreamingResponse(_safe_stream(content), media_type=media_type)
 
 
 app = Starlette(routes=[

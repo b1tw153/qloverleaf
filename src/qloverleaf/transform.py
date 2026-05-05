@@ -1,9 +1,11 @@
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from lark import Token, Transformer
+from lark import Token, Transformer, Tree
+from lark.exceptions import VisitError
 
 from qloverleaf.exceptions import UnsupportedFeatureError
 
@@ -34,6 +36,12 @@ class BboxFilter:
     west: float
     north: float
     east: float
+    token: Token
+
+
+@dataclass
+class NewerFilter:
+    timestamp: datetime
     token: Token
 
 
@@ -90,6 +98,13 @@ class TagValueFilter:
 _ESCAPE_MAP = {'n': '\n', 't': '\t', '"': '"', "'": "'", '\\': '\\'}
 
 
+def _parse_datetime(token: Token) -> datetime:
+    v = str(token)
+    if len(v) >= 2 and v[0] in ('"', "'") and v[-1] == v[0]:
+        v = v[1:-1]
+    return datetime.fromisoformat(v)
+
+
 def _unquote(token: Token) -> str:
     v = str(token)
     if len(v) < 2 or v[0] not in ('"', "'") or v[-1] != v[0]:
@@ -110,6 +125,12 @@ class OverpassTransformer(Transformer[Token, Any]):
         super().__init__()
         self.warnings: list[Warning] = []
 
+    def transform(self, tree: Tree[Token]) -> Any:
+        try:
+            return super().transform(tree)
+        except VisitError as e:
+            raise e.orig_exc from e
+
 
     def set_ref(self, children: list[Any]) -> SetRef:
         assert isinstance(children[0], Token)
@@ -118,6 +139,16 @@ class OverpassTransformer(Transformer[Token, Any]):
     def around_radius(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]
+
+    def newer_filter(self, children: list[Any]) -> NewerFilter:
+        assert isinstance(children[0], Token)
+        return NewerFilter(timestamp=_parse_datetime(children[0]), token=children[0])
+
+    def changed_filter(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError(
+            "changed filter is not supported", children[0]
+        )
 
     def poly_lat_lon(self, children: list[Any]) -> tuple[float, float, Token]:
         lat_tok, lon_tok = children

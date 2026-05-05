@@ -260,6 +260,7 @@ NEGATE_OP: "-"
 
 // Aggregator functions optionally qualified with a named set: name.fn(expr)
 // TODO: covert aliases to productions
+// TODO: convert grouped evaluator to production, but is it in the right place for precedence?
 primary_expr: "(" evaluator ")"
             | UNSIGNED_NUMBER
             | STRING

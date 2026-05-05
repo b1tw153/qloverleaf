@@ -12,7 +12,9 @@ from qloverleaf.parser import parse
 from qloverleaf.query import Query
 
 
-async def _safe_stream(generator: AsyncGenerator[str, None]) -> AsyncGenerator[str, None]:
+async def _safe_stream(
+    generator: AsyncGenerator[str, None],
+) -> AsyncGenerator[str, None]:
     try:
         async for chunk in generator:
             yield chunk

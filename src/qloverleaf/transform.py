@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from lark import Token, Transformer
 
@@ -48,28 +49,31 @@ def _unquote(token: Token) -> str:
     return re.sub(r'\\(u[0-9A-Fa-f]{4}|[nt"\'\\])', replace_escape, inner)
 
 
-class OverpassTransformer(Transformer):
-    def tag_key(self, children: list) -> Token:
+class OverpassTransformer(Transformer[Token, Any]):
+    def tag_key(self, children: list[Any]) -> Token:
+        assert isinstance(children[0], Token)
         return children[0]
 
-    def tag_value(self, children: list) -> Token:
+    def tag_value(self, children: list[Any]) -> Token:
+        assert isinstance(children[0], Token)
         return children[0]
 
-    def tag_value_regex(self, children: list) -> Token:
+    def tag_value_regex(self, children: list[Any]) -> Token:
+        assert isinstance(children[0], Token)
         return children[0]
 
-    def regex_case_insensitive(self, children: list) -> bool:
+    def regex_case_insensitive(self, children: list[Any]) -> bool:
         return True
 
-    def tag_filter_exists(self, children: list) -> TagKeyFilter:
+    def tag_filter_exists(self, children: list[Any]) -> TagKeyFilter:
         key_token = children[0]
         return TagKeyFilter(key=_unquote(key_token), absent=False, token=key_token)
 
-    def tag_filter_absent(self, children: list) -> TagKeyFilter:
+    def tag_filter_absent(self, children: list[Any]) -> TagKeyFilter:
         key_token = children[0]
         return TagKeyFilter(key=_unquote(key_token), absent=True, token=key_token)
 
-    def tag_filter_eq(self, children: list) -> TagValueFilter:
+    def tag_filter_eq(self, children: list[Any]) -> TagValueFilter:
         key_token, value_token = children[0], children[1]
         return TagValueFilter(
             key=_unquote(key_token),
@@ -79,7 +83,7 @@ class OverpassTransformer(Transformer):
             token=key_token,
         )
 
-    def tag_filter_neq(self, children: list) -> TagValueFilter:
+    def tag_filter_neq(self, children: list[Any]) -> TagValueFilter:
         key_token, value_token = children[0], children[1]
         return TagValueFilter(
             key=_unquote(key_token),
@@ -89,7 +93,7 @@ class OverpassTransformer(Transformer):
             token=key_token,
         )
 
-    def tag_filter_regex(self, children: list) -> TagValueFilter:
+    def tag_filter_regex(self, children: list[Any]) -> TagValueFilter:
         key_token, value_token = children[0], children[1]
         case_insensitive = len(children) > 2 and children[2] is True
         return TagValueFilter(
@@ -100,7 +104,7 @@ class OverpassTransformer(Transformer):
             token=key_token,
         )
 
-    def tag_filter_not_regex(self, children: list) -> TagValueFilter:
+    def tag_filter_not_regex(self, children: list[Any]) -> TagValueFilter:
         key_token, value_token = children[0], children[1]
         case_insensitive = len(children) > 2 and children[2] is True
         return TagValueFilter(
@@ -111,7 +115,7 @@ class OverpassTransformer(Transformer):
             token=key_token,
         )
 
-    def tag_filter_key_regex(self, children: list) -> None:
+    def tag_filter_key_regex(self, children: list[Any]) -> None:
         raise UnsupportedFeatureError(
             "Key regex filter [~key~value] is not supported", children[0]
         )

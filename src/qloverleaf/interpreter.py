@@ -53,7 +53,9 @@ def _apply_global_settings(query: Query) -> None:
     # apply global timeout
     matches = list(query.tree.find_data("global_timeout"))
     if len(matches) > 1:
-        raise QueryError("Duplicate global timeout setting", matches[1].children[0])
+        token = matches[1].children[0]
+        assert isinstance(token, Token)
+        raise QueryError("Duplicate global timeout setting", token)
 
     if len(matches) == 1:
         global_timeout = matches[0]
@@ -68,7 +70,9 @@ def _apply_global_settings(query: Query) -> None:
     # apply global maxsize
     matches = list(query.tree.find_data("global_maxsize"))
     if len(matches) > 1:
-        raise QueryError("Duplicate global maxsize setting", matches[1].children[0])
+        token = matches[1].children[0]
+        assert isinstance(token, Token)
+        raise QueryError("Duplicate global maxsize setting", token)
 
     if len(matches) == 1:
         global_maxsize = matches[0]
@@ -83,17 +87,23 @@ def _apply_global_settings(query: Query) -> None:
     # apply global date
     matches = list(query.tree.find_data("global_date"))
     if len(matches) >= 1:
-        raise UnsupportedFeatureError("Global date setting is not supported", matches[0].children[0])
+        token = matches[0].children[0]
+        assert isinstance(token, Token)
+        raise UnsupportedFeatureError("Global date setting is not supported", token)
 
     # apply global diff
     matches = list(query.tree.find_data("global_diff"))
     if len(matches) >= 1:
-        raise UnsupportedFeatureError("Global diff setting is not supported", matches[0].children[0])
+        token = matches[0].children[0]
+        assert isinstance(token, Token)
+        raise UnsupportedFeatureError("Global diff setting is not supported", token)
 
     # apply global adiff
     matches = list(query.tree.find_data("global_adiff"))
     if len(matches) >= 1:
-        raise UnsupportedFeatureError("Global adiff setting is not supported", matches[0].children[0])
+        token = matches[0].children[0]
+        assert isinstance(token, Token)
+        raise UnsupportedFeatureError("Global adiff setting is not supported", token)
 
     # apply global output
     matches = list(query.tree.find_data("global_output"))
@@ -144,8 +154,8 @@ async def _execute(query: Query) -> AsyncGenerator[str, None]:
     yield query.tree.pretty()
     yield _dump(query.tree)
     # TODO: copy query.parseTree to query.executionTree (helper fn in parser?)
-    # TODO: walk execution tree and annotate with explicit input and output set names, set element types
+    # TODO: walk execution tree and annotate with set names and element types
     # TODO: walk execution tree and flag dead code (unused output)
-    # TODO: walk execution tree and flag element type mismatches between input sets and operations
+    # TODO: walk execution tree and flag element type mismatches
 
 

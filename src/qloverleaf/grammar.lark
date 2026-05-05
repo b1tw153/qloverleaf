@@ -198,7 +198,7 @@ recurse_role: STRING
 way_count_filter: "(" "way_cnt" ":" int_range ")"
 way_link_filter:  "(" "way_link" ":" int_range ")"
 
-int_range: INTEGER ("-" INTEGER?)?
+!int_range: INTEGER ("-" INTEGER?)?
 
 set_filter:   "." SET_NAME
 pivot_filter: "(" "pivot" set_ref? ")"

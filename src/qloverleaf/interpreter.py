@@ -2,6 +2,7 @@ from collections.abc import AsyncGenerator
 
 from lark import Token, Tree
 
+from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.query import OutputFormat, Query
 
 MEDIA_TYPES = {
@@ -12,12 +13,10 @@ MEDIA_TYPES = {
     OutputFormat.POPUP: "application/html",
 }
 
-# TODO: add types exceptions (QueryError, Execution Error, ...) but collect them in a separate file?
 
-
-async def initialize(query: Query) -> tuple[str, AsyncGenerator[str, None]]:
+async def initialize(query: Query) -> tuple[AsyncGenerator[str, None], str]:
     _apply_global_settings(query)
-    return MEDIA_TYPES[query.out], _execute(query)
+    return _execute(query), MEDIA_TYPES[query.out]
 
 
 def _dump(node: Tree[Token] | Token, indent: int = 0) -> str:
@@ -54,8 +53,7 @@ def _apply_global_settings(query: Query) -> None:
     # apply global timeout
     matches = list(query.tree.find_data("global_timeout"))
     if len(matches) > 1:
-        # TODO: Make this a QueryError
-        raise Exception("Duplicate global timeout setting")
+        raise QueryError("Duplicate global timeout setting", matches[1].children[0])
 
     if len(matches) == 1:
         global_timeout = matches[0]
@@ -70,8 +68,7 @@ def _apply_global_settings(query: Query) -> None:
     # apply global maxsize
     matches = list(query.tree.find_data("global_maxsize"))
     if len(matches) > 1:
-        # TODO: Make this a QueryError
-        raise Exception("Duplicate global maxsize setting")
+        raise QueryError("Duplicate global maxsize setting", matches[1].children[0])
 
     if len(matches) == 1:
         global_maxsize = matches[0]
@@ -86,26 +83,22 @@ def _apply_global_settings(query: Query) -> None:
     # apply global date
     matches = list(query.tree.find_data("global_date"))
     if len(matches) >= 1:
-        # TODO: Make this a QueryError
-        raise Exception("Unsupported global date setting")
+        raise UnsupportedFeatureError("Global date setting is not supported", matches[0].children[0])
 
     # apply global diff
     matches = list(query.tree.find_data("global_diff"))
     if len(matches) >= 1:
-        # TODO: Make this a QueryError
-        raise Exception("Unsupported global diff setting")
+        raise UnsupportedFeatureError("Global diff setting is not supported", matches[0].children[0])
 
     # apply global adiff
     matches = list(query.tree.find_data("global_adiff"))
     if len(matches) >= 1:
-        # TODO: Make this a QueryError
-        raise Exception("Unsupported global adiff setting")
+        raise UnsupportedFeatureError("Global adiff setting is not supported", matches[0].children[0])
 
     # apply global output
     matches = list(query.tree.find_data("global_output"))
     if len(matches) > 1:
-        # TODO: Make this a QueryError
-        raise Exception("Duplicate global output setting")
+        raise QueryError("Duplicate global output setting")
 
     if len(matches) == 1:
         # walk down to the global_output_* node and get its Token

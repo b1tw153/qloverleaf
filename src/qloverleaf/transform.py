@@ -9,6 +9,13 @@ from qloverleaf.exceptions import UnsupportedFeatureError
 
 
 @dataclass
+class SetRef:
+    name: str           # canonical name; "._" if implicit
+    token: Token | None # None if implicit
+    versioned: str = "" # filled in by SSA phase
+
+
+@dataclass
 class Warning:
     message: str
     token: Token
@@ -27,6 +34,28 @@ class BboxFilter:
     west: float
     north: float
     east: float
+    token: Token
+
+
+@dataclass
+class AroundSetFilter:
+    radius: float
+    set_ref: SetRef
+    token: Token
+
+
+@dataclass
+class AroundPointFilter:
+    radius: float
+    lat: float
+    lon: float
+    token: Token
+
+
+@dataclass
+class AroundLineFilter:
+    radius: float
+    points: list[tuple[float, float]]
     token: Token
 
 
@@ -75,6 +104,47 @@ class OverpassTransformer(Transformer[Token, Any]):
         super().__init__()
         self.warnings: list[Warning] = []
 
+
+    def set_ref(self, children: list[Any]) -> SetRef:
+        assert isinstance(children[0], Token)
+        return SetRef(name=str(children[0]), token=children[0])
+
+    def around_radius(self, children: list[Any]) -> Token:
+        assert isinstance(children[0], Token)
+        return children[0]
+
+    def around_lat_lon(self, children: list[Any]) -> tuple[float, float]:
+        lat_tok, lon_tok = children
+        assert isinstance(lat_tok, Token)
+        assert isinstance(lon_tok, Token)
+        return (float(lat_tok), float(lon_tok))
+
+    def around_set_filter(self, children: list[Any]) -> AroundSetFilter:
+        if len(children) == 1:
+            ref = SetRef(name="._", token=None)
+            radius_tok = children[0]
+        else:
+            ref, radius_tok = children[0], children[1]
+        assert isinstance(radius_tok, Token)
+        return AroundSetFilter(
+            radius=float(radius_tok), set_ref=ref, token=radius_tok
+        )
+
+    def around_point_filter(self, children: list[Any]) -> AroundPointFilter:
+        radius_tok, (lat, lon) = children[0], children[1]
+        assert isinstance(radius_tok, Token)
+        return AroundPointFilter(
+            radius=float(radius_tok), lat=lat, lon=lon, token=radius_tok
+        )
+
+    def around_line_filter(self, children: list[Any]) -> AroundLineFilter:
+        radius_tok = children[0]
+        assert isinstance(radius_tok, Token)
+        return AroundLineFilter(
+            radius=float(radius_tok),
+            points=list(children[1:]),
+            token=radius_tok,
+        )
 
     def number(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)

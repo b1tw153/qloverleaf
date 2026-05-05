@@ -40,6 +40,18 @@ class BboxFilter:
 
 
 @dataclass
+class UserFilter:
+    users: list[str]
+    token: Token
+
+
+@dataclass
+class UidFilter:
+    uids: list[int]
+    token: Token
+
+
+@dataclass
 class NewerFilter:
     timestamp: datetime
     token: Token
@@ -139,6 +151,30 @@ class OverpassTransformer(Transformer[Token, Any]):
     def around_radius(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]
+
+    def user_filter(self, children: list[Any]) -> UserFilter:
+        assert isinstance(children[0], Token)
+        return UserFilter(
+            users=[_unquote(t) for t in children], token=children[0]
+        )
+
+    def uid_filter(self, children: list[Any]) -> UidFilter:
+        assert isinstance(children[0], Token)
+        return UidFilter(
+            uids=[int(t) for t in children], token=children[0]
+        )
+
+    def user_touched_filter(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError(
+            "user_touched filter is not supported", children[0]
+        )
+
+    def uid_touched_filter(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError(
+            "uid_touched filter is not supported", children[0]
+        )
 
     def newer_filter(self, children: list[Any]) -> NewerFilter:
         assert isinstance(children[0], Token)

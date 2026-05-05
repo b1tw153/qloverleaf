@@ -145,21 +145,12 @@ def _apply_global_settings(query: Query) -> None:
 
 
 async def _execute(query: Query) -> AsyncGenerator[str, None]:
+    # TODO: rename query.tree to query.parseTree
     yield query.tree.pretty()
     yield _dump(query.tree)
-    # walk the top level and collect settings/statements
-    for child in query.tree.children:
-        assert isinstance(child, Tree), \
-            f"Unexpected paring error: Invalid top level element: {child}"
-        data = child.data
-        assert isinstance(data, Token), \
-            f"Unexpected paring error: Invalid top level element: {child}"
-        match data.value:
-            case "global_setting":
-                print(child)
-            case "statement":
-                print(child)
-            case _:
-                assert False, \
-                    f"Unexpected parsing error: Unknown top level element {child}"
+    # TODO: copy query.parseTree to query.executionTree (helper fn in parser?)
+    # TODO: walk execution tree and annotate with explicit input and output set names, set element types
+    # TODO: walk execution tree and flag dead code (unused output)
+    # TODO: walk execution tree and flag element type mismatches between input sets and operations
+
 

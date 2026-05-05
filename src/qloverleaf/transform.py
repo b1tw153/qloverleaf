@@ -40,6 +40,18 @@ class BboxFilter:
 
 
 @dataclass
+class AreaSetFilter:
+    set_ref: SetRef
+    token: Token | None  # None when set_ref is implicit
+
+
+@dataclass
+class AreaIdFilter:
+    area_id: int
+    token: Token
+
+
+@dataclass
 class UserFilter:
     users: list[str]
     token: Token
@@ -151,6 +163,17 @@ class OverpassTransformer(Transformer[Token, Any]):
     def around_radius(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]
+
+    def area_set_filter(self, children: list[Any]) -> AreaSetFilter:
+        if children:
+            ref = children[0]
+            assert isinstance(ref, SetRef)
+            return AreaSetFilter(set_ref=ref, token=ref.token)
+        return AreaSetFilter(set_ref=SetRef(name="._", token=None), token=None)
+
+    def area_id_filter(self, children: list[Any]) -> AreaIdFilter:
+        assert isinstance(children[0], Token)
+        return AreaIdFilter(area_id=int(children[0]), token=children[0])
 
     def user_filter(self, children: list[Any]) -> UserFilter:
         assert isinstance(children[0], Token)

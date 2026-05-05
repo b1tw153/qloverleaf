@@ -48,6 +48,18 @@ class BboxFilter:
 
 
 @dataclass
+class SetFilter:
+    set_ref: SetRef
+    token: Token
+
+
+@dataclass
+class PivotFilter:
+    set_ref: SetRef
+    token: Token | None  # None when set_ref is implicit
+
+
+@dataclass
 class WayCountFilter:
     min_count: int
     max_count: int | None  # None means open upper bound (N-)
@@ -187,6 +199,20 @@ class OverpassTransformer(Transformer[Token, Any]):
     def around_radius(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]
+
+    def set_filter(self, children: list[Any]) -> SetFilter:
+        assert isinstance(children[0], Token)
+        return SetFilter(
+            set_ref=SetRef(name=str(children[0]), token=children[0]),
+            token=children[0],
+        )
+
+    def pivot_filter(self, children: list[Any]) -> PivotFilter:
+        if children:
+            ref = children[0]
+            assert isinstance(ref, SetRef)
+            return PivotFilter(set_ref=ref, token=ref.token)
+        return PivotFilter(set_ref=SetRef(name="._", token=None), token=None)
 
     def int_range(self, children: list[Any]) -> tuple[int, int | None, bool, Token]:
         assert isinstance(children[0], Token)

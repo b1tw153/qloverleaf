@@ -31,6 +31,12 @@ class BboxFilter:
 
 
 @dataclass
+class IdFilter:
+    ids: list[int]
+    token: Token
+
+
+@dataclass
 class TagKeyFilter:
     key: str
     absent: bool
@@ -88,6 +94,14 @@ class OverpassTransformer(Transformer[Token, Any]):
         return BboxFilter(
             south=south, west=west, north=north, east=east, token=s_tok
         )
+
+    def id_filter_single(self, children: list[Any]) -> IdFilter:
+        assert isinstance(children[0], Token)
+        return IdFilter(ids=[int(children[0])], token=children[0])
+
+    def id_filter_list(self, children: list[Any]) -> IdFilter:
+        assert isinstance(children[0], Token)
+        return IdFilter(ids=[int(t) for t in children], token=children[0])
 
     def tag_key(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)

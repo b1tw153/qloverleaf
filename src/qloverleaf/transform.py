@@ -310,25 +310,29 @@ class OverpassTransformer(Transformer[Token, Any]):
                 role = child
         match recurse_type:
             case RecurseFilterType.BN:
-                ref.required_types = _WAYS
-                input_types: frozenset[ElementType] | None = _WAYS
-                output_types: frozenset[ElementType] | None = _NODES
+                ref.required_types = _NODES
+                input_types: frozenset[ElementType] | None = _NODES
+                # TODO: output_types depends on element type (way→_WAYS, rel→_RELATIONS);
+                # fill in from query_stmt transformer once that exists
+                output_types: frozenset[ElementType] | None = None
             case RecurseFilterType.BW:
-                ref.required_types = _RELATIONS
-                input_types = _RELATIONS
-                output_types = _WAYS
+                ref.required_types = _WAYS
+                input_types = _WAYS
+                output_types = _RELATIONS
             case RecurseFilterType.BR:
                 ref.required_types = _RELATIONS
                 input_types = _RELATIONS
                 output_types = _RELATIONS
             case RecurseFilterType.W:
-                ref.required_types = _NODES
-                input_types = _NODES
-                output_types = _WAYS
+                ref.required_types = _WAYS
+                input_types = _WAYS
+                output_types = _NODES
             case RecurseFilterType.R:
-                ref.required_types = _NODES
-                input_types = _NODES
-                output_types = _RELATIONS
+                ref.required_types = _RELATIONS
+                input_types = _RELATIONS
+                # TODO: output_types depends on element type (node→_NODES, way→_WAYS, rel→_RELATIONS);
+                # fill in from query_stmt transformer once that exists
+                output_types = None
         return RecurseFilter(
             recurse_type=recurse_type,
             set_ref=ref,

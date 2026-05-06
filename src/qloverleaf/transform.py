@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -10,11 +10,23 @@ from lark.exceptions import VisitError
 from qloverleaf.exceptions import UnsupportedFeatureError
 
 
+class ElementType(Enum):
+    NODE = "node"
+    WAY = "way"
+    RELATION = "relation"
+    AREA = "area"
+    # TODO: verify which filters accept derived elements as input or output;
+    # derived elements may have geometry but are not expected in the POC
+    DERIVED = "derived"
+
+
 @dataclass
 class SetRef:
-    name: str           # canonical name; "._" if implicit
-    token: Token | None # None if implicit
-    versioned: str = "" # filled in by SSA phase
+    name: str                                    # canonical name; "._" if implicit
+    token: Token | None                          # None if implicit
+    versioned: str = ""                          # filled in by SSA phase
+    # None = no constraint on what types the set must contain
+    required_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
@@ -38,6 +50,13 @@ class RecurseFilterType(Enum):
     R = "r"
 
 
+_NODES = frozenset({ElementType.NODE})
+_WAYS = frozenset({ElementType.WAY})
+_RELATIONS = frozenset({ElementType.RELATION})
+_AREAS = frozenset({ElementType.AREA})
+_NON_AREA = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
+
+
 @dataclass
 class BboxFilter:
     south: float
@@ -45,18 +64,24 @@ class BboxFilter:
     north: float
     east: float
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
 class SetFilter:
     set_ref: SetRef
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
 class PivotFilter:
     set_ref: SetRef
     token: Token | None  # None when set_ref is implicit
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
@@ -65,6 +90,8 @@ class WayCountFilter:
     max_count: int | None  # None means open upper bound (N-)
     exact: bool            # True if no dash (exact match)
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=_WAYS)
+    output_types: frozenset[ElementType] | None = field(default=_NODES)
 
 
 @dataclass
@@ -73,42 +100,56 @@ class RecurseFilter:
     set_ref: SetRef
     role: str | None
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
 class AreaSetFilter:
     set_ref: SetRef
     token: Token | None  # None when set_ref is implicit
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
 class AreaIdFilter:
     area_id: int
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
 class UserFilter:
     users: list[str]
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
 class UidFilter:
     uids: list[int]
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
 class NewerFilter:
     timestamp: datetime
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
 class PolygonFilter:
     points: list[tuple[float, float]]
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
@@ -116,6 +157,8 @@ class AroundSetFilter:
     radius: float
     set_ref: SetRef
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
@@ -124,6 +167,8 @@ class AroundPointFilter:
     lat: float
     lon: float
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
@@ -131,12 +176,16 @@ class AroundLineFilter:
     radius: float
     points: list[tuple[float, float]]
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
 class IdFilter:
     ids: list[int]
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
@@ -144,6 +193,8 @@ class TagKeyFilter:
     key: str
     absent: bool
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
@@ -153,6 +204,8 @@ class TagValueFilter:
     value: str
     case_insensitive: bool
     token: Token
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 _ESCAPE_MAP = {'n': '\n', 't': '\t', '"': '"', "'": "'", '\\': '\\'}
@@ -211,8 +264,12 @@ class OverpassTransformer(Transformer[Token, Any]):
         if children:
             ref = children[0]
             assert isinstance(ref, SetRef)
+            ref.required_types = _AREAS
             return PivotFilter(set_ref=ref, token=ref.token)
-        return PivotFilter(set_ref=SetRef(name="._", token=None), token=None)
+        return PivotFilter(
+            set_ref=SetRef(name="._", token=None, required_types=_AREAS),
+            token=None,
+        )
 
     def int_range(self, children: list[Any]) -> tuple[int, int | None, bool, Token]:
         assert isinstance(children[0], Token)
@@ -243,6 +300,7 @@ class OverpassTransformer(Transformer[Token, Any]):
     def recurse_filter(self, children: list[Any]) -> RecurseFilter:
         type_tok = children[0]
         assert isinstance(type_tok, Token)
+        recurse_type = RecurseFilterType(str(type_tok))
         ref = SetRef(name="._", token=None)
         role: str | None = None
         for child in children[1:]:
@@ -250,19 +308,46 @@ class OverpassTransformer(Transformer[Token, Any]):
                 ref = child
             elif isinstance(child, str):
                 role = child
+        match recurse_type:
+            case RecurseFilterType.BN:
+                ref.required_types = _WAYS
+                input_types: frozenset[ElementType] | None = _WAYS
+                output_types: frozenset[ElementType] | None = _NODES
+            case RecurseFilterType.BW:
+                ref.required_types = _RELATIONS
+                input_types = _RELATIONS
+                output_types = _WAYS
+            case RecurseFilterType.BR:
+                ref.required_types = _RELATIONS
+                input_types = _RELATIONS
+                output_types = _RELATIONS
+            case RecurseFilterType.W:
+                ref.required_types = _NODES
+                input_types = _NODES
+                output_types = _WAYS
+            case RecurseFilterType.R:
+                ref.required_types = _NODES
+                input_types = _NODES
+                output_types = _RELATIONS
         return RecurseFilter(
-            recurse_type=RecurseFilterType(str(type_tok)),
+            recurse_type=recurse_type,
             set_ref=ref,
             role=role,
             token=type_tok,
+            input_types=input_types,
+            output_types=output_types,
         )
 
     def area_set_filter(self, children: list[Any]) -> AreaSetFilter:
         if children:
             ref = children[0]
             assert isinstance(ref, SetRef)
+            ref.required_types = _AREAS
             return AreaSetFilter(set_ref=ref, token=ref.token)
-        return AreaSetFilter(set_ref=SetRef(name="._", token=None), token=None)
+        return AreaSetFilter(
+            set_ref=SetRef(name="._", token=None, required_types=_AREAS),
+            token=None,
+        )
 
     def area_id_filter(self, children: list[Any]) -> AreaIdFilter:
         assert isinstance(children[0], Token)
@@ -324,10 +409,11 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def around_set_filter(self, children: list[Any]) -> AroundSetFilter:
         if len(children) == 1:
-            ref = SetRef(name="._", token=None)
+            ref = SetRef(name="._", token=None, required_types=_NON_AREA)
             radius_tok = children[0]
         else:
             ref, radius_tok = children[0], children[1]
+            ref.required_types = _NON_AREA
         assert isinstance(radius_tok, Token)
         return AroundSetFilter(
             radius=float(radius_tok), set_ref=ref, token=radius_tok

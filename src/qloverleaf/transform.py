@@ -53,6 +53,15 @@ class UnaryOperator(Enum):
     NEGATE = "-"
 
 
+class CompareOperator(Enum):
+    EQUAL = "=="
+    NOT_EQUAL = "!="
+    LESS_THAN_OR_EQUAL = "<="
+    GREATER_THAN_OR_EQUAL = ">="
+    LESS_THAN = "<"
+    GREATER_THAN = ">"
+
+
 # Set Reference
 
 @dataclass
@@ -97,6 +106,14 @@ class UnaryExpression(Evaluator):
     operator: UnaryOperator
     operand: Evaluator
 
+
+@dataclass
+class CompareExpression(Evaluator):
+    left_operand: Evaluator
+    operator: CompareOperator
+    right_operand: Evaluator
+
+# ...
 
 @dataclass
 class LiteralExpression(Evaluator):
@@ -573,13 +590,11 @@ class OverpassTransformer(Transformer[Token, Any]):
             false_expression=false_expression, token=token,
             )
 
-
     def or_expr(self, children: list[Any]) -> BinaryExpression:
         operator = BinaryOperator.OR
         operands = children
         token = children[0].token
         return BinaryExpression(operator=operator, operands=operands, token=token)
-
 
     def and_expr(self, children: list[Any]) -> BinaryExpression:
         operator = BinaryOperator.AND
@@ -587,13 +602,22 @@ class OverpassTransformer(Transformer[Token, Any]):
         token = children[0].token
         return BinaryExpression(operator=operator, operands=operands, token=token)
 
-
     def not_expr(self, children: list[Any]) -> UnaryExpression:
         operator = UnaryOperator.NOT
         operand = children[0]
-        token = children[0].token
+        token = children[0]
         return UnaryExpression(operator=operator, operand=operand, token=token)
 
+    def compare_expr(self, children: list[Any]) -> CompareExpression:
+        left_operand = children[0]
+        operator = CompareOperator(children[1].value)
+        right_operand = children[2]
+        token = children[0]
+        return CompareExpression(left_operand=left_operand, operator=operator, 
+            right_operand=right_operand, token=token,
+        )
+
+    # ...
 
     def literal_expr(self, children: list[Any]) -> LiteralExpression:
         value=children[0]

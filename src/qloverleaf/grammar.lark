@@ -205,8 +205,7 @@ area_id_filter: "(" "area" ":" INTEGER ")"
 
 recurse_filter: "(" RECURSE_TYPE set_ref? (":" recurse_role)? ")"
 
-// bn/bw/br before w/r so longer tokens match first
-RECURSE_TYPE: "bn" 
+RECURSE_TYPE: "bn"  // longer tokens match first
             | "bw" 
             | "br" 
             | "w" 
@@ -270,8 +269,10 @@ OUT_VERB: "ids"
 
 recurse_stmt: set_ref? RECURSE_DIR set_assignment?
 
-// >> and << must be listed before > and < so the longer match wins
-RECURSE_DIR: ">>" | "<<" | ">" | "<"
+RECURSE_DIR: ">>"  // longer tokens match first
+           | "<<" 
+           | ">" 
+           | "<"
 
 is_in_stmt: set_ref? "is_in" ("(" number "," number ")")? set_assignment?
 
@@ -283,18 +284,18 @@ TIMELINE_TYPE: "node"
 
 local_stmt: set_ref? "local" ("l" | "ll" | "llb")? set_assignment?
 
-convert_stmt: set_ref? "convert" DERIVED_NAME (tag_assignment ("," tag_assignment)*)? set_assignment?
+convert_stmt: set_ref? "convert" DERIVED_NAME (convert_tag_assignment ("," convert_tag_assignment)*)? set_assignment?
 
-make_stmt:    "make" DERIVED_NAME (tag_assignment ("," tag_assignment)*)? set_assignment?
+convert_tag_assignment: make_tag_assignment
+                      | "::" "=" evaluator
 
-DERIVED_NAME: /[A-Za-z][A-Za-z0-9_]*/
+make_stmt:    "make" DERIVED_NAME (make_tag_assignment ("," make_tag_assignment)*)? set_assignment?
 
-tag_assignment: "!" tag_key
-              | "::id" "=" evaluator
-              | "::geom" "=" evaluator
-              | "::" "=" evaluator
-              | SET_NAME "::" "=" evaluator
-              | tag_key "=" evaluator
+make_tag_assignment: "!" tag_key
+                   | "::id" "=" evaluator
+                   | "::geom" "=" evaluator
+                   | SET_NAME "::" "=" evaluator
+                   | tag_key "=" evaluator
 
 map_to_area_stmt: set_ref? "map_to_area" set_assignment?
 
@@ -315,8 +316,8 @@ compare_stmt: set_ref? "compare" "(" ("delta" ":" evaluator)? ")" set_assignment
 NOT_OP: "!"
 
 ?compare_expr: add_expr (COMPARE_OP add_expr)?
-// <= and >= before < and > so longer tokens match first
-COMPARE_OP: "==" 
+
+COMPARE_OP: "=="  // longer tokens match first
           | "!=" 
           | "<=" 
           | ">=" 
@@ -334,12 +335,10 @@ MULTIPLY_OP: "*"
 DIVIDE_OP: "/"
 
 ?unary_expr: NEGATE_OP unary_expr
-          | primary_expr
+           | primary_expr
 
 NEGATE_OP: "-"
 
-// Aggregator functions optionally qualified with a named set: name.fn(expr)
-// grouped_expr is transparent: parentheses affect precedence only, not tree shape
 ?primary_expr: literal_expr
              | grouped_expr
              | id_expr 
@@ -481,9 +480,11 @@ number:    NUMBER
 
 // TERMINALS
 
-SET_NAME:     /[A-Za-z_][A-Za-z0-9_]*/
+SET_NAME:       /[A-Za-z_][A-Za-z0-9_]*/
 
-UNQUOTED_KEY: /[A-Za-z_][A-Za-z0-9_]*/
+DERIVED_NAME:   /[A-Za-z][A-Za-z0-9_]*/
+
+UNQUOTED_KEY:   /[A-Za-z_][A-Za-z0-9_]*/
 
 UNQUOTED_VALUE: /[A-Za-z0-9_]+/
 
@@ -500,7 +501,7 @@ NUMBER:          /[+-]?([0-9]+(\.[0-9]*)?|[0-9]*\.[0-9]+)([eE][+-]?[0-9]+)?/
 UNSIGNED_NUMBER: /([0-9]+(\.[0-9]*)?|[0-9]*\.[0-9]+)([eE][+-]?[0-9]+)?/
 
 // ISO 8601 UTC datetime, always quoted: "YYYY-MM-DDTHH:mm:ssZ"
-_DATETIME_BODY: /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z/
+_DATETIME_BODY:  /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z/
 DATETIME: "\"" _DATETIME_BODY "\"" | "'" _DATETIME_BODY "'"
 
 // IGNORED TOKENS

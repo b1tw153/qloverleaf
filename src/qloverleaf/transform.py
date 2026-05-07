@@ -234,12 +234,12 @@ class WayCountFilter(QueryFilter):
 
 @dataclass
 class SetFilter(QueryFilter):
-    set_ref: SetReference
+    set_reference: SetReference
 
 
 @dataclass
 class PivotFilter(QueryFilter):
-    set_ref: SetReference
+    set_reference: SetReference
 
 
 @dataclass
@@ -326,7 +326,10 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def set_ref(self, children: list[Any]) -> SetReference:
         assert isinstance(children[0], Token)
-        return SetReference(name=str(children[0]), token=children[0])
+        return SetReference(
+            name=str(children[0]),
+            token=children[0],
+        )
 
     def recurse_role(self, children: list[Any]) -> str:
         assert isinstance(children[0], Token)
@@ -345,53 +348,55 @@ class OverpassTransformer(Transformer[Token, Any]):
     # Query Filter Transforms
 
     def tag_filter_exists(self, children: list[Any]) -> TagKeyFilter:
-        key_token = children[0]
-        return TagKeyFilter(key=_unquote(key_token), absent=False, token=key_token)
+        return TagKeyFilter(
+            key=_unquote(children[0]),
+            absent=False,
+            token=children[0],
+        )
 
     def tag_filter_absent(self, children: list[Any]) -> TagKeyFilter:
-        key_token = children[0]
-        return TagKeyFilter(key=_unquote(key_token), absent=True, token=key_token)
+        return TagKeyFilter(
+            key=_unquote(children[0]),
+            absent=True,
+            token=children[0],
+        )
 
     def tag_filter_eq(self, children: list[Any]) -> TagValueFilter:
-        key_token, value_token = children[0], children[1]
         return TagValueFilter(
-            key=_unquote(key_token),
+            key=_unquote(children[0]),
             op=TagFilterOp.EQ,
-            value=_unquote(value_token),
+            value=_unquote(children[1]),
             case_insensitive=False,
-            token=key_token,
+            token=children[0],
         )
 
     def tag_filter_neq(self, children: list[Any]) -> TagValueFilter:
-        key_token, value_token = children[0], children[1]
         return TagValueFilter(
-            key=_unquote(key_token),
+            key=_unquote(children[0]),
             op=TagFilterOp.NEQ,
-            value=_unquote(value_token),
+            value=_unquote(children[1]),
             case_insensitive=False,
-            token=key_token,
+            token=children[0],
         )
 
     def tag_filter_regex(self, children: list[Any]) -> TagValueFilter:
-        key_token, value_token = children[0], children[1]
         case_insensitive = len(children) > 2 and children[2] is True
         return TagValueFilter(
-            key=_unquote(key_token),
+            key=_unquote(children[0]),
             op=TagFilterOp.REGEX,
-            value=_unquote(value_token),
+            value=_unquote(children[1]),
             case_insensitive=case_insensitive,
-            token=key_token,
+            token=children[0],
         )
 
     def tag_filter_not_regex(self, children: list[Any]) -> TagValueFilter:
-        key_token, value_token = children[0], children[1]
         case_insensitive = len(children) > 2 and children[2] is True
         return TagValueFilter(
-            key=_unquote(key_token),
+            key=_unquote(children[0]),
             op=TagFilterOp.NOT_REGEX,
-            value=_unquote(value_token),
+            value=_unquote(children[1]),
             case_insensitive=case_insensitive,
-            token=key_token,
+            token=children[0],
         )
 
     def tag_filter_key_regex(self, children: list[Any]) -> None:
@@ -411,43 +416,62 @@ class OverpassTransformer(Transformer[Token, Any]):
                 s_tok,
             ))
         return BboxFilter(
-            south=south, west=west, north=north, east=east, token=s_tok
+            south=south,
+            west=west,
+            north=north,
+            east=east,
+            token=s_tok,
         )
 
     def id_filter_single(self, children: list[Any]) -> IdFilter:
         assert isinstance(children[0], Token)
-        return IdFilter(ids=[int(children[0])], token=children[0])
+        return IdFilter(
+            ids=[int(children[0])],
+            token=children[0],
+        )
 
     def id_filter_list(self, children: list[Any]) -> IdFilter:
         assert isinstance(children[0], Token)
-        return IdFilter(ids=[int(t) for t in children], token=children[0])
+        return IdFilter(
+            ids=[int(t) for t in children],
+            token=children[0],
+        )
 
     def around_set_filter(self, children: list[Any]) -> AroundSetFilter:
         if len(children) == 1:
-            ref = SetReference(name="._", token=None, required_types=_NON_AREA)
-            radius_tok = children[0]
+            set_reference = SetReference(
+                name="._",
+                token=None,
+                required_types=_NON_AREA,
+            )
+            radius_token = children[0]
         else:
-            ref, radius_tok = children[0], children[1]
-            ref.required_types = _NON_AREA
-        assert isinstance(radius_tok, Token)
+            set_reference, radius_token = children[0], children[1]
+            set_reference.required_types = _NON_AREA
+        assert isinstance(radius_token, Token)
         return AroundSetFilter(
-            radius=float(radius_tok), set_ref=ref, token=radius_tok
+            radius=float(radius_token),
+            set_ref=set_reference,
+            token=radius_token,
         )
 
     def around_point_filter(self, children: list[Any]) -> AroundPointFilter:
-        radius_tok, (lat, lon) = children[0], children[1]
-        assert isinstance(radius_tok, Token)
+        radius_token, (lat, lon) = children[0], children[1]
+        assert isinstance(radius_token, Token)
         return AroundPointFilter(
-            radius=float(radius_tok), lat=lat, lon=lon, token=radius_tok
+            radius=float(radius_token),
+            lat=lat,
+            lon=lon,
+            token=radius_token,
         )
 
     def around_line_filter(self, children: list[Any]) -> AroundLineFilter:
-        radius_tok = children[0]
-        assert isinstance(radius_tok, Token)
+        radius_token = children[0]
+        assert isinstance(radius_token, Token)
         return AroundLineFilter(
-            radius=float(radius_tok),
+            radius=float(radius_token),
             points=list(children[1:]),
-            token=radius_tok,
+            token=radius_token,
         )
 
     def polygon_filter(self, children: list[Any]) -> PolygonFilter:
@@ -505,49 +529,52 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def area_id_filter(self, children: list[Any]) -> AreaIdFilter:
         assert isinstance(children[0], Token)
-        return AreaIdFilter(area_id=int(children[0]), token=children[0])
+        return AreaIdFilter(
+            area_id=int(children[0]),
+            token=children[0],
+        )
 
     def recurse_filter(self, children: list[Any]) -> RecurseFilter:
-        type_tok = children[0]
-        assert isinstance(type_tok, Token)
-        recurse_type = RecurseFilterType(str(type_tok))
-        ref = SetReference(name="._", token=None)
+        type_token = children[0]
+        assert isinstance(type_token, Token)
+        recurse_type = RecurseFilterType(str(type_token))
+        set_reference = SetReference(name="._", token=None)
         role: str | None = None
         for child in children[1:]:
             if isinstance(child, SetReference):
-                ref = child
+                set_reference = child
             elif isinstance(child, str):
                 role = child
         match recurse_type:
             case RecurseFilterType.BN:
-                ref.required_types = _NODES
+                set_reference.required_types = _NODES
                 input_types: frozenset[ElementType] | None = _NODES
                 # TODO: output_types depends on element type (way→_WAYS, rel→_RELATIONS)
                 # fill in from query_stmt transformer once that exists
                 output_types: frozenset[ElementType] | None = None
             case RecurseFilterType.BW:
-                ref.required_types = _WAYS
+                set_reference.required_types = _WAYS
                 input_types = _WAYS
                 output_types = _RELATIONS
             case RecurseFilterType.BR:
-                ref.required_types = _RELATIONS
+                set_reference.required_types = _RELATIONS
                 input_types = _RELATIONS
                 output_types = _RELATIONS
             case RecurseFilterType.W:
-                ref.required_types = _WAYS
+                set_reference.required_types = _WAYS
                 input_types = _WAYS
                 output_types = _NODES
             case RecurseFilterType.R:
-                ref.required_types = _RELATIONS
+                set_reference.required_types = _RELATIONS
                 input_types = _RELATIONS
                 # TODO: output_types depends on element type (node→_NODES, way→_WAYS,
                 # rel→_RELATIONS); fill in from query_stmt transformer once that exists
                 output_types = None
         return RecurseFilter(
             recurse_type=recurse_type,
-            set_ref=ref,
+            set_ref=set_reference,
             role=role,
-            token=type_tok,
+            token=type_token,
             input_types=input_types,
             output_types=output_types,
         )
@@ -555,8 +582,12 @@ class OverpassTransformer(Transformer[Token, Any]):
     def way_count_filter(self, children: list[Any]) -> WayCountFilter:
         min_count, max_count, exact, token = children[0]
         return WayCountFilter(
-            min_count=min_count, max_count=max_count, exact=exact, token=token,
-            input_types=_WAYS, output_types=_NODES,
+            min_count=min_count,
+            max_count=max_count,
+            exact=exact,
+            token=token,
+            input_types=_WAYS,
+            output_types=_NODES,
         )
 
     def way_link_filter(self, children: list[Any]) -> None:
@@ -568,79 +599,81 @@ class OverpassTransformer(Transformer[Token, Any]):
     def set_filter(self, children: list[Any]) -> SetFilter:
         assert isinstance(children[0], Token)
         return SetFilter(
-            set_ref=SetReference(name=str(children[0]), token=children[0]),
+            set_reference=SetReference(name=str(children[0]), token=children[0]),
             token=children[0],
         )
 
     def pivot_filter(self, children: list[Any]) -> PivotFilter:
         if children:
-            ref = children[0]
-            assert isinstance(ref, SetReference)
-            ref.required_types = _AREAS
-            return PivotFilter(set_ref=ref, token=ref.token,
-                input_types=_WR, output_types=_WR,
+            set_reference = children[0]
+            assert isinstance(set_reference, SetReference)
+            set_reference.required_types = _AREAS
+            return PivotFilter(
+                set_reference=set_reference,
+                token=set_reference.token,
+                input_types=_WR,
+                output_types=_WR,
             )
         return PivotFilter(
-            set_ref=SetReference(name="._", token=None, required_types=_AREAS),
-            input_types=_WR, output_types=_WR,
+            set_reference=SetReference(name="._", token=None, required_types=_AREAS),
+            input_types=_WR,
+            output_types=_WR,
             token=None,
         )
 
     def if_filter(self, children: list[Any]) -> IfFilter:
         evaluator = children[0]
         assert isinstance(evaluator, Evaluator)
-        token = evaluator.token
-        return IfFilter(evaluator=evaluator, token=token)
+        return IfFilter(
+            evaluator=evaluator,
+            token=evaluator.token,
+        )
 
     # Evaluators
 
     def ternary_expr(self, children: list[Any]) -> TernaryExpression:
-        condition = children[0]
-        true_expression = children[1]
-        false_expression = children[2]
-        token = children[0].token
         return TernaryExpression(
-            condition=condition, true_expression=true_expression,
-            false_expression=false_expression, token=token,
-            )
+            condition=children[0],
+            true_expression=children[1],
+            false_expression=children[2],
+            token=children[0].token,
+        )
 
     def or_expr(self, children: list[Any]) -> BinaryExpression:
-        operator = BinaryOperator.OR
-        operands = children
-        token = children[0].token
-        return BinaryExpression(operator=operator, operands=operands, token=token)
+        return BinaryExpression(
+            operator=BinaryOperator.OR,
+            operands=children,
+            token=children[0].token
+        )
 
     def and_expr(self, children: list[Any]) -> BinaryExpression:
-        operator = BinaryOperator.AND
-        operands = children
-        token = children[0].token
-        return BinaryExpression(operator=operator, operands=operands, token=token)
+        return BinaryExpression(
+            operator=BinaryOperator.AND,
+            operands=children,
+            token=children[0].token
+        )
 
     def not_expr(self, children: list[Any]) -> UnaryExpression:
-        operator = UnaryOperator.NOT
-        operand = children[1]
-        token = children[0]
-        return UnaryExpression(operator=operator, operand=operand, token=token)
+        return UnaryExpression(
+            operator=UnaryOperator.NOT,
+            operand=children[1],
+            token=children[0]
+        )
 
     def compare_expr(self, children: list[Any]) -> CompareExpression:
-        left_operand = children[0]
-        operator = CompareOperator(children[1].value)
-        right_operand = children[2]
-        token = children[0].token
-        return CompareExpression(left_operand=left_operand, operator=operator, 
-            right_operand=right_operand, token=token,
+        return CompareExpression(
+            left_operand=children[0],
+            operator=CompareOperator(children[1].value), 
+            right_operand=children[2],
+            token=children[0].token,
         )
 
     def add_expr(self, children: list[Any]) -> AddExpression:
-        left_operand = children[0]
-        operator = AddOperator(children[1].value)
-        right_operand = children[2]
-        token = children[0].token
         return AddExpression(
-            left_operand=left_operand,
-            operator=operator,
-            right_operand=right_operand,
-            token=token,
+            left_operand=children[0],
+            operator=AddOperator(children[1].value),
+            right_operand=children[2],
+            token=children[0].token,
         )
 
     # mul_expr
@@ -650,6 +683,8 @@ class OverpassTransformer(Transformer[Token, Any]):
     def literal_expr(self, children: list[Any]) -> LiteralExpression:
         token=children[0]
         assert isinstance(token, Token)
-        value = _unquote(token)
-        return LiteralExpression(value=value, token=token)
+        return LiteralExpression(
+            value=_unquote(token),
+            token=token
+        )
 

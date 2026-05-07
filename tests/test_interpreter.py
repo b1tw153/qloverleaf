@@ -3,7 +3,7 @@ import pytest
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.interpreter import _apply_global_settings
 from qloverleaf.parser import parse
-from qloverleaf.query import OutputFormat, Query
+from qloverleaf.query import Bbox, OutputFormat, Query
 
 
 def make_query(text: str) -> Query:
@@ -91,6 +91,35 @@ def test_output_default_unchanged(capsys: pytest.CaptureFixture[str]) -> None:
 def test_output_duplicate_raises(capsys: pytest.CaptureFixture[str]) -> None:
     query = make_query("[out:json][out:xml];out;")
     with pytest.raises(QueryError, match="Duplicate global output"):
+        _apply_global_settings(query)
+
+
+# ---------------------------------------------------------------------------
+# bbox
+# ---------------------------------------------------------------------------
+
+
+def test_bbox_sets_value(capsys: pytest.CaptureFixture[str]) -> None:
+    query = make_query("[bbox:51.5,-0.2,51.6,-0.1];out;")
+    _apply_global_settings(query)
+    assert query.bbox == Bbox(south="51.5", west="-0.2", north="51.6", east="-0.1")
+
+
+def test_bbox_default_unchanged(capsys: pytest.CaptureFixture[str]) -> None:
+    query = make_query("out;")
+    _apply_global_settings(query)
+    assert query.bbox is None
+
+
+def test_bbox_duplicate_raises(capsys: pytest.CaptureFixture[str]) -> None:
+    query = make_query("[bbox:51.5,-0.2,51.6,-0.1][bbox:51.5,-0.2,51.6,-0.1];out;")
+    with pytest.raises(QueryError, match="Duplicate global bbox"):
+        _apply_global_settings(query)
+
+
+def test_bbox_inverted_raises(capsys: pytest.CaptureFixture[str]) -> None:
+    query = make_query("[bbox:51.6,-0.2,51.5,-0.1];out;")
+    with pytest.raises(QueryError, match="Invalid global bbox"):
         _apply_global_settings(query)
 
 

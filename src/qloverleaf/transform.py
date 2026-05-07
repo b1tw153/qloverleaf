@@ -68,6 +68,11 @@ class AddOperator(Enum):
     SUBTRACT = "-"
 
 
+class MultiplyOperator(Enum):
+    MULTIPLY = "*"
+    DIVIDE = "/"
+
+
 # Set Reference
 
 
@@ -126,6 +131,13 @@ class CompareExpression(Evaluator):
 class AddExpression(Evaluator):
     left_operand: Evaluator
     operator: AddOperator
+    right_operand: Evaluator
+
+
+@dataclass
+class MultiplyExpression(Evaluator):
+    left_operand: Evaluator
+    operator: MultiplyOperator
     right_operand: Evaluator
 
 
@@ -674,9 +686,20 @@ class OverpassTransformer(Transformer[Token, Any]):
             token=children[0].token,
         )
 
-    # mul_expr
+    def mul_expr(self, children: list[Any]) -> MultiplyExpression:
+        return MultiplyExpression(
+            left_operand=children[0],
+            operator=MultiplyOperator(children[1].value),
+            right_operand=children[2],
+            token=children[0].token,
+        )
 
-    # unary_expr
+    def unary_expr(self, children: list[Any]) -> UnaryExpression:
+        return UnaryExpression(
+            operator=UnaryOperator.NEGATE,
+            operand=children[1],
+            token=children[0],
+        )
 
     def literal_expr(self, children: list[Any]) -> LiteralExpression:
         token = children[0]

@@ -4,7 +4,6 @@ from lark import Token, Tree
 from qloverleaf.exceptions import ParseError
 from qloverleaf.parser import parse
 
-
 # ---------------------------------------------------------------------------
 # Valid queries — just confirm they parse without error
 # ---------------------------------------------------------------------------
@@ -62,11 +61,11 @@ def test_parse_valid(query: str) -> None:
 # ---------------------------------------------------------------------------
 
 INVALID_QUERIES = [
-    "node[;out ids;",          # unclosed tag filter
-    "node[natural=peak]",      # missing semicolon
-    "[out:xml;",               # unclosed global setting
-    "gibberish",               # not a valid statement
-    "node(1,2);out ids;",      # invalid ID filter syntax
+    "node[;out ids;",  # unclosed tag filter
+    "node[natural=peak]",  # missing semicolon
+    "[out:xml;",  # unclosed global setting
+    "gibberish",  # not a valid statement
+    "node(1,2);out ids;",  # invalid ID filter syntax
 ]
 
 
@@ -80,22 +79,20 @@ def test_parse_invalid(query: str) -> None:
 # Tree structure — verify specific parse tree shapes
 # ---------------------------------------------------------------------------
 
+
 def _children_data(tree: Tree[Token]) -> list[str]:
-    return [
-        c.data if isinstance(c, Tree) else str(c)
-        for c in tree.children
-    ]
+    return [c.data if isinstance(c, Tree) else str(c) for c in tree.children]
 
 
 def test_tree_single_tag_filter() -> None:
     tree = parse("node[natural=peak];out ids;")
     assert _children_data(tree) == ["statement", "statement"]
-
+    assert isinstance(tree.children[0], Tree)
     query_stmt = tree.children[0].children[0]
     assert isinstance(query_stmt, Tree)
     assert query_stmt.data == "query_stmt"
     assert query_stmt.children[0].data == "element_type_node"  # type: ignore[union-attr]
-    assert query_stmt.children[1].data == "tag_filter_eq"      # type: ignore[union-attr]
+    assert query_stmt.children[1].data == "tag_filter_eq"  # type: ignore[union-attr]
 
 
 def test_tree_global_settings() -> None:
@@ -109,6 +106,7 @@ def test_tree_global_settings() -> None:
 
 def test_tree_named_set_assignment() -> None:
     tree = parse("node[natural=peak]->.peaks;out ids;")
+    assert isinstance(tree.children[0], Tree)
     query_stmt = tree.children[0].children[0]
     assert isinstance(query_stmt, Tree)
     # Last child should be the set_assignment
@@ -119,6 +117,7 @@ def test_tree_named_set_assignment() -> None:
 
 def test_tree_union() -> None:
     tree = parse("(node[natural=peak];way[natural=peak];);out ids;")
+    assert isinstance(tree.children[0], Tree)
     union_stmt = tree.children[0].children[0]
     assert isinstance(union_stmt, Tree)
     assert union_stmt.data == "union_stmt"
@@ -126,7 +125,10 @@ def test_tree_union() -> None:
 
 def test_tree_multiple_tag_filters() -> None:
     tree = parse("node[natural=stone][geological=glacial_erratic];out ids;")
+    assert isinstance(tree.children[0], Tree)
     query_stmt = tree.children[0].children[0]
     assert isinstance(query_stmt, Tree)
-    filters = [c for c in query_stmt.children if isinstance(c, Tree) and "filter" in c.data]
+    filters = [
+        c for c in query_stmt.children if isinstance(c, Tree) and "filter" in c.data
+    ]
     assert len(filters) == 2

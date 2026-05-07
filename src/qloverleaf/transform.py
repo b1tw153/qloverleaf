@@ -117,7 +117,7 @@ class CompareExpression(Evaluator):
 
 @dataclass
 class LiteralExpression(Evaluator):
-    value: str | float
+    value: str
 
 
 # Query Filter Classes
@@ -618,14 +618,15 @@ class OverpassTransformer(Transformer[Token, Any]):
             right_operand=right_operand, token=token,
         )
 
-    # ...
+    # add_expr
+
+    # mul_expr
+
+    # unary_expr
 
     def literal_expr(self, children: list[Any]) -> LiteralExpression:
         token=children[0]
         assert isinstance(token, Token)
-        if token.type == "STRING":
-            value: float | str = _unquote(token)
-        else:
-            value = float(token)
+        value = _unquote(token)
         return LiteralExpression(value=value, token=token)
 

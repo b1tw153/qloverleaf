@@ -277,9 +277,8 @@ NEGATE_OP: "-"
 
 // Aggregator functions optionally qualified with a named set: name.fn(expr)
 // grouped_expr is transparent: parentheses affect precedence only, not tree shape
-?primary_expr: grouped_expr
-             | UNSIGNED_NUMBER
-             | STRING
+?primary_expr: literal_expr
+             | grouped_expr
              | id_expr | type_expr
              | tag_value_expr | is_tag_expr | keys_expr | generic_tag_expr
              | version_expr | timestamp_expr | changeset_expr | uid_expr | user_expr
@@ -295,6 +294,8 @@ NEGATE_OP: "-"
              | union_expr | min_expr | max_expr | sum_expr | set_expr | gcat_expr | count_expr
              | lrs_in_expr | lrs_isect_expr | lrs_union_expr | lrs_min_expr | lrs_max_expr
              | val_expr
+
+literal_expr : UNSIGNED_NUMBER | STRING
 
 ?grouped_expr: "(" evaluator ")"
 

@@ -98,6 +98,11 @@ class UnaryExpression(Evaluator):
     operand: Evaluator
 
 
+@dataclass
+class LiteralExpression(Evaluator):
+    value: Token
+
+
 # Query Filter Classes
 
 @dataclass(kw_only=True)
@@ -589,4 +594,9 @@ class OverpassTransformer(Transformer[Token, Any]):
         token = children[0].token
         return UnaryExpression(operator=operator, operand=operand, token=token)
 
+
+    def literal_expr(self, children: list[Any]) -> LiteralExpression:
+        value=children[0]
+        token=children[0]
+        return LiteralExpression(value=value, token=token)
 

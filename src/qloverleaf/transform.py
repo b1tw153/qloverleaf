@@ -175,10 +175,10 @@ class TagValueFilter(QueryFilter):
 
 @dataclass
 class BboxFilter(QueryFilter):
-    south: float
-    west: float
-    north: float
-    east: float
+    south: str
+    west: str
+    north: str
+    east: str
 
 
 @dataclass
@@ -188,26 +188,26 @@ class IdFilter(QueryFilter):
 
 @dataclass
 class AroundSetFilter(QueryFilter):
-    radius: float
+    radius: str
     set_ref: SetReference
 
 
 @dataclass
 class AroundPointFilter(QueryFilter):
-    radius: float
-    lat: float
-    lon: float
+    radius: str
+    lat: str
+    lon: str
 
 
 @dataclass
 class AroundLineFilter(QueryFilter):
-    radius: float
-    points: list[tuple[float, float]]
+    radius: str
+    points: list[tuple[str, str]]
 
 
 @dataclass
 class PolygonFilter(QueryFilter):
-    points: list[tuple[float, float]]
+    points: list[tuple[str, str]]
 
 
 @dataclass
@@ -323,25 +323,21 @@ class OverpassTransformer(Transformer[Token, Any]):
     def regex_case_insensitive(self, children: list[Any]) -> bool:
         return True
 
-    def number(self, children: list[Any]) -> Token:
-        assert isinstance(children[0], Token)
-        return children[0]
-
     def around_radius(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]
 
-    def around_lat_lon(self, children: list[Any]) -> tuple[float, float]:
+    def around_lat_lon(self, children: list[Any]) -> tuple[str, str]:
         lat_tok, lon_tok = children
         assert isinstance(lat_tok, Token)
         assert isinstance(lon_tok, Token)
-        return (float(lat_tok), float(lon_tok))
+        return (lat_tok.value, lon_tok.value)
 
-    def poly_lat_lon(self, children: list[Any]) -> tuple[float, float, Token]:
+    def poly_lat_lon(self, children: list[Any]) -> tuple[str, str, Token]:
         lat_tok, lon_tok = children
         assert isinstance(lat_tok, Token)
         assert isinstance(lon_tok, Token)
-        return (float(lat_tok), float(lon_tok), lat_tok)
+        return (lat_tok.value, lon_tok.value, lat_tok)
 
     def set_ref(self, children: list[Any]) -> SetReference:
         assert isinstance(children[0], Token)
@@ -426,13 +422,16 @@ class OverpassTransformer(Transformer[Token, Any]):
     def bbox_filter(self, children: list[Any]) -> BboxFilter:
         s_tok, w_tok, n_tok, e_tok = children
         assert isinstance(s_tok, Token)
+        assert isinstance(w_tok, Token)
+        assert isinstance(n_tok, Token)
+        assert isinstance(e_tok, Token)
         south, west, north, east = (
-            float(s_tok),
-            float(w_tok),
-            float(n_tok),
-            float(e_tok),
+            s_tok.value,
+            w_tok.value,
+            n_tok.value,
+            e_tok.value,
         )
-        if south >= north:
+        if float(south) >= float(north):
             self.warnings.append(
                 Warning(
                     "Bounding box south >= north: filter will always be empty",
@@ -474,7 +473,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             set_reference.required_types = _NON_AREA
         assert isinstance(radius_token, Token)
         return AroundSetFilter(
-            radius=float(radius_token),
+            radius=radius_token.value,
             set_ref=set_reference,
             token=radius_token,
         )
@@ -483,7 +482,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         radius_token, (lat, lon) = children[0], children[1]
         assert isinstance(radius_token, Token)
         return AroundPointFilter(
-            radius=float(radius_token),
+            radius=radius_token.value,
             lat=lat,
             lon=lon,
             token=radius_token,
@@ -493,7 +492,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         radius_token = children[0]
         assert isinstance(radius_token, Token)
         return AroundLineFilter(
-            radius=float(radius_token),
+            radius=radius_token.value,
             points=list(children[1:]),
             token=radius_token,
         )

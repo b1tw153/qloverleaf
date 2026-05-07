@@ -165,7 +165,7 @@ tag_value_regex: STRING
 regex_case_insensitive: "," "i"
 
 // Coordinates in bbox_filter are (south, west, north, east)
-bbox_filter: "(" number "," number "," number "," number ")"
+bbox_filter: "(" NUMBER "," NUMBER "," NUMBER "," NUMBER ")"
 
 ?id_filter: id_filter_single | id_filter_list
 
@@ -181,11 +181,11 @@ around_line_filter: "(" "around" ":" around_radius "," around_lat_lon "," around
 
 around_radius: UNSIGNED_NUMBER
 
-around_lat_lon: number "," number
+around_lat_lon: NUMBER "," NUMBER
 
 polygon_filter: "(" "poly" ":" ( "\"" poly_lat_lon+ "\"" | "'" poly_lat_lon+ "'" ) ")"
 
-poly_lat_lon: number number
+poly_lat_lon: NUMBER NUMBER
 
 newer_filter: "(" "newer" ":" DATETIME ")"
 
@@ -274,7 +274,7 @@ RECURSE_DIR: ">>"  // longer tokens match first
            | ">" 
            | "<"
 
-is_in_stmt: set_ref? "is_in" ("(" number "," number ")")? set_assignment?
+is_in_stmt: set_ref? "is_in" ("(" NUMBER "," NUMBER ")")? set_assignment?
 
 timeline_stmt: "timeline" "(" TIMELINE_TYPE "," INTEGER ("," INTEGER)? ")" set_assignment?
 
@@ -473,10 +473,6 @@ set_ref: "." SET_NAME
 tag_key:   STRING | UNQUOTED_KEY
 
 tag_value: STRING | UNQUOTED_VALUE
-
-// ?
-
-number:    NUMBER
 
 // TERMINALS
 

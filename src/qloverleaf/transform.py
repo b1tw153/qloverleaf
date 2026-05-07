@@ -62,6 +62,11 @@ class CompareOperator(Enum):
     GREATER_THAN = ">"
 
 
+class AddOperator(Enum):
+    ADD = "+"
+    SUBTRACT = "-"
+
+
 # Set Reference
 
 @dataclass
@@ -112,6 +117,14 @@ class CompareExpression(Evaluator):
     left_operand: Evaluator
     operator: CompareOperator
     right_operand: Evaluator
+
+
+@dataclass
+class AddExpression(Evaluator):
+    left_operand: Evaluator
+    operator: AddOperator
+    right_operand: Evaluator
+
 
 # ...
 
@@ -618,7 +631,17 @@ class OverpassTransformer(Transformer[Token, Any]):
             right_operand=right_operand, token=token,
         )
 
-    # add_expr
+    def add_expr(self, children: list[Any]) -> AddExpression:
+        left_operand = children[0]
+        operator = AddOperator(children[1].value)
+        right_operand = children[2]
+        token = children[0].token
+        return AddExpression(
+            left_operand=left_operand,
+            operator=operator,
+            right_operand=right_operand,
+            token=token,
+        )
 
     # mul_expr
 

@@ -60,6 +60,13 @@ _RELATIONS = frozenset({ElementType.RELATION})
 _AREAS = frozenset({ElementType.AREA})
 _NON_AREA = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
 
+# Evaluator Classes
+
+@dataclass
+class Evaluator:
+    token: Token
+
+
 # Query Filter Classes
 
 @dataclass
@@ -209,6 +216,14 @@ class SetFilter:
 class PivotFilter:
     set_ref: SetRef
     token: Token | None  # None when set_ref is implicit
+    input_types: frozenset[ElementType] | None = field(default=None)
+    output_types: frozenset[ElementType] | None = field(default=None)
+
+
+@dataclass
+class IfFilter:
+    evaluator: Evaluator
+    token: Token
     input_types: frozenset[ElementType] | None = field(default=None)
     output_types: frozenset[ElementType] | None = field(default=None)
 
@@ -547,4 +562,12 @@ class OverpassTransformer(Transformer[Token, Any]):
             set_ref=SetRef(name="._", token=None, required_types=_AREAS),
             token=None,
         )
+
+    def if_filter(self, children: list[Any]) -> IfFilter:
+        evaluator = children[0]
+        assert isinstance(evaluator, Evaluator)
+        token = evaluator.token
+        return IfFilter(evaluator=evaluator, token=token)
+
+    # Evaluators
 

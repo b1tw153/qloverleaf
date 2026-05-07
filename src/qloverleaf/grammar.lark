@@ -252,7 +252,8 @@ compare_stmt: set_ref? "compare" "(" ("delta" ":" evaluator)? ")" set_assignment
 
 // EVALUATORS
 
-?evaluator: or_expr ("?" or_expr ":" evaluator)?
+?evaluator: ternary_expr
+?ternary_expr: or_expr ("?" or_expr ":" evaluator)?
 ?or_expr:   and_expr ("||" and_expr)*
 ?and_expr:  not_expr ("&&" not_expr)*
 
@@ -277,8 +278,8 @@ NEGATE_OP: "-"
 // Aggregator functions optionally qualified with a named set: name.fn(expr)
 // grouped_expr is transparent: parentheses affect precedence only, not tree shape
 ?primary_expr: grouped_expr
-             | number_literal
-             | string_literal
+             | UNSIGNED_NUMBER
+             | STRING
              | id_expr | type_expr
              | tag_value_expr | is_tag_expr | keys_expr | generic_tag_expr
              | version_expr | timestamp_expr | changeset_expr | uid_expr | user_expr
@@ -296,9 +297,6 @@ NEGATE_OP: "-"
              | val_expr
 
 ?grouped_expr: "(" evaluator ")"
-
-number_literal: UNSIGNED_NUMBER
-string_literal: STRING
 
 // Zero-arg expressions: use ! to retain the keyword token for line/col reporting
 !id_expr:                    "id" "(" ")"

@@ -78,7 +78,7 @@ _WAYS = frozenset({ElementType.WAY})
 _RELATIONS = frozenset({ElementType.RELATION})
 _AREAS = frozenset({ElementType.AREA})
 _NON_AREA = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
-_WR = frozenset({ElementType. WAY, ElementType.RELATION})
+_WR = frozenset({ElementType.WAY, ElementType.RELATION})
 
 
 # Evaluator Classes
@@ -569,6 +569,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             )
         return PivotFilter(
             set_ref=SetReference(name="._", token=None, required_types=_AREAS),
+            input_types=_WR, output_types=_WR,
             token=None,
         )
 
@@ -604,7 +605,7 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def not_expr(self, children: list[Any]) -> UnaryExpression:
         operator = UnaryOperator.NOT
-        operand = children[0]
+        operand = children[1]
         token = children[0]
         return UnaryExpression(operator=operator, operand=operand, token=token)
 
@@ -612,7 +613,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         left_operand = children[0]
         operator = CompareOperator(children[1].value)
         right_operand = children[2]
-        token = children[0]
+        token = children[0].token
         return CompareExpression(left_operand=left_operand, operator=operator, 
             right_operand=right_operand, token=token,
         )

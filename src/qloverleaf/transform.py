@@ -43,6 +43,16 @@ class RecurseFilterType(Enum):
     R = "r"
 
 
+class BinaryOperator(Enum):
+    OR = "||"
+    AND = "&&"
+
+
+class UnaryOperator(Enum):
+    NOT = "!"
+    NEGATE = "-"
+
+
 # Set Reference
 
 @dataclass
@@ -72,6 +82,18 @@ class TernaryExpression(Evaluator):
     condition: Evaluator
     true_expression: Evaluator
     false_expression: Evaluator
+
+
+@dataclass
+class BinaryExpression(Evaluator):
+    operator: BinaryOperator
+    operands: list[Evaluator]
+
+
+@dataclass
+class UnaryExpression(Evaluator):
+    operator: UnaryOperator
+    operand: Evaluator
 
 
 # Query Filter Classes
@@ -541,3 +563,26 @@ class OverpassTransformer(Transformer[Token, Any]):
             condition=condition, true_expression=true_expression,
             false_expression=false_expression, token=token
             )
+
+
+    def or_expr(self, children: list[Any]) -> BinaryExpression:
+        operator = BinaryOperator.OR
+        operands = children
+        token = children[0].token
+        return BinaryExpression(operator=operator, operands=operands, token=token)
+
+
+    def and_expr(self, children: list[Any]) -> BinaryExpression:
+        operator = BinaryOperator.AND
+        operands = children
+        token = children[0].token
+        return BinaryExpression(operator=operator, operands=operands, token=token)
+
+
+    def not_expr(self, children: list[Any]) -> UnaryExpression:
+        operator = UnaryOperator.NOT
+        operand = children[0]
+        token = children[0].token
+        return UnaryExpression(operator=operator, operand=operand, token=token)
+
+

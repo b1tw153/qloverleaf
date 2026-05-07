@@ -62,170 +62,130 @@ _NON_AREA = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
 
 # Evaluator Classes
 
-@dataclass
+@dataclass(kw_only=True)
 class Evaluator:
     token: Token
 
 
+@dataclass
+class TernaryExpression(Evaluator):
+    condition: Evaluator
+    true_expression: Evaluator
+    false_expression: Evaluator
+
+
 # Query Filter Classes
 
-@dataclass
-class TagKeyFilter:
-    key: str
-    absent: bool
-    token: Token
+@dataclass(kw_only=True)
+class QueryFilter:
+    token: Token | None  # None when set_ref is implicit
     input_types: frozenset[ElementType] | None = field(default=None)
     output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class TagValueFilter:
+class TagKeyFilter(QueryFilter):
+    key: str
+    absent: bool
+
+
+@dataclass
+class TagValueFilter(QueryFilter):
     key: str
     op: TagFilterOp
     value: str
     case_insensitive: bool
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class BboxFilter:
+class BboxFilter(QueryFilter):
     south: float
     west: float
     north: float
     east: float
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class IdFilter:
+class IdFilter(QueryFilter):
     ids: list[int]
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class AroundSetFilter:
+class AroundSetFilter(QueryFilter):
     radius: float
     set_ref: SetRef
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class AroundPointFilter:
+class AroundPointFilter(QueryFilter):
     radius: float
     lat: float
     lon: float
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class AroundLineFilter:
+class AroundLineFilter(QueryFilter):
     radius: float
     points: list[tuple[float, float]]
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class PolygonFilter:
+class PolygonFilter(QueryFilter):
     points: list[tuple[float, float]]
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class NewerFilter:
+class NewerFilter(QueryFilter):
     timestamp: datetime
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class UserFilter:
+class UserFilter(QueryFilter):
     users: list[str]
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class UidFilter:
+class UidFilter(QueryFilter):
     uids: list[int]
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class AreaSetFilter:
+class AreaSetFilter(QueryFilter):
     set_ref: SetRef
-    token: Token | None  # None when set_ref is implicit
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class AreaIdFilter:
+class AreaIdFilter(QueryFilter):
     area_id: int
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class RecurseFilter:
+class RecurseFilter(QueryFilter):
     recurse_type: RecurseFilterType
     set_ref: SetRef
     role: str | None
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class WayCountFilter:
+class WayCountFilter(QueryFilter):
     min_count: int
     max_count: int | None  # None means open upper bound (N-)
     exact: bool            # True if no dash (exact match)
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=_WAYS)
-    output_types: frozenset[ElementType] | None = field(default=_NODES)
 
 
 @dataclass
-class SetFilter:
+class SetFilter(QueryFilter):
     set_ref: SetRef
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class PivotFilter:
+class PivotFilter(QueryFilter):
     set_ref: SetRef
-    token: Token | None  # None when set_ref is implicit
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 @dataclass
-class IfFilter:
+class IfFilter(QueryFilter):
     evaluator: Evaluator
-    token: Token
-    input_types: frozenset[ElementType] | None = field(default=None)
-    output_types: frozenset[ElementType] | None = field(default=None)
 
 
 # Helper Functions
@@ -503,7 +463,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             case RecurseFilterType.BN:
                 ref.required_types = _NODES
                 input_types: frozenset[ElementType] | None = _NODES
-                # TODO: output_types depends on element type (way→_WAYS, rel→_RELATIONS);
+                # TODO: output_types depends on element type (way→_WAYS, rel→_RELATIONS)
                 # fill in from query_stmt transformer once that exists
                 output_types: frozenset[ElementType] | None = None
             case RecurseFilterType.BW:
@@ -521,8 +481,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             case RecurseFilterType.R:
                 ref.required_types = _RELATIONS
                 input_types = _RELATIONS
-                # TODO: output_types depends on element type (node→_NODES, way→_WAYS, rel→_RELATIONS);
-                # fill in from query_stmt transformer once that exists
+                # TODO: output_types depends on element type (node→_NODES, way→_WAYS,
+                # rel→_RELATIONS); fill in from query_stmt transformer once that exists
                 output_types = None
         return RecurseFilter(
             recurse_type=recurse_type,
@@ -536,7 +496,8 @@ class OverpassTransformer(Transformer[Token, Any]):
     def way_count_filter(self, children: list[Any]) -> WayCountFilter:
         min_count, max_count, exact, token = children[0]
         return WayCountFilter(
-            min_count=min_count, max_count=max_count, exact=exact, token=token
+            min_count=min_count, max_count=max_count, exact=exact, token=token,
+            input_types=_WAYS, output_types=_NODES
         )
 
     def way_link_filter(self, children: list[Any]) -> None:
@@ -571,3 +532,12 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     # Evaluators
 
+    def ternary_expr(self, children: list[Any]) -> TernaryExpression:
+        condition = children[0]
+        true_expression = children[1]
+        false_expression = children[2]
+        token = children[0].token
+        return TernaryExpression(
+            condition=condition, true_expression=true_expression,
+            false_expression=false_expression, token=token
+            )

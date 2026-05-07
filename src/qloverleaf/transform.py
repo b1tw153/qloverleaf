@@ -117,7 +117,7 @@ class CompareExpression(Evaluator):
 
 @dataclass
 class LiteralExpression(Evaluator):
-    value: Token
+    value: str | float
 
 
 # Query Filter Classes

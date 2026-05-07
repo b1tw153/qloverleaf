@@ -1,7 +1,19 @@
+from typing import Any
+
 import pytest
 from lark import Token
 
-from qloverleaf.transform import _parse_datetime, _unquote
+from qloverleaf.parser import parse
+from qloverleaf.transform import OverpassTransformer, _parse_datetime, _unquote
+
+
+def _transform_query(text: str) -> Any:
+    return OverpassTransformer().transform(parse(text))
+
+
+def _first_filter(text: str) -> Any:
+    return _transform_query(text).children[0].children[0].children[1]
+
 
 # ---------------------------------------------------------------------------
 # _parse_datetime
@@ -111,3 +123,26 @@ def test_unquote_multiple_escapes() -> None:
 
 def test_unquote_too_short_passthrough() -> None:
     assert _unquote(_string_token('"')) == '"'
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.tag_key
+# ---------------------------------------------------------------------------
+
+
+def test_tag_key_unquoted() -> None:
+    f = _first_filter("node[amenity];")
+    assert f.token.type == "UNQUOTED_KEY"
+    assert f.token.value == "amenity"
+
+
+def test_tag_key_quoted() -> None:
+    f = _first_filter('node["amenity"];')
+    assert f.token.type == "STRING"
+    assert f.token.value == '"amenity"'
+
+
+def test_tag_key_quoted_single() -> None:
+    f = _first_filter("node['amenity'];")
+    assert f.token.type == "STRING"
+    assert f.token.value == "'amenity'"

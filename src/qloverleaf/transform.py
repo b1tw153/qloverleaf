@@ -18,6 +18,7 @@ class Warning:
 
 # Basic Types
 
+
 class ElementType(Enum):
     NODE = "node"
     WAY = "way"
@@ -69,11 +70,12 @@ class AddOperator(Enum):
 
 # Set Reference
 
+
 @dataclass
 class SetReference:
-    name: str                                    # canonical name; "._" if implicit
-    token: Token | None                          # None if implicit
-    versioned: str = ""                          # filled in by SSA phase
+    name: str  # canonical name; "._" if implicit
+    token: Token | None  # None if implicit
+    versioned: str = ""  # filled in by SSA phase
     # None = no constraint on what types the set must contain
     required_types: frozenset[ElementType] | None = field(default=None)
 
@@ -87,6 +89,7 @@ _WR = frozenset({ElementType.WAY, ElementType.RELATION})
 
 
 # Evaluator Classes
+
 
 @dataclass(kw_only=True)
 class Evaluator:
@@ -128,12 +131,14 @@ class AddExpression(Evaluator):
 
 # ...
 
+
 @dataclass
 class LiteralExpression(Evaluator):
     value: str
 
 
 # Query Filter Classes
+
 
 @dataclass(kw_only=True)
 class QueryFilter:
@@ -229,7 +234,7 @@ class RecurseFilter(QueryFilter):
 class WayCountFilter(QueryFilter):
     min_count: int
     max_count: int | None  # None means open upper bound (N-)
-    exact: bool            # True if no dash (exact match)
+    exact: bool  # True if no dash (exact match)
 
 
 @dataclass
@@ -249,6 +254,7 @@ class IfFilter(QueryFilter):
 
 # Helper Functions
 
+
 def _parse_datetime(token: Token) -> datetime:
     v = str(token)
     if len(v) >= 2 and v[0] in ('"', "'") and v[-1] == v[0]:
@@ -256,7 +262,7 @@ def _parse_datetime(token: Token) -> datetime:
     return datetime.fromisoformat(v)
 
 
-_ESCAPE_MAP = {'n': '\n', 't': '\t', '"': '"', "'": "'", '\\': '\\'}
+_ESCAPE_MAP = {"n": "\n", "t": "\t", '"': '"', "'": "'", "\\": "\\"}
 
 
 def _unquote(token: Token) -> str:
@@ -267,7 +273,7 @@ def _unquote(token: Token) -> str:
 
     def replace_escape(m: re.Match) -> str:  # type: ignore[type-arg]
         seq = m.group(1)
-        if seq[0] == 'u':
+        if seq[0] == "u":
             return chr(int(seq[1:], 16))
         return _ESCAPE_MAP[seq]
 
@@ -275,6 +281,7 @@ def _unquote(token: Token) -> str:
 
 
 # Overpass Transformer
+
 
 class OverpassTransformer(Transformer[Token, Any]):
     def __init__(self) -> None:
@@ -408,13 +415,18 @@ class OverpassTransformer(Transformer[Token, Any]):
         s_tok, w_tok, n_tok, e_tok = children
         assert isinstance(s_tok, Token)
         south, west, north, east = (
-            float(s_tok), float(w_tok), float(n_tok), float(e_tok)
+            float(s_tok),
+            float(w_tok),
+            float(n_tok),
+            float(e_tok),
         )
         if south >= north:
-            self.warnings.append(Warning(
-                "Bounding box south >= north: filter will always be empty",
-                s_tok,
-            ))
+            self.warnings.append(
+                Warning(
+                    "Bounding box south >= north: filter will always be empty",
+                    s_tok,
+                )
+            )
         return BboxFilter(
             south=south,
             west=west,
@@ -488,21 +500,15 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def changed_filter(self, children: list[Any]) -> None:
         assert isinstance(children[0], Token)
-        raise UnsupportedFeatureError(
-            "changed filter is not supported", children[0]
-        )
+        raise UnsupportedFeatureError("changed filter is not supported", children[0])
 
     def user_filter(self, children: list[Any]) -> UserFilter:
         assert isinstance(children[0], Token)
-        return UserFilter(
-            users=[_unquote(t) for t in children], token=children[0]
-        )
+        return UserFilter(users=[_unquote(t) for t in children], token=children[0])
 
     def uid_filter(self, children: list[Any]) -> UidFilter:
         assert isinstance(children[0], Token)
-        return UidFilter(
-            uids=[int(t) for t in children], token=children[0]
-        )
+        return UidFilter(uids=[int(t) for t in children], token=children[0])
 
     def user_touched_filter(self, children: list[Any]) -> None:
         assert isinstance(children[0], Token)
@@ -592,9 +598,7 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def way_link_filter(self, children: list[Any]) -> None:
         min_count, max_count, exact, token = children[0]
-        raise UnsupportedFeatureError(
-            "way_link filter is not supported", token
-        )
+        raise UnsupportedFeatureError("way_link filter is not supported", token)
 
     def set_filter(self, children: list[Any]) -> SetFilter:
         assert isinstance(children[0], Token)
@@ -641,29 +645,23 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def or_expr(self, children: list[Any]) -> BinaryExpression:
         return BinaryExpression(
-            operator=BinaryOperator.OR,
-            operands=children,
-            token=children[0].token
+            operator=BinaryOperator.OR, operands=children, token=children[0].token
         )
 
     def and_expr(self, children: list[Any]) -> BinaryExpression:
         return BinaryExpression(
-            operator=BinaryOperator.AND,
-            operands=children,
-            token=children[0].token
+            operator=BinaryOperator.AND, operands=children, token=children[0].token
         )
 
     def not_expr(self, children: list[Any]) -> UnaryExpression:
         return UnaryExpression(
-            operator=UnaryOperator.NOT,
-            operand=children[1],
-            token=children[0]
+            operator=UnaryOperator.NOT, operand=children[1], token=children[0]
         )
 
     def compare_expr(self, children: list[Any]) -> CompareExpression:
         return CompareExpression(
             left_operand=children[0],
-            operator=CompareOperator(children[1].value), 
+            operator=CompareOperator(children[1].value),
             right_operand=children[2],
             token=children[0].token,
         )
@@ -681,10 +679,6 @@ class OverpassTransformer(Transformer[Token, Any]):
     # unary_expr
 
     def literal_expr(self, children: list[Any]) -> LiteralExpression:
-        token=children[0]
+        token = children[0]
         assert isinstance(token, Token)
-        return LiteralExpression(
-            value=_unquote(token),
-            token=token
-        )
-
+        return LiteralExpression(value=_unquote(token), token=token)

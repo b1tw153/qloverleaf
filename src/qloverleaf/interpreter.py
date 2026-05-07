@@ -59,11 +59,13 @@ def _apply_global_settings(query: Query) -> None:
 
     if len(matches) == 1:
         global_timeout = matches[0]
-        assert len(global_timeout.children) == 1, \
+        assert len(global_timeout.children) == 1, (
             f"Unexpected parsing error: Invalid global timeout {global_timeout}"
+        )
         global_timeout_param = global_timeout.children[0]
-        assert isinstance(global_timeout_param, Token), \
+        assert isinstance(global_timeout_param, Token), (
             f"Unexpected parsing error: Invalid global timeout {global_timeout}"
+        )
         query.timeout = int(global_timeout_param.value)
         print(f"[timeout:{int(global_timeout_param.value)}]")
 
@@ -76,11 +78,13 @@ def _apply_global_settings(query: Query) -> None:
 
     if len(matches) == 1:
         global_maxsize = matches[0]
-        assert len(global_maxsize.children) == 1, \
+        assert len(global_maxsize.children) == 1, (
             f"Unexpected parsing error: Invalid global maxsize {global_maxsize}"
+        )
         global_maxsize_param = global_maxsize.children[0]
-        assert isinstance(global_maxsize_param, Token), \
+        assert isinstance(global_maxsize_param, Token), (
             f"Unexpected parsing error: Invalid global maxsize {global_maxsize}"
+        )
         query.maxsize = int(global_maxsize_param.value)
         print(f"[maxsize:{int(global_maxsize_param.value)}]")
 
@@ -113,14 +117,17 @@ def _apply_global_settings(query: Query) -> None:
     if len(matches) == 1:
         # walk down to the global_output_* node and get its Token
         global_output_node = matches[0]
-        assert len(global_output_node.children) == 1, \
+        assert len(global_output_node.children) == 1, (
             "Unexpected parsing error: Malformed global output node"
+        )
         global_output_setting = global_output_node.children[0]
-        assert isinstance(global_output_setting, Tree), \
+        assert isinstance(global_output_setting, Tree), (
             "Unexpected parsing error: Malformed global output node"
+        )
         global_output_token = global_output_setting.data
-        assert isinstance(global_output_token, Token), \
+        assert isinstance(global_output_token, Token), (
             "Unexpected parsing error: Malformed global output token"
+        )
 
         match global_output_token.value:
             case "global_output_xml":
@@ -134,9 +141,10 @@ def _apply_global_settings(query: Query) -> None:
             case "global_output_popup":
                 query.out = OutputFormat.POPUP
             case _:
-                assert False, \
+                assert False, (
                     f"Unexpected global output type: {global_output_token.value}"
-        
+                )
+
         # collect parameter subtree
         assert len(global_output_setting.children) <= 1, (
             "Unexpected parsing error: "
@@ -157,5 +165,3 @@ async def _execute(query: Query) -> AsyncGenerator[str, None]:
     # TODO: walk execution tree and annotate with set names and element types
     # TODO: walk execution tree and flag dead code (unused output)
     # TODO: walk execution tree and flag element type mismatches
-
-

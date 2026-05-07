@@ -4,7 +4,13 @@ import pytest
 from lark import Token
 
 from qloverleaf.parser import parse
-from qloverleaf.transform import OverpassTransformer, _parse_datetime, _unquote
+from qloverleaf.transform import (
+    OverpassTransformer,
+    TagKeyFilter,
+    TagValueFilter,
+    _parse_datetime,
+    _unquote,
+)
 
 
 def _transform_query(text: str) -> Any:
@@ -132,17 +138,40 @@ def test_unquote_too_short_passthrough() -> None:
 
 def test_tag_key_unquoted() -> None:
     f = _first_filter("node[amenity];")
-    assert f.token.type == "UNQUOTED_KEY"
-    assert f.token.value == "amenity"
+    assert isinstance(f, TagKeyFilter)
+    assert f.key == "amenity"
 
 
 def test_tag_key_quoted() -> None:
-    f = _first_filter('node["amenity"];')
-    assert f.token.type == "STRING"
-    assert f.token.value == '"amenity"'
+    f = _first_filter('node["gnis:feature_id"];')
+    assert isinstance(f, TagKeyFilter)
+    assert f.key == "gnis:feature_id"
 
 
 def test_tag_key_quoted_single() -> None:
-    f = _first_filter("node['amenity'];")
-    assert f.token.type == "STRING"
-    assert f.token.value == "'amenity'"
+    f = _first_filter("node['gnis:feature_id'];")
+    assert isinstance(f, TagKeyFilter)
+    assert f.key == "gnis:feature_id"
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.tag_value
+# ---------------------------------------------------------------------------
+
+
+def test_tag_value_unquoted() -> None:
+    f = _first_filter("node[amenity=parking];")
+    assert isinstance(f, TagValueFilter)
+    assert f.value == "parking"
+
+
+def test_tag_value_quoted() -> None:
+    f = _first_filter('node["addr:street"="Main Street"];')
+    assert isinstance(f, TagValueFilter)
+    assert f.value == "Main Street"
+
+
+def test_tag_value_quoted_single() -> None:
+    f = _first_filter("node['addr:street'='Main Street'];")
+    assert isinstance(f, TagValueFilter)
+    assert f.value == "Main Street"

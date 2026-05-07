@@ -18,16 +18,11 @@ global_setting: "timeout" ":" global_timeout
               | "adiff" ":" global_adiff
 
 global_timeout: INTEGER
-
 global_maxsize: INTEGER
-
-global_bbox: number "," number "," number "," number
-
-global_date: DATETIME
-
-global_diff: DATETIME ("," DATETIME)?
-
-global_adiff: DATETIME ("," DATETIME)?
+global_bbox:    number "," number "," number "," number
+global_date:    DATETIME
+global_diff:    DATETIME ("," DATETIME)?
+global_adiff:   DATETIME ("," DATETIME)?
 
 global_output: global_output_xml
              | global_output_json
@@ -35,33 +30,44 @@ global_output: global_output_xml
              | global_output_custom
              | global_output_popup
 
-global_output_xml: "xml"
-
-global_output_json: "json"
-
-global_output_csv: "csv" "(" csv_spec ")"
-
+global_output_xml:    "xml"
+global_output_json:   "json"
+global_output_csv:    "csv" "(" csv_spec ")"
 global_output_custom: "custom"
-
-global_output_popup: "popup" ("(" popup_config ")")?
+global_output_popup:  "popup" ("(" popup_config ")")?
 
 popup_config: popup_token (";" popup_token)* ";"?
+
 popup_token: (STRING | POPUP_CHARS)*
+
 POPUP_CHARS: /[^;)"']+/
 
 csv_spec: csv_field ("," csv_field)* (";" BOOLEAN (";" STRING)?)?
+
 csv_field: "::" csv_builtin
          | tag_key
 
 csv_builtin: SIMPLE_CSV_BUILTIN | QUOTED_CSV_BUILTIN
 
-SIMPLE_CSV_BUILTIN: "id" | "type" | "otype" | "lat" | "lon"
-                    | "version" | "timestamp" | "changeset" | "uid" | "user" | "count"
+SIMPLE_CSV_BUILTIN: "id" 
+                  | "type" 
+                  | "otype" 
+                  | "lat" 
+                  | "lon"
+                  | "version" 
+                  | "timestamp" 
+                  | "changeset" 
+                  | "uid" 
+                  | "user" 
+                  | "count"
 
-COMPLEX_CSV_BUILTIN: "count:nodes" | "count:ways" | "count:relations"
+COMPLEX_CSV_BUILTIN: "count:nodes" 
+                   | "count:ways" 
+                   | "count:relations"
 
-// Quoted builtins accept the unquoted names plus the colon-containing count variants
 QUOTED_CSV_BUILTIN: "\"" (SIMPLE_CSV_BUILTIN | COMPLEX_CSV_BUILTIN) "\""
+
+BOOLEAN: "true" | "false"
 
 // STATEMENTS
 
@@ -103,6 +109,7 @@ query_stmt: element_type filter* set_assignment?
              | element_type_area
              | element_type_derived
 
+// Non-terminal productions to retain tokens in AST
 !element_type_node:     "node"
 !element_type_way:      "way"
 !element_type_relation: "rel" | "relation"
@@ -153,7 +160,7 @@ tag_filter_regex:     "[" tag_key "~" tag_value_regex regex_case_insensitive? "]
 tag_filter_not_regex: "[" tag_key "!~" tag_value_regex regex_case_insensitive? "]"
 tag_filter_key_regex: "[" "~" tag_key_regex "~" tag_value_regex regex_case_insensitive? "]"
 
-tag_key_regex: STRING
+tag_key_regex:   STRING
 tag_value_regex: STRING
 regex_case_insensitive: "," "i"
 
@@ -163,17 +170,21 @@ bbox_filter: "(" number "," number "," number "," number ")"
 ?id_filter: id_filter_single | id_filter_list
 
 id_filter_single: "(" INTEGER ")"
+
 id_filter_list:   "(" "id" ":" INTEGER ("," INTEGER)* ")"
 
-// Radius in metres; optional lat/lon pairs define a polyline reference
 around_set_filter: "(" "around" set_ref? ":" around_radius ")"
+
 around_point_filter: "(" "around" ":" around_radius "," around_lat_lon ")"
+
 around_line_filter: "(" "around" ":" around_radius "," around_lat_lon "," around_lat_lon ("," around_lat_lon)* ")"
 
 around_radius: UNSIGNED_NUMBER
+
 around_lat_lon: number "," number
 
 polygon_filter: "(" "poly" ":" ( "\"" poly_lat_lon+ "\"" | "'" poly_lat_lon+ "'" ) ")"
+
 poly_lat_lon: number number
 
 newer_filter: "(" "newer" ":" DATETIME ")"
@@ -188,20 +199,31 @@ user_touched_filter: "(" "user_touched" ":" STRING ("," STRING)* ")"
 
 uid_touched_filter: "(" "uid_touched" ":" INTEGER ("," INTEGER)* ")"
 
-// Without :integer, uses areas from the input set
 area_set_filter: "(" "area" set_ref? ")"
+
 area_id_filter: "(" "area" ":" INTEGER ")"
 
 recurse_filter: "(" RECURSE_TYPE set_ref? (":" recurse_role)? ")"
+
+// bn/bw/br before w/r so longer tokens match first
+RECURSE_TYPE: "bn" 
+            | "bw" 
+            | "br" 
+            | "w" 
+            | "r"
+
 recurse_role: STRING
 
 way_count_filter: "(" "way_cnt" ":" int_range ")"
+
 way_link_filter:  "(" "way_link" ":" int_range ")"
 
 !int_range: INTEGER ("-" INTEGER?)?
 
 set_filter:   "." SET_NAME
+
 pivot_filter: "(" "pivot" set_ref? ")"
+
 if_filter:    "(" "if" ":" evaluator ")"
 
 // BLOCK STATEMENTS
@@ -210,34 +232,62 @@ block_body: "{" statement* "}"
           | "(" statement* ")"
 
 foreach_stmt:  "foreach" set_ref? set_assignment? block_body
+
 for_stmt:      "for" set_ref? set_assignment? "(" evaluator ")" block_body
+
 complete_stmt: "complete" set_ref? set_assignment? ("(" INTEGER ")")? "{" statement* "}"
+
 if_stmt:       "if" "(" evaluator ")" block_body ("else" block_body)?
+
 retro_stmt:    "retro" "(" evaluator ")" block_body
 
 // OTHER STATEMENTS
 
 union_stmt:   "(" union_body ")" set_assignment?
+
 union_body:   union_member*
+
 union_member: "-"? statement
 
 item_stmt: set_ref set_assignment?
 
 out_stmt:  set_ref? "out" out_token*
+
 out_token: OUT_VERB | INTEGER | bbox_filter
 
-// >> and << must be listed before > and < so the longer match wins
+OUT_VERB: "ids" 
+        | "skel" 
+        | "body" 
+        | "tags" 
+        | "meta" 
+        | "count"
+        | "geom" 
+        | "bb" 
+        | "center" 
+        | "noids" 
+        | "asc" 
+        | "qt"
+
 recurse_stmt: set_ref? RECURSE_DIR set_assignment?
+
+// >> and << must be listed before > and < so the longer match wins
 RECURSE_DIR: ">>" | "<<" | ">" | "<"
 
 is_in_stmt: set_ref? "is_in" ("(" number "," number ")")? set_assignment?
 
 timeline_stmt: "timeline" "(" TIMELINE_TYPE "," INTEGER ("," INTEGER)? ")" set_assignment?
 
+TIMELINE_TYPE: "node" 
+             | "way" 
+             | "relation"
+
 local_stmt: set_ref? "local" ("l" | "ll" | "llb")? set_assignment?
 
 convert_stmt: set_ref? "convert" DERIVED_NAME (tag_assignment ("," tag_assignment)*)? set_assignment?
+
 make_stmt:    "make" DERIVED_NAME (tag_assignment ("," tag_assignment)*)? set_assignment?
+
+DERIVED_NAME: /[A-Za-z][A-Za-z0-9_]*/
 
 tag_assignment: "!" tag_key
               | "::id" "=" evaluator
@@ -253,8 +303,11 @@ compare_stmt: set_ref? "compare" "(" ("delta" ":" evaluator)? ")" set_assignment
 // EVALUATORS
 
 ?evaluator: ternary_expr
+
 ?ternary_expr: or_expr ("?" or_expr ":" evaluator)?
+
 ?or_expr:   and_expr ("||" and_expr)*
+
 ?and_expr:  not_expr ("&&" not_expr)*
 
 ?not_expr: NOT_OP not_expr
@@ -262,148 +315,193 @@ compare_stmt: set_ref? "compare" "(" ("delta" ":" evaluator)? ")" set_assignment
 NOT_OP: "!"
 
 ?compare_expr: add_expr (COMPARE_OP add_expr)?
+// <= and >= before < and > so longer tokens match first
+COMPARE_OP: "==" 
+          | "!=" 
+          | "<=" 
+          | ">=" 
+          | "<" 
+          | ">"
 
 ?add_expr:     mul_expr  ((ADD_OP | SUBTRACT_OP) mul_expr)*
+
 ADD_OP: "+"
 SUBTRACT_OP: "-"
 
 ?mul_expr:     unary_expr ((MULTIPLY_OP | DIVIDE_OP) unary_expr)*
+
 MULTIPLY_OP: "*"
 DIVIDE_OP: "/"
 
 ?unary_expr: NEGATE_OP unary_expr
           | primary_expr
+
 NEGATE_OP: "-"
 
 // Aggregator functions optionally qualified with a named set: name.fn(expr)
 // grouped_expr is transparent: parentheses affect precedence only, not tree shape
 ?primary_expr: literal_expr
              | grouped_expr
-             | id_expr | type_expr
-             | tag_value_expr | is_tag_expr | keys_expr | generic_tag_expr
-             | version_expr | timestamp_expr | changeset_expr | uid_expr | user_expr
-             | count_tags_expr | count_members_expr | count_distinct_members_expr
-             | count_by_role_expr | count_distinct_by_role_expr
-             | is_closed_expr | lat_expr | lon_expr | geom_expr | length_expr
-             | center_expr | trace_expr | hull_expr
-             | pt_expr | lstr_expr | poly_expr
-             | per_member_expr | per_vertex_expr
-             | pos_expr | mtype_expr | ref_expr | role_expr | angle_expr
-             | number_expr | date_expr | suffix_expr | abs_expr
-             | is_number_expr | is_date_expr
-             | union_expr | min_expr | max_expr | sum_expr | set_expr | gcat_expr | count_expr
-             | lrs_in_expr | lrs_isect_expr | lrs_union_expr | lrs_min_expr | lrs_max_expr
+             | id_expr 
+             | type_expr
+             | tag_value_expr 
+             | is_tag_expr 
+             | keys_expr 
+             | generic_tag_expr  // only valid as the value of a generic property assignment in convert/make
+             | version_expr 
+             | timestamp_expr 
+             | changeset_expr 
+             | uid_expr 
+             | user_expr
+             | count_tags_expr 
+             | count_members_expr 
+             | count_distinct_members_expr
+             | count_by_role_expr 
+             | count_distinct_by_role_expr
+             | is_closed_expr 
+             | lat_expr 
+             | lon_expr 
+             | geom_expr 
+             | length_expr
+             | center_expr 
+             | trace_expr 
+             | hull_expr
+             | pt_expr 
+             | lstr_expr 
+             | poly_expr
+             | per_member_expr 
+             | per_vertex_expr
+             | pos_expr    // only valid inside per_member or per_vertex
+             | mtype_expr  // only valid inside per_member or per_vertex
+             | ref_expr    // only valid inside per_member or per_vertex
+             | role_expr   // only valid inside per_member or per_vertex
+             | angle_expr  // only valid inside per_member or per_vertex
+             | number_expr
+             | date_expr 
+             | suffix_expr 
+             | abs_expr
+             | is_number_expr 
+             | is_date_expr
+             | union_expr 
+             | min_expr 
+             | max_expr 
+             | sum_expr 
+             | set_expr 
+             | gcat_expr 
+             | count_expr
+             | lrs_in_expr 
+             | lrs_isect_expr 
+             | lrs_union_expr 
+             | lrs_min_expr 
+             | lrs_max_expr
              | val_expr
 
 literal_expr : UNSIGNED_NUMBER | STRING
 
 ?grouped_expr: "(" evaluator ")"
 
-// Zero-arg expressions: use ! to retain the keyword token for line/col reporting
-!id_expr:                    "id" "(" ")"
-!type_expr:                  "type" "(" ")"
-!keys_expr:                  "keys" "(" ")"
-!generic_tag_expr:           "::"
-!version_expr:               "version" "(" ")"
-!timestamp_expr:             "timestamp" "(" ")"
-!changeset_expr:             "changeset" "(" ")"
-!uid_expr:                   "uid" "(" ")"
-!user_expr:                  "user" "(" ")"
-!count_tags_expr:            "count_tags" "(" ")"
-!count_members_expr:         "count_members" "(" ")"
+!id_expr:                     "id" "(" ")"
+!type_expr:                   "type" "(" ")"
+tag_value_expr:               "t" "[" evaluator "]"
+is_tag_expr:                  "is_tag" "(" tag_key ")"
+!keys_expr:                   "keys" "(" ")"
+!generic_tag_expr:            "::"
+!version_expr:                "version" "(" ")"
+!timestamp_expr:              "timestamp" "(" ")"
+!changeset_expr:              "changeset" "(" ")"
+!uid_expr:                    "uid" "(" ")"
+!user_expr:                   "user" "(" ")"
+!count_tags_expr:             "count_tags" "(" ")"
+!count_members_expr:          "count_members" "(" ")"
 !count_distinct_members_expr: "count_distinct_members" "(" ")"
-!is_closed_expr:             "is_closed" "(" ")"
-!lat_expr:                   "lat" "(" ")"
-!lon_expr:                   "lon" "(" ")"
-!geom_expr:                  "geom" "(" ")"
-!length_expr:                "length" "(" ")"
-!pos_expr:                   "pos" "(" ")"
-!mtype_expr:                 "mtype" "(" ")"
-!ref_expr:                   "ref" "(" ")"
-!role_expr:                  "role" "(" ")"
-!angle_expr:                 "angle" "(" ")"
+count_by_role_expr:           "count_by_role" "(" evaluator ")"
+count_distinct_by_role_expr:  "count_distinct_by_role" "(" evaluator ")"
+!is_closed_expr:              "is_closed" "(" ")"
+!lat_expr:                    "lat" "(" ")"
+!lon_expr:                    "lon" "(" ")"
+!geom_expr:                   "geom" "(" ")"
+!length_expr:                 "length" "(" ")"
+center_expr:                  "center" "(" evaluator ")"
+trace_expr:                   "trace" "(" evaluator ")"
+hull_expr:                    "hull" "(" evaluator ")"
+pt_expr:                      "pt" "(" evaluator "," evaluator ")"
+lstr_expr:                    "lstr" "(" evaluator "," evaluator ("," evaluator)* ")"
+poly_expr:                    "poly" "(" evaluator "," evaluator ("," evaluator)* ")"
+per_member_expr:              "per_member" "(" evaluator ")"
+per_vertex_expr:              "per_vertex" "(" evaluator ")"
+!pos_expr:                    "pos" "(" ")"
+!mtype_expr:                  "mtype" "(" ")"
+!ref_expr:                    "ref" "(" ")"
+!role_expr:                   "role" "(" ")"
+!angle_expr:                  "angle" "(" ")"
+number_expr:                  "number" "(" evaluator ")"
+date_expr:                    "date" "(" evaluator ")"
+suffix_expr:                  "suffix" "(" evaluator ")"
+abs_expr:                     "abs" "(" evaluator ")"
+is_number_expr:               "is_number" "(" evaluator ")"
+is_date_expr:                 "is_date" "(" evaluator ")"
+union_expr:                   (set_name ".")? "u" "(" evaluator ")"
+min_expr:                     (set_name ".")? "min" "(" evaluator ")"
+max_expr:                     (set_name ".")? "max" "(" evaluator ")"
+sum_expr:                     (set_name ".")? "sum" "(" evaluator ")"
+set_expr:                     (set_name ".")? "set" "(" evaluator ")"
+gcat_expr:                    (set_name ".")? "gcat" "(" evaluator ")"
+count_expr:                   (set_name ".")? "count" "(" COUNT_TYPE ")"
+lrs_in_expr:                  "lrs_in" "(" evaluator "," evaluator ")"
+lrs_isect_expr:               "lrs_isect" "(" evaluator "," evaluator ")"
+lrs_union_expr:               "lrs_union" "(" evaluator "," evaluator ")"
+lrs_min_expr:                 "lrs_min" "(" evaluator ")"
+lrs_max_expr:                 "lrs_max" "(" evaluator ")"
+val_expr:                     set_name "." "val"
 
-// With-arg expressions: child tokens/trees carry position
-tag_value_expr:              "t" "[" evaluator "]"
-is_tag_expr:                 "is_tag" "(" tag_key ")"
-count_by_role_expr:          "count_by_role" "(" evaluator ")"
-count_distinct_by_role_expr: "count_distinct_by_role" "(" evaluator ")"
-center_expr:                 "center" "(" evaluator ")"
-trace_expr:                  "trace" "(" evaluator ")"
-hull_expr:                   "hull" "(" evaluator ")"
-pt_expr:                     "pt" "(" evaluator "," evaluator ")"
-lstr_expr:                   "lstr" "(" evaluator "," evaluator ("," evaluator)* ")"
-poly_expr:                   "poly" "(" evaluator "," evaluator ("," evaluator)* ")"
-per_member_expr:             "per_member" "(" evaluator ")"
-per_vertex_expr:             "per_vertex" "(" evaluator ")"
-number_expr:                 "number" "(" evaluator ")"
-date_expr:                   "date" "(" evaluator ")"
-suffix_expr:                 "suffix" "(" evaluator ")"
-abs_expr:                    "abs" "(" evaluator ")"
-is_number_expr:              "is_number" "(" evaluator ")"
-is_date_expr:                "is_date" "(" evaluator ")"
-union_expr:                  (set_name ".")? "u" "(" evaluator ")"
-min_expr:                    (set_name ".")? "min" "(" evaluator ")"
-max_expr:                    (set_name ".")? "max" "(" evaluator ")"
-sum_expr:                    (set_name ".")? "sum" "(" evaluator ")"
-set_expr:                    (set_name ".")? "set" "(" evaluator ")"
-gcat_expr:                   (set_name ".")? "gcat" "(" evaluator ")"
-count_expr:                  (set_name ".")? "count" "(" COUNT_TYPE ")"
-lrs_in_expr:                 "lrs_in" "(" evaluator "," evaluator ")"
-lrs_isect_expr:              "lrs_isect" "(" evaluator "," evaluator ")"
-lrs_union_expr:              "lrs_union" "(" evaluator "," evaluator ")"
-lrs_min_expr:                "lrs_min" "(" evaluator ")"
-lrs_max_expr:                "lrs_max" "(" evaluator ")"
-val_expr:                    set_name "." "val"
+COUNT_TYPE: "nodes" 
+          | "ways" 
+          | "relations" 
+          | "deriveds" 
+          | "nwr" 
+          | "nw" 
+          | "wr" 
+          | "nr"
 
 // SET REFERENCES
 
 set_name: SET_NAME
+
 set_ref: "." SET_NAME
 
+// TAG KEY/VALUE
+
 tag_key:   STRING | UNQUOTED_KEY
+
 tag_value: STRING | UNQUOTED_VALUE
+
+// ?
+
 number:    NUMBER
 
 // TERMINALS
 
-// Identifiers — same character class, context distinguishes usage
 SET_NAME:     /[A-Za-z_][A-Za-z0-9_]*/
-DERIVED_NAME: /[A-Za-z][A-Za-z0-9_]*/
+
 UNQUOTED_KEY: /[A-Za-z_][A-Za-z0-9_]*/
 
-// Tag values allow only alphanumerics and underscore when unquoted
 UNQUOTED_VALUE: /[A-Za-z0-9_]+/
 
 // String literals: double- or single-quoted with backslash escapes
 STRING: /\"([^\"\\]|\\[nt\"'\\]|\\u[0-9A-Fa-f]{4})*\"/
       | /\'([^\'\\]|\\[nt\"'\\]|\\u[0-9A-Fa-f]{4})*\'/
 
-BOOLEAN: "true" | "false"
-
 INTEGER: /[0-9]+/
 
-// Signed decimal for coordinates; unsigned for radii and evaluator literals
+// Signed decimal for coordinates
 NUMBER:          /[+-]?([0-9]+(\.[0-9]*)?|[0-9]*\.[0-9]+)([eE][+-]?[0-9]+)?/
+
+// Unsigned decimal for radii and evaluator literals
 UNSIGNED_NUMBER: /([0-9]+(\.[0-9]*)?|[0-9]*\.[0-9]+)([eE][+-]?[0-9]+)?/
 
 // ISO 8601 UTC datetime, always quoted: "YYYY-MM-DDTHH:mm:ssZ"
-// TODO: permit single quoted datetime values in the EBNF
 _DATETIME_BODY: /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z/
 DATETIME: "\"" _DATETIME_BODY "\"" | "'" _DATETIME_BODY "'"
-
-// bn/bw/br before w/r so longer tokens match first
-RECURSE_TYPE: "bn" | "bw" | "br" | "w" | "r"
-
-// <= and >= before < and > so longer tokens match first
-COMPARE_OP: "==" | "!=" | "<=" | ">=" | "<" | ">"
-
-COUNT_TYPE: "nodes" | "ways" | "relations" | "deriveds" | "nwr" | "nw" | "wr" | "nr"
-
-OUT_VERB: "ids" | "skel" | "body" | "tags" | "meta" | "count"
-        | "geom" | "bb" | "center" | "noids" | "asc" | "qt"
-
-TIMELINE_TYPE: "node" | "way" | "relation"
 
 // IGNORED TOKENS
 

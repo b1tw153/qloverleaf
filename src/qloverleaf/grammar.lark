@@ -19,7 +19,7 @@ global_setting: "timeout" ":" global_timeout
 
 global_timeout: INTEGER
 global_maxsize: INTEGER
-global_bbox:    number "," number "," number "," number
+global_bbox:    NUMBER "," NUMBER "," NUMBER "," NUMBER
 global_date:    DATETIME
 global_diff:    DATETIME ("," DATETIME)?
 global_adiff:   DATETIME ("," DATETIME)?

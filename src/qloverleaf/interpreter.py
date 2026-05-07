@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 from lark import Token, Tree
 
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
-from qloverleaf.query import OutputFormat, Query
+from qloverleaf.query import Bbox, OutputFormat, Query
 
 MEDIA_TYPES = {
     OutputFormat.XML: "application/osm3s+xml",
@@ -16,10 +16,14 @@ MEDIA_TYPES = {
 
 async def initialize(query: Query) -> tuple[AsyncGenerator[str, None], str]:
     _apply_global_settings(query)
+    # TODO: transform AST to IR
+    # TODO: walk IR and annotate with versioned set names
+    # TODO: walk IR and flag dead code (unused output)
+    # TODO: walk IR and flag element type mismatches
     return _execute(query), MEDIA_TYPES[query.out]
 
 
-def _dump(node: Tree[Token] | Token, indent: int = 0) -> str:
+def _dump_ast(node: Tree[Token] | Token, indent: int = 0) -> str:
     prefix = "  " * indent
     if isinstance(node, Token):
         return (
@@ -45,7 +49,7 @@ def _dump(node: Tree[Token] | Token, indent: int = 0) -> str:
     else:
         lines = f"{prefix}Alias({node.data!r})\n"
     for child in node.children:
-        lines += _dump(child, indent + 1)
+        lines += _dump_ast(child, indent + 1)
     return lines
 
 
@@ -87,27 +91,6 @@ def _apply_global_settings(query: Query) -> None:
         )
         query.maxsize = int(global_maxsize_param.value)
         print(f"[maxsize:{int(global_maxsize_param.value)}]")
-
-    # apply global date
-    matches = list(query.tree.find_data("global_date"))
-    if len(matches) >= 1:
-        token = matches[0].children[0]
-        assert isinstance(token, Token)
-        raise UnsupportedFeatureError("Global date setting is not supported", token)
-
-    # apply global diff
-    matches = list(query.tree.find_data("global_diff"))
-    if len(matches) >= 1:
-        token = matches[0].children[0]
-        assert isinstance(token, Token)
-        raise UnsupportedFeatureError("Global diff setting is not supported", token)
-
-    # apply global adiff
-    matches = list(query.tree.find_data("global_adiff"))
-    if len(matches) >= 1:
-        token = matches[0].children[0]
-        assert isinstance(token, Token)
-        raise UnsupportedFeatureError("Global adiff setting is not supported", token)
 
     # apply global output
     matches = list(query.tree.find_data("global_output"))
@@ -156,12 +139,44 @@ def _apply_global_settings(query: Query) -> None:
                 query.out_params = out_params
         print(f"[out:{query.out}({query.out_params})]")
 
+    # apply global bbox
+    matches = list(query.tree.find_data("global_bbox"))
+    if len(matches) > 1:
+        token = matches[1].children[0]
+        assert isinstance(token, Token)
+        raise QueryError("Duplicate global bbox setting", token)
+    if len(matches) == 1:
+        s_tok, w_tok, n_tok, e_tok = matches[0].children
+        south, west, north, east = ( s_tok.value, w_tok.value, n_tok.value, e_tok.value )
+        if south >= north:
+            raise QueryError("Invalid global bbox parameters", s_tok)
+        query.bbox = Bbox(south, west, north, east)
+        print(f"[bbox:{query.bbox}]")
+
+    # apply global date
+    matches = list(query.tree.find_data("global_date"))
+    if len(matches) >= 1:
+        token = matches[0].children[0]
+        assert isinstance(token, Token)
+        raise UnsupportedFeatureError("Global date setting is not supported", token)
+
+    # apply global diff
+    matches = list(query.tree.find_data("global_diff"))
+    if len(matches) >= 1:
+        token = matches[0].children[0]
+        assert isinstance(token, Token)
+        raise UnsupportedFeatureError("Global diff setting is not supported", token)
+
+    # apply global adiff
+    matches = list(query.tree.find_data("global_adiff"))
+    if len(matches) >= 1:
+        token = matches[0].children[0]
+        assert isinstance(token, Token)
+        raise UnsupportedFeatureError("Global adiff setting is not supported", token)
+
 
 async def _execute(query: Query) -> AsyncGenerator[str, None]:
-    # TODO: rename query.tree to query.parseTree
     yield query.tree.pretty()
-    yield _dump(query.tree)
-    # TODO: copy query.parseTree to query.executionTree (helper fn in parser?)
-    # TODO: walk execution tree and annotate with set names and element types
-    # TODO: walk execution tree and flag dead code (unused output)
-    # TODO: walk execution tree and flag element type mismatches
+    yield _dump_ast(query.tree)
+#   yield _dump_ir(query.ir)
+

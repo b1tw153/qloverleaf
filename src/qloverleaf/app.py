@@ -56,6 +56,8 @@ async def listener(request: Request) -> Response:
     return StreamingResponse(_safe_stream(content), media_type=media_type)
 
 
-app = Starlette(routes=[
-    Route("/api/interpreter", listener, methods=["GET", "POST"]),
-])
+app = Starlette(
+    routes=[
+        Route("/api/interpreter", listener, methods=["GET", "POST"]),
+    ]
+)

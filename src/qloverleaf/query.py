@@ -17,6 +17,7 @@ class Stats:
     output_formatter_time: float = 0.0
     end_time: float = 0.0
 
+
 @dataclass
 class Bbox:
     south: float
@@ -24,12 +25,14 @@ class Bbox:
     north: float
     east: float
 
+
 class OutputFormat(Enum):
     XML = "xml"
     JSON = "json"
     CSV = "csv"
     CUSTOM = "custom"
     POPUP = "popup"
+
 
 @dataclass
 class Query:
@@ -41,4 +44,3 @@ class Query:
     bbox: Optional[Bbox] = None
     out: OutputFormat = OutputFormat.XML
     out_params: Optional[Tree[Token]] = None
-

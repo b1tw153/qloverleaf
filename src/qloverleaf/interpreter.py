@@ -148,7 +148,7 @@ def _apply_global_settings(query: Query) -> None:
     if len(matches) == 1:
         s_tok, w_tok, n_tok, e_tok = matches[0].children
         south, west, north, east = ( s_tok.value, w_tok.value, n_tok.value, e_tok.value )
-        if south >= north:
+        if float(south) >= float(north):
             raise QueryError("Invalid global bbox parameters", s_tok)
         query.bbox = Bbox(south, west, north, east)
         print(f"[bbox:{query.bbox}]")

@@ -20,10 +20,10 @@ class Stats:
 
 @dataclass
 class Bbox:
-    south: float
-    west: float
-    north: float
-    east: float
+    south: str
+    west: str
+    north: str
+    east: str
 
 
 class OutputFormat(Enum):
@@ -39,7 +39,7 @@ class Query:
     text: str
     tree: Tree[Token]
     stats: Stats = field(default_factory=Stats)
-    timeout: float = 180.0
+    timeout: int = 180
     maxsize: int = 2048 * 1024
     bbox: Optional[Bbox] = None
     out: OutputFormat = OutputFormat.XML

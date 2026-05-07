@@ -5,7 +5,10 @@ from lark import Token
 
 from qloverleaf.parser import parse
 from qloverleaf.transform import (
+    AroundPointFilter,
+    BboxFilter,
     OverpassTransformer,
+    PolygonFilter,
     TagKeyFilter,
     TagValueFilter,
     _parse_datetime,
@@ -175,3 +178,100 @@ def test_tag_value_quoted_single() -> None:
     f = _first_filter("node['addr:street'='Main Street'];")
     assert isinstance(f, TagValueFilter)
     assert f.value == "Main Street"
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.tag_value_regex / regex_case_insensitive
+# ---------------------------------------------------------------------------
+
+
+def test_tag_value_regex_simple() -> None:
+    f = _first_filter('node[amenity~"parking|parking_space"];')
+    assert isinstance(f, TagValueFilter)
+    assert f.value == "parking|parking_space"
+
+
+def test_tag_value_regex_simple_single_quoted() -> None:
+    f = _first_filter("node[amenity~'parking|parking_space'];")
+    assert isinstance(f, TagValueFilter)
+    assert f.value == "parking|parking_space"
+
+
+def test_tag_value_regex_case_sensitive() -> None:
+    f = _first_filter('node[amenity~"parking|parking_space"];')
+    assert isinstance(f, TagValueFilter)
+    assert f.case_insensitive is False
+
+
+def test_tag_value_regex_case_insensitive() -> None:
+    f = _first_filter('node[amenity~"parking|parking_space",i];')
+    assert isinstance(f, TagValueFilter)
+    assert f.case_insensitive is True
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.around_radius
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.bbox_filter
+# ---------------------------------------------------------------------------
+
+
+def test_bbox_filter_values() -> None:
+    f = _first_filter("node(51.5,-0.2,51.6,-0.1);")
+    assert isinstance(f, BboxFilter)
+    assert f.south == "51.5"
+    assert f.west == "-0.2"
+    assert f.north == "51.6"
+    assert f.east == "-0.1"
+
+
+def test_bbox_filter_inverted_warns() -> None:
+    transformer = OverpassTransformer()
+    transformer.transform(parse("node(51.6,-0.2,51.5,-0.1);"))
+    assert len(transformer.warnings) == 1
+    assert "south >= north" in transformer.warnings[0].message
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.set_ref
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.recurse_role
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.int_range
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.around_lat_lon (via around_point_filter)
+# ---------------------------------------------------------------------------
+
+
+def test_around_lat_lon_values() -> None:
+    f = _first_filter("node(around:100.0,51.5,-0.2);")
+    assert isinstance(f, AroundPointFilter)
+    assert f.lat == "51.5"
+    assert f.lon == "-0.2"
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.poly_lat_lon (via polygon_filter)
+# ---------------------------------------------------------------------------
+
+
+def test_poly_lat_lon_values() -> None:
+    f = _first_filter('node(poly:"51.5 -0.2 51.6 -0.1 51.5 -0.3");')
+    assert isinstance(f, PolygonFilter)
+    assert f.points == [("51.5", "-0.2"), ("51.6", "-0.1"), ("51.5", "-0.3")]

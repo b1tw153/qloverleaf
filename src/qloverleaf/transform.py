@@ -56,7 +56,7 @@ class UnaryOperator(Enum):
 # Set Reference
 
 @dataclass
-class SetRef:
+class SetReference:
     name: str                                    # canonical name; "._" if implicit
     token: Token | None                          # None if implicit
     versioned: str = ""                          # filled in by SSA phase
@@ -69,6 +69,8 @@ _WAYS = frozenset({ElementType.WAY})
 _RELATIONS = frozenset({ElementType.RELATION})
 _AREAS = frozenset({ElementType.AREA})
 _NON_AREA = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
+_WR = frozenset({ElementType. WAY, ElementType.RELATION})
+
 
 # Evaluator Classes
 
@@ -135,7 +137,7 @@ class IdFilter(QueryFilter):
 @dataclass
 class AroundSetFilter(QueryFilter):
     radius: float
-    set_ref: SetRef
+    set_ref: SetReference
 
 
 @dataclass
@@ -173,7 +175,7 @@ class UidFilter(QueryFilter):
 
 @dataclass
 class AreaSetFilter(QueryFilter):
-    set_ref: SetRef
+    set_ref: SetReference
 
 
 @dataclass
@@ -184,7 +186,7 @@ class AreaIdFilter(QueryFilter):
 @dataclass
 class RecurseFilter(QueryFilter):
     recurse_type: RecurseFilterType
-    set_ref: SetRef
+    set_ref: SetReference
     role: str | None
 
 
@@ -197,12 +199,12 @@ class WayCountFilter(QueryFilter):
 
 @dataclass
 class SetFilter(QueryFilter):
-    set_ref: SetRef
+    set_ref: SetReference
 
 
 @dataclass
 class PivotFilter(QueryFilter):
-    set_ref: SetRef
+    set_ref: SetReference
 
 
 @dataclass
@@ -287,9 +289,9 @@ class OverpassTransformer(Transformer[Token, Any]):
         assert isinstance(lon_tok, Token)
         return (float(lat_tok), float(lon_tok), lat_tok)
 
-    def set_ref(self, children: list[Any]) -> SetRef:
+    def set_ref(self, children: list[Any]) -> SetReference:
         assert isinstance(children[0], Token)
-        return SetRef(name=str(children[0]), token=children[0])
+        return SetReference(name=str(children[0]), token=children[0])
 
     def recurse_role(self, children: list[Any]) -> str:
         assert isinstance(children[0], Token)
@@ -387,7 +389,7 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def around_set_filter(self, children: list[Any]) -> AroundSetFilter:
         if len(children) == 1:
-            ref = SetRef(name="._", token=None, required_types=_NON_AREA)
+            ref = SetReference(name="._", token=None, required_types=_NON_AREA)
             radius_tok = children[0]
         else:
             ref, radius_tok = children[0], children[1]
@@ -458,11 +460,11 @@ class OverpassTransformer(Transformer[Token, Any]):
     def area_set_filter(self, children: list[Any]) -> AreaSetFilter:
         if children:
             ref = children[0]
-            assert isinstance(ref, SetRef)
+            assert isinstance(ref, SetReference)
             ref.required_types = _AREAS
             return AreaSetFilter(set_ref=ref, token=ref.token)
         return AreaSetFilter(
-            set_ref=SetRef(name="._", token=None, required_types=_AREAS),
+            set_ref=SetReference(name="._", token=None, required_types=_AREAS),
             token=None,
         )
 
@@ -474,10 +476,10 @@ class OverpassTransformer(Transformer[Token, Any]):
         type_tok = children[0]
         assert isinstance(type_tok, Token)
         recurse_type = RecurseFilterType(str(type_tok))
-        ref = SetRef(name="._", token=None)
+        ref = SetReference(name="._", token=None)
         role: str | None = None
         for child in children[1:]:
-            if isinstance(child, SetRef):
+            if isinstance(child, SetReference):
                 ref = child
             elif isinstance(child, str):
                 role = child
@@ -519,7 +521,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         min_count, max_count, exact, token = children[0]
         return WayCountFilter(
             min_count=min_count, max_count=max_count, exact=exact, token=token,
-            input_types=_WAYS, output_types=_NODES
+            input_types=_WAYS, output_types=_NODES,
         )
 
     def way_link_filter(self, children: list[Any]) -> None:
@@ -531,18 +533,20 @@ class OverpassTransformer(Transformer[Token, Any]):
     def set_filter(self, children: list[Any]) -> SetFilter:
         assert isinstance(children[0], Token)
         return SetFilter(
-            set_ref=SetRef(name=str(children[0]), token=children[0]),
+            set_ref=SetReference(name=str(children[0]), token=children[0]),
             token=children[0],
         )
 
     def pivot_filter(self, children: list[Any]) -> PivotFilter:
         if children:
             ref = children[0]
-            assert isinstance(ref, SetRef)
+            assert isinstance(ref, SetReference)
             ref.required_types = _AREAS
-            return PivotFilter(set_ref=ref, token=ref.token)
+            return PivotFilter(set_ref=ref, token=ref.token,
+                input_types=_WR, output_types=_WR,
+            )
         return PivotFilter(
-            set_ref=SetRef(name="._", token=None, required_types=_AREAS),
+            set_ref=SetReference(name="._", token=None, required_types=_AREAS),
             token=None,
         )
 
@@ -561,7 +565,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         token = children[0].token
         return TernaryExpression(
             condition=condition, true_expression=true_expression,
-            false_expression=false_expression, token=token
+            false_expression=false_expression, token=token,
             )
 
 

@@ -621,7 +621,11 @@ class OverpassTransformer(Transformer[Token, Any]):
     # ...
 
     def literal_expr(self, children: list[Any]) -> LiteralExpression:
-        value=children[0]
         token=children[0]
+        assert isinstance(token, Token)
+        if token.type == "STRING":
+            value: float | str = _unquote(token)
+        else:
+            value = float(token)
         return LiteralExpression(value=value, token=token)
 

@@ -507,6 +507,13 @@ class OverpassTransformer(Transformer[Token, Any]):
             assert isinstance(children[2], Token)
             return (int(children[0]), int(children[2]), False, children[0])
 
+    def set_name(self, children: list[Any]) -> SetReference:
+        assert isinstance(children[0], Token)
+        return SetReference(
+            name=str(children[0]),
+            token=children[0],
+        )
+
     # Query Filter Transforms
 
     def tag_filter_exists(self, children: list[Any]) -> TagKeyFilter:
@@ -1151,12 +1158,24 @@ class OverpassTransformer(Transformer[Token, Any]):
             token=children[0].token,
         )
 
-    # union_expr
-    # min_expr
-    # max_expr
-    # sum_expr
-    # set_expr
-    # gcat_expr
+    def unique_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("u() is not supported", children[0].token)
+
+    def min_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("min() is not supported", children[0].token)
+
+    def max_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("max() is not supported", children[0].token)
+
+    def sum_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("sum() is not supported", children[0].token)
+
+    def set_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("set() is not supported", children[0].token)
+
+    def gcat_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("gcat() is not supported", children[0].token)
+
     # count_expr
 
     def lrs_in_expr(self, children: list[Any]) -> None:

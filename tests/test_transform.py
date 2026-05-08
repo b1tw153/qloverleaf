@@ -6,19 +6,35 @@ from lark import Token
 from qloverleaf.exceptions import UnsupportedFeatureError
 from qloverleaf.parser import parse
 from qloverleaf.transform import (
+    AddExpression,
+    AddOperator,
     AroundPointFilter,
     BboxFilter,
+    BinaryExpression,
+    BinaryOperator,
+    CompareExpression,
+    CompareOperator,
     CompleteStatement,
     ElementType,
     Evaluator,
     ForeachStatement,
     ForStatement,
     IfStatement,
+    IsTagExpression,
+    LiteralExpression,
+    MetadataAttribute,
+    MetadataExpression,
+    MultiplyExpression,
+    MultiplyOperator,
     OverpassTransformer,
     PolygonFilter,
     QueryStatement,
     TagKeyFilter,
+    TagValueExpression,
     TagValueFilter,
+    TernaryExpression,
+    UnaryExpression,
+    UnaryOperator,
     _parse_datetime,
     _unquote,
 )
@@ -554,3 +570,249 @@ def test_if_else_body() -> None:
 def test_retro_raises() -> None:
     with pytest.raises(UnsupportedFeatureError):
         _transform_query("retro(1) { node; }")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.ternary_expr
+# ---------------------------------------------------------------------------
+
+
+def _evaluator(expr: str) -> Any:
+    return _for_stmt(f"for({expr}) {{ node; }}").evaluator
+
+
+def test_ternary_expr() -> None:
+    e = _evaluator("1 ? 2 : 3")
+    assert isinstance(e, TernaryExpression)
+    assert isinstance(e.condition, Evaluator)
+    assert isinstance(e.true_expression, Evaluator)
+    assert isinstance(e.false_expression, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.or_expr
+# ---------------------------------------------------------------------------
+
+
+def test_or_expr() -> None:
+    e = _evaluator("1 || 0")
+    assert isinstance(e, BinaryExpression)
+    assert e.operator == BinaryOperator.OR
+    assert len(e.operands) == 2
+
+
+def test_or_expr_repeated() -> None:
+    e = _evaluator("1 || 0 || 1")
+    assert isinstance(e, BinaryExpression)
+    assert e.operator == BinaryOperator.OR
+    assert len(e.operands) == 3
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.and_expr
+# ---------------------------------------------------------------------------
+
+
+def test_and_expr() -> None:
+    e = _evaluator("1 && 0")
+    assert isinstance(e, BinaryExpression)
+    assert e.operator == BinaryOperator.AND
+    assert len(e.operands) == 2
+
+
+def test_and_expr_repeated() -> None:
+    e = _evaluator("1 && 0 && 1")
+    assert isinstance(e, BinaryExpression)
+    assert e.operator == BinaryOperator.AND
+    assert len(e.operands) == 3
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.not_expr
+# ---------------------------------------------------------------------------
+
+
+def test_not_expr() -> None:
+    e = _evaluator("!1")
+    assert isinstance(e, UnaryExpression)
+    assert e.operator == UnaryOperator.NOT
+    assert isinstance(e.operand, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.compare_expr
+# ---------------------------------------------------------------------------
+
+
+def test_compare_expr_equal() -> None:
+    e = _evaluator("1 == 2")
+    assert isinstance(e, CompareExpression)
+    assert e.operator == CompareOperator.EQUAL
+
+
+def test_compare_expr_not_equal() -> None:
+    e = _evaluator("1 != 2")
+    assert isinstance(e, CompareExpression)
+    assert e.operator == CompareOperator.NOT_EQUAL
+
+
+def test_compare_expr_less_than() -> None:
+    e = _evaluator("1 < 2")
+    assert isinstance(e, CompareExpression)
+    assert e.operator == CompareOperator.LESS_THAN
+
+
+def test_compare_expr_greater_than() -> None:
+    e = _evaluator("1 > 2")
+    assert isinstance(e, CompareExpression)
+    assert e.operator == CompareOperator.GREATER_THAN
+
+
+def test_compare_expr_less_than_or_equal() -> None:
+    e = _evaluator("1 <= 2")
+    assert isinstance(e, CompareExpression)
+    assert e.operator == CompareOperator.LESS_THAN_OR_EQUAL
+
+
+def test_compare_expr_greater_than_or_equal() -> None:
+    e = _evaluator("1 >= 2")
+    assert isinstance(e, CompareExpression)
+    assert e.operator == CompareOperator.GREATER_THAN_OR_EQUAL
+
+
+def test_compare_expr_operands() -> None:
+    e = _evaluator("1 == 2")
+    assert isinstance(e, CompareExpression)
+    assert isinstance(e.left_operand, Evaluator)
+    assert isinstance(e.right_operand, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.add_expr
+# ---------------------------------------------------------------------------
+
+
+def test_add_expr_add() -> None:
+    e = _evaluator("1 + 2")
+    assert isinstance(e, AddExpression)
+    assert e.operator == AddOperator.ADD
+
+
+def test_add_expr_subtract() -> None:
+    e = _evaluator("1 - 2")
+    assert isinstance(e, AddExpression)
+    assert e.operator == AddOperator.SUBTRACT
+
+
+def test_add_expr_operands() -> None:
+    e = _evaluator("1 + 2")
+    assert isinstance(e, AddExpression)
+    assert isinstance(e.left_operand, Evaluator)
+    assert isinstance(e.right_operand, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.mul_expr
+# ---------------------------------------------------------------------------
+
+
+def test_mul_expr_multiply() -> None:
+    e = _evaluator("2 * 3")
+    assert isinstance(e, MultiplyExpression)
+    assert e.operator == MultiplyOperator.MULTIPLY
+
+
+def test_mul_expr_divide() -> None:
+    e = _evaluator("6 / 2")
+    assert isinstance(e, MultiplyExpression)
+    assert e.operator == MultiplyOperator.DIVIDE
+
+
+def test_mul_expr_operands() -> None:
+    e = _evaluator("2 * 3")
+    assert isinstance(e, MultiplyExpression)
+    assert isinstance(e.left_operand, Evaluator)
+    assert isinstance(e.right_operand, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.unary_expr
+# ---------------------------------------------------------------------------
+
+
+def test_unary_expr() -> None:
+    e = _evaluator("-1")
+    assert isinstance(e, UnaryExpression)
+    assert e.operator == UnaryOperator.NEGATE
+    assert isinstance(e.operand, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.literal_expr
+# ---------------------------------------------------------------------------
+
+
+def test_literal_expr_number() -> None:
+    e = _evaluator("42")
+    assert isinstance(e, LiteralExpression)
+    assert e.value == "42"
+
+
+def test_literal_expr_string() -> None:
+    e = _evaluator('"foo"')
+    assert isinstance(e, LiteralExpression)
+    assert e.value == "foo"
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.id_expr
+# ---------------------------------------------------------------------------
+
+
+def test_id_expr() -> None:
+    e = _evaluator("id()")
+    assert isinstance(e, MetadataExpression)
+    assert e.attribute == MetadataAttribute.ID
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.type_expr
+# ---------------------------------------------------------------------------
+
+
+def test_type_expr() -> None:
+    e = _evaluator("type()")
+    assert isinstance(e, MetadataExpression)
+    assert e.attribute == MetadataAttribute.TYPE
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.tag_value_expr
+# ---------------------------------------------------------------------------
+
+
+def test_tag_value_expr() -> None:
+    e = _evaluator('t["name"]')
+    assert isinstance(e, TagValueExpression)
+    assert isinstance(e.evaluator, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.is_tag_expr
+# ---------------------------------------------------------------------------
+
+
+def test_is_tag_expr() -> None:
+    e = _evaluator("is_tag(name)")
+    assert isinstance(e, IsTagExpression)
+    assert isinstance(e.key, str)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.keys_expr
+# ---------------------------------------------------------------------------
+
+
+def test_keys_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("keys()")

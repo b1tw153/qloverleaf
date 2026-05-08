@@ -186,6 +186,16 @@ class MetadataExpression(Evaluator):
     attribute: MetadataAttribute
 
 
+@dataclass
+class TagValueExpression(Evaluator):
+    evaluator: Evaluator
+
+
+@dataclass
+class IsTagExpression(Evaluator):
+    key: str
+
+
 # Query Filter Classes
 
 
@@ -913,3 +923,67 @@ class OverpassTransformer(Transformer[Token, Any]):
         token = children[0]
         assert isinstance(token, Token)
         return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+
+    def tag_value_expr(self, children: list[Any]) -> TagValueExpression:
+        token = children[0].token
+        assert isinstance(token, Token)
+        return TagValueExpression(evaluator=children[0], token=token)
+
+    def is_tag_expr(self, children: list[Any]) -> IsTagExpression:
+        token = children[0]
+        key = _unquote(children[0])
+        assert isinstance(token, Token)
+        return IsTagExpression(key=key, token=token)
+
+    def keys_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError("keys() evaluator is not supported", children[0])
+
+    # generic_tag_expr
+    # version_expr
+    # timestamp_expr
+    # changeset_expr
+    # uid_expr
+    # user_expr
+    # count_tags_expr
+    # count_members_expr
+    # count_distinct_members_expr
+    # count_by_role_expr
+    # count_distinct_by_role_expr
+    # is_closed_expr
+    # lat_expr
+    # lon_expr
+    # geom_expr
+    # length_expr
+    # center_expr
+    # trace_expr
+    # hull_expr
+    # pt_expr
+    # lstr_expr
+    # poly_expr
+    # per_member_expr
+    # per_vertex_expr
+    # pos_expr
+    # mtype_expr
+    # ref_expr
+    # role_expr
+    # angle_expr
+    # number_expr
+    # date_expr
+    # suffix_expr
+    # abs_expr
+    # is_number_expr
+    # is_date_expr
+    # union_expr
+    # min_expr
+    # max_expr
+    # sum_expr
+    # set_expr
+    # gcat_expr
+    # count_expr
+    # lrs_in_expr
+    # lrs_isect_expr
+    # lrs_union_expr
+    # lrs_min_expr
+    # lrs_max_expr
+    # val_expr

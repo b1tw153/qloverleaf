@@ -8,6 +8,7 @@ from qloverleaf.transform import (
     AroundPointFilter,
     BboxFilter,
     ElementType,
+    ForeachStatement,
     OverpassTransformer,
     PolygonFilter,
     QueryStatement,
@@ -350,3 +351,49 @@ def test_query_stmt_output_set() -> None:
 def test_query_stmt_no_output_set() -> None:
     stmt = _query_stmt("node[amenity=cafe];")
     assert stmt.output_set is None
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.foreach_stmt
+# ---------------------------------------------------------------------------
+
+
+def _foreach_stmt(text: str) -> ForeachStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, ForeachStatement)
+    return stmt
+
+
+def test_foreach_default_input_set() -> None:
+    stmt = _foreach_stmt("foreach { node; }")
+    assert stmt.input_set.name == "_"
+    assert stmt.input_set.token is None
+
+
+def test_foreach_explicit_input_set() -> None:
+    stmt = _foreach_stmt("foreach .x { node; }")
+    assert stmt.input_set.name == "x"
+    assert isinstance(stmt.input_set.token, Token)
+
+
+def test_foreach_output_set() -> None:
+    stmt = _foreach_stmt("foreach .x -> .y { node; }")
+    assert stmt.output_set is not None
+    assert stmt.output_set.name == "y"
+
+
+def test_foreach_no_output_set() -> None:
+    stmt = _foreach_stmt("foreach .x { node; }")
+    assert stmt.output_set is None
+
+
+def test_foreach_output_set_without_input() -> None:
+    stmt = _foreach_stmt("foreach -> .y { node; }")
+    assert stmt.input_set.name == "_"
+    assert stmt.output_set is not None
+    assert stmt.output_set.name == "y"
+
+
+def test_foreach_body() -> None:
+    stmt = _foreach_stmt("foreach { node[amenity=cafe]; node[amenity=parking]; }")
+    assert len(stmt.body) == 2

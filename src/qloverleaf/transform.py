@@ -78,7 +78,7 @@ class MultiplyOperator(Enum):
 
 @dataclass
 class SetReference:
-    name: str  # canonical name; "._" if implicit
+    name: str  # canonical name; "_" if implicit
     token: Token | None  # None if implicit
     versioned: str = ""  # filled in by SSA phase
     # None = no constraint on what types the set must contain
@@ -289,31 +289,30 @@ class IfFilter(QueryFilter):
 # Simple Statement Classes
 
 
+@dataclass(kw_only=True)
+class Statement:
+    token: Token | None
+
+
 @dataclass
-class QueryStatement:
+class QueryStatement(Statement):
     element_types: frozenset[ElementType]
     filters: list[QueryFilter]
     output_set: SetReference | None
-    token: Token
 
 
 # Block Statement Classes
 
 
-@dataclass(kw_only=True)
-class BlockStatement:
-    token: Token | None
-
-
 @dataclass
-class ForeachStatement(BlockStatement):
+class ForeachStatement(Statement):
     input_set: SetReference
     output_set: SetReference | None
     body: list[Any]
 
 
 @dataclass
-class ForStatement(BlockStatement):
+class ForStatement(Statement):
     input_set: SetReference
     output_set: SetReference | None
     evaluator: Evaluator
@@ -321,7 +320,7 @@ class ForStatement(BlockStatement):
 
 
 @dataclass
-class CompleteStatement(BlockStatement):
+class CompleteStatement(Statement):
     input_set: SetReference
     output_set: SetReference | None
     max_iterations: int | None
@@ -329,7 +328,7 @@ class CompleteStatement(BlockStatement):
 
 
 @dataclass
-class IfStatement(BlockStatement):
+class IfStatement(Statement):
     condition: Evaluator
     then_body: list[Any]
     else_body: list[Any] | None
@@ -534,7 +533,7 @@ class OverpassTransformer(Transformer[Token, Any]):
     def around_set_filter(self, children: list[Any]) -> AroundSetFilter:
         if len(children) == 1:
             set_reference = SetReference(
-                name="._",
+                name="_",
                 token=None,
                 required_types=_NWR,
             )
@@ -611,7 +610,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             ref.required_types = _AREA
             return AreaSetFilter(set_ref=ref, token=ref.token)
         return AreaSetFilter(
-            set_ref=SetReference(name="._", token=None, required_types=_AREA),
+            set_ref=SetReference(name="_", token=None, required_types=_AREA),
             token=None,
         )
 
@@ -626,7 +625,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         type_token = children[0]
         assert isinstance(type_token, Token)
         recurse_type = RecurseFilterType(str(type_token))
-        set_reference = SetReference(name="._", token=None)
+        set_reference = SetReference(name="_", token=None)
         role: str | None = None
         for child in children[1:]:
             if isinstance(child, SetReference):
@@ -701,7 +700,7 @@ class OverpassTransformer(Transformer[Token, Any]):
                 output_types=_WR,
             )
         return PivotFilter(
-            set_reference=SetReference(name="._", token=None, required_types=_AREA),
+            set_reference=SetReference(name="_", token=None, required_types=_AREA),
             input_types=_WR,
             output_types=_WR,
             token=None,
@@ -714,6 +713,10 @@ class OverpassTransformer(Transformer[Token, Any]):
             evaluator=evaluator,
             token=evaluator.token,
         )
+
+    def set_assignment(self, children: list[Any]) -> SetAssignment:
+        assert isinstance(children[0], SetReference)
+        return SetAssignment(set_ref=children[0])
 
     # Simple Statement Transforms
 
@@ -740,15 +743,11 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     # Block Statement Transforms
 
-    def set_assignment(self, children: list[Any]) -> SetAssignment:
-        assert isinstance(children[0], SetReference)
-        return SetAssignment(set_ref=children[0])
-
     def block_body(self, children: list[Any]) -> list[Any]:
         return list(children)
 
     def foreach_stmt(self, children: list[Any]) -> ForeachStatement:
-        input_set = SetReference(name="._", token=None)
+        input_set = SetReference(name="_", token=None)
         output_set = None
         body: list[Any] = []
         for child in children:
@@ -766,7 +765,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         )
 
     def for_stmt(self, children: list[Any]) -> ForStatement:
-        input_set = SetReference(name="._", token=None)
+        input_set = SetReference(name="_", token=None)
         output_set = None
         evaluator = None
         body: list[Any] = []
@@ -789,7 +788,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         )
 
     def complete_stmt(self, children: list[Any]) -> CompleteStatement:
-        input_set = SetReference(name="._", token=None)
+        input_set = SetReference(name="_", token=None)
         output_set = None
         max_iterations = None
         body: list[Any] = []

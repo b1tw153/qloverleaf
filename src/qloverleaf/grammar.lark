@@ -287,14 +287,14 @@ local_stmt: set_ref? "local" ("l" | "ll" | "llb")? set_assignment?
 convert_stmt: set_ref? "convert" DERIVED_NAME (convert_tag_assignment ("," convert_tag_assignment)*)? set_assignment?
 
 convert_tag_assignment: make_tag_assignment
-                      | "::" "=" evaluator
+                      | generic_tag_expr "=" (generic_tag_expr | evaluator)
 
 make_stmt:    "make" DERIVED_NAME (make_tag_assignment ("," make_tag_assignment)*)? set_assignment?
 
 make_tag_assignment: "!" tag_key
                    | "::id" "=" evaluator
                    | "::geom" "=" evaluator
-                   | SET_NAME "::" "=" evaluator
+                   | SET_NAME generic_tag_expr "=" (generic_tag_expr | evaluator)
                    | tag_key "=" evaluator
 
 map_to_area_stmt: set_ref? "map_to_area" set_assignment?
@@ -346,7 +346,7 @@ NEGATE_OP: "-"
              | tag_value_expr 
              | is_tag_expr 
              | keys_expr 
-             | generic_tag_expr  // only valid as the value of a generic property assignment in convert/make
+//           | generic_tag_expr  // only valid as the value of a generic property assignment in convert/make
              | version_expr 
              | timestamp_expr 
              | changeset_expr 

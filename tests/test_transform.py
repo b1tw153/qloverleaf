@@ -539,7 +539,9 @@ def test_if_no_else_body() -> None:
 
 
 def test_if_else_body() -> None:
-    stmt = _if_stmt("if(1) { node[amenity=cafe]; } else { node[amenity=parking]; way; }")
+    stmt = _if_stmt(
+        "if(1) { node[amenity=cafe]; } else { node[amenity=parking]; way; }"
+    )
     assert stmt.else_body is not None
     assert len(stmt.else_body) == 2
 

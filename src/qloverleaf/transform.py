@@ -73,6 +73,16 @@ class MultiplyOperator(Enum):
     DIVIDE = "/"
 
 
+class MetadataAttribute(Enum):
+    ID = "id"
+    TYPE = "type"
+    VERSION = "version"
+    TIMESTAMP = "timestamp"
+    CHANGESET = "changeset"
+    UID = "uid"
+    USER = "user"
+
+
 # Set Reference
 
 
@@ -169,6 +179,11 @@ class MultiplyExpression(Evaluator):
 @dataclass
 class LiteralExpression(Evaluator):
     value: str
+
+
+@dataclass
+class MetadataExpression(Evaluator):
+    attribute: MetadataAttribute
 
 
 # Query Filter Classes
@@ -888,3 +903,13 @@ class OverpassTransformer(Transformer[Token, Any]):
         token = children[0]
         assert isinstance(token, Token)
         return LiteralExpression(value=_unquote(token), token=token)
+
+    def id_expr(self, children: list[Any]) -> MetadataExpression:
+        token = children[0]
+        assert isinstance(token, Token)
+        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+
+    def type_expr(self, children: list[Any]) -> MetadataExpression:
+        token = children[0]
+        assert isinstance(token, Token)
+        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)

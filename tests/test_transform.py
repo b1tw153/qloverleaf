@@ -48,6 +48,7 @@ from qloverleaf.transform import (
     TypeCheckFunction,
     UnaryExpression,
     UnaryOperator,
+    ValExpression,
     _parse_datetime,
     _unquote,
 )
@@ -1293,6 +1294,18 @@ def test_lrs_min_expr_raises() -> None:
 def test_lrs_max_expr_raises() -> None:
     with pytest.raises(UnsupportedFeatureError):
         _evaluator("lrs_max(1)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.val_expr
+# ---------------------------------------------------------------------------
+
+
+def test_val_expr() -> None:
+    result = _evaluator("a.val")
+    assert isinstance(result, ValExpression)
+    assert result.set_ref.name == "a"
+    assert isinstance(result.set_ref.token, Token)
 
 
 # ---------------------------------------------------------------------------

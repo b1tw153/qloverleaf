@@ -7,8 +7,10 @@ from qloverleaf.parser import parse
 from qloverleaf.transform import (
     AroundPointFilter,
     BboxFilter,
+    ElementType,
     OverpassTransformer,
     PolygonFilter,
+    QueryStatement,
     TagKeyFilter,
     TagValueFilter,
     _parse_datetime,
@@ -275,3 +277,76 @@ def test_poly_lat_lon_values() -> None:
     f = _first_filter('node(poly:"51.5 -0.2 51.6 -0.1 51.5 -0.3");')
     assert isinstance(f, PolygonFilter)
     assert f.points == [("51.5", "-0.2"), ("51.6", "-0.1"), ("51.5", "-0.3")]
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.query_stmt
+# ---------------------------------------------------------------------------
+
+
+def _query_stmt(text: str) -> QueryStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, QueryStatement)
+    return stmt
+
+
+def test_query_stmt_node() -> None:
+    stmt = _query_stmt("node;")
+    assert stmt.element_types == frozenset({ElementType.NODE})
+    assert stmt.filters == []
+    assert stmt.output_set is None
+
+
+def test_query_stmt_way() -> None:
+    stmt = _query_stmt("way;")
+    assert stmt.element_types == frozenset({ElementType.WAY})
+
+
+def test_query_stmt_relation() -> None:
+    stmt = _query_stmt("relation;")
+    assert stmt.element_types == frozenset({ElementType.RELATION})
+
+
+def test_query_stmt_nwr() -> None:
+    stmt = _query_stmt("nwr;")
+    assert stmt.element_types == frozenset(
+        {ElementType.NODE, ElementType.WAY, ElementType.RELATION}
+    )
+
+
+def test_query_stmt_nw() -> None:
+    stmt = _query_stmt("nw;")
+    assert stmt.element_types == frozenset({ElementType.NODE, ElementType.WAY})
+
+
+def test_query_stmt_wr() -> None:
+    stmt = _query_stmt("wr;")
+    assert stmt.element_types == frozenset({ElementType.WAY, ElementType.RELATION})
+
+
+def test_query_stmt_nr() -> None:
+    stmt = _query_stmt("nr;")
+    assert stmt.element_types == frozenset({ElementType.NODE, ElementType.RELATION})
+
+
+def test_query_stmt_area() -> None:
+    stmt = _query_stmt("area;")
+    assert stmt.element_types == frozenset({ElementType.AREA})
+
+
+def test_query_stmt_filters() -> None:
+    stmt = _query_stmt("node[amenity=cafe](51.5,-0.2,51.6,-0.1);")
+    assert len(stmt.filters) == 2
+    assert isinstance(stmt.filters[0], TagValueFilter)
+    assert isinstance(stmt.filters[1], BboxFilter)
+
+
+def test_query_stmt_output_set() -> None:
+    stmt = _query_stmt("node[amenity=cafe] -> .x;")
+    assert stmt.output_set is not None
+    assert stmt.output_set.name == "x"
+
+
+def test_query_stmt_no_output_set() -> None:
+    stmt = _query_stmt("node[amenity=cafe];")
+    assert stmt.output_set is None

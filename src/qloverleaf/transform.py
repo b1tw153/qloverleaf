@@ -85,12 +85,34 @@ class SetReference:
     required_types: frozenset[ElementType] | None = field(default=None)
 
 
-_NODES = frozenset({ElementType.NODE})
-_WAYS = frozenset({ElementType.WAY})
-_RELATIONS = frozenset({ElementType.RELATION})
-_AREAS = frozenset({ElementType.AREA})
-_NON_AREA = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
+# Set Assignment
+
+
+@dataclass
+class SetAssignment:
+    set_ref: SetReference
+
+
+_NODE = frozenset({ElementType.NODE})
+_WAY = frozenset({ElementType.WAY})
+_RELATION = frozenset({ElementType.RELATION})
+_AREA = frozenset({ElementType.AREA})
+_NWR = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
 _WR = frozenset({ElementType.WAY, ElementType.RELATION})
+_NW = frozenset({ElementType.NODE, ElementType.WAY})
+_NR = frozenset({ElementType.NODE, ElementType.RELATION})
+
+_ELEMENT_TYPE_MAP: dict[str, frozenset[ElementType]] = {
+    "element_type_node": _NODE,
+    "element_type_way": _WAY,
+    "element_type_relation": _RELATION,
+    "element_type_nwr": _NWR,
+    "element_type_nw": _NW,
+    "element_type_wr": _WR,
+    "element_type_nr": _NR,
+    "element_type_area": _AREA,
+    "element_type_derived": frozenset({ElementType.DERIVED}),
+}
 
 
 # Evaluator Classes
@@ -262,6 +284,55 @@ class PivotFilter(QueryFilter):
 @dataclass
 class IfFilter(QueryFilter):
     evaluator: Evaluator
+
+
+# Simple Statement Classes
+
+
+@dataclass
+class QueryStatement:
+    element_types: frozenset[ElementType]
+    filters: list[QueryFilter]
+    output_set: SetReference | None
+    token: Token
+
+
+# Block Statement Classes
+
+
+@dataclass(kw_only=True)
+class BlockStatement:
+    token: Token | None
+
+
+@dataclass
+class ForeachStatement(BlockStatement):
+    input_set: SetReference
+    output_set: SetReference | None
+    body: list[Any]
+
+
+@dataclass
+class ForStatement(BlockStatement):
+    input_set: SetReference
+    output_set: SetReference | None
+    evaluator: Evaluator
+    body: list[Any]
+
+
+@dataclass
+class CompleteStatement(BlockStatement):
+    input_set: SetReference
+    output_set: SetReference | None
+    max_iterations: int | None
+    body: list[Any]
+
+
+@dataclass
+class IfStatement(BlockStatement):
+    condition: Evaluator
+    then_body: list[Any]
+    else_body: list[Any] | None
 
 
 # Helper Functions
@@ -465,12 +536,12 @@ class OverpassTransformer(Transformer[Token, Any]):
             set_reference = SetReference(
                 name="._",
                 token=None,
-                required_types=_NON_AREA,
+                required_types=_NWR,
             )
             radius_token = children[0]
         else:
             set_reference, radius_token = children[0], children[1]
-            set_reference.required_types = _NON_AREA
+            set_reference.required_types = _NWR
         assert isinstance(radius_token, Token)
         return AroundSetFilter(
             radius=radius_token.value,
@@ -537,10 +608,10 @@ class OverpassTransformer(Transformer[Token, Any]):
         if children:
             ref = children[0]
             assert isinstance(ref, SetReference)
-            ref.required_types = _AREAS
+            ref.required_types = _AREA
             return AreaSetFilter(set_ref=ref, token=ref.token)
         return AreaSetFilter(
-            set_ref=SetReference(name="._", token=None, required_types=_AREAS),
+            set_ref=SetReference(name="._", token=None, required_types=_AREA),
             token=None,
         )
 
@@ -564,26 +635,26 @@ class OverpassTransformer(Transformer[Token, Any]):
                 role = child
         match recurse_type:
             case RecurseFilterType.BN:
-                set_reference.required_types = _NODES
-                input_types: frozenset[ElementType] | None = _NODES
+                set_reference.required_types = _NODE
+                input_types: frozenset[ElementType] | None = _NODE
                 # TODO: output_types depends on element type (way→_WAYS, rel→_RELATIONS)
                 # fill in from query_stmt transformer once that exists
                 output_types: frozenset[ElementType] | None = None
             case RecurseFilterType.BW:
-                set_reference.required_types = _WAYS
-                input_types = _WAYS
-                output_types = _RELATIONS
+                set_reference.required_types = _WAY
+                input_types = _WAY
+                output_types = _RELATION
             case RecurseFilterType.BR:
-                set_reference.required_types = _RELATIONS
-                input_types = _RELATIONS
-                output_types = _RELATIONS
+                set_reference.required_types = _RELATION
+                input_types = _RELATION
+                output_types = _RELATION
             case RecurseFilterType.W:
-                set_reference.required_types = _WAYS
-                input_types = _WAYS
-                output_types = _NODES
+                set_reference.required_types = _WAY
+                input_types = _WAY
+                output_types = _NODE
             case RecurseFilterType.R:
-                set_reference.required_types = _RELATIONS
-                input_types = _RELATIONS
+                set_reference.required_types = _RELATION
+                input_types = _RELATION
                 # TODO: output_types depends on element type (node→_NODES, way→_WAYS,
                 # rel→_RELATIONS); fill in from query_stmt transformer once that exists
                 output_types = None
@@ -603,8 +674,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             max_count=max_count,
             exact=exact,
             token=token,
-            input_types=_WAYS,
-            output_types=_NODES,
+            input_types=_WAY,
+            output_types=_NODE,
         )
 
     def way_link_filter(self, children: list[Any]) -> None:
@@ -622,7 +693,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         if children:
             set_reference = children[0]
             assert isinstance(set_reference, SetReference)
-            set_reference.required_types = _AREAS
+            set_reference.required_types = _AREA
             return PivotFilter(
                 set_reference=set_reference,
                 token=set_reference.token,
@@ -630,7 +701,7 @@ class OverpassTransformer(Transformer[Token, Any]):
                 output_types=_WR,
             )
         return PivotFilter(
-            set_reference=SetReference(name="._", token=None, required_types=_AREAS),
+            set_reference=SetReference(name="._", token=None, required_types=_AREA),
             input_types=_WR,
             output_types=_WR,
             token=None,
@@ -644,7 +715,121 @@ class OverpassTransformer(Transformer[Token, Any]):
             token=evaluator.token,
         )
 
-    # Evaluators
+    # Simple Statement Transforms
+
+    def query_stmt(self, children: list[Any]) -> QueryStatement:
+        element_type_tree = children[0]
+        assert isinstance(element_type_tree, Tree)
+        element_types = _ELEMENT_TYPE_MAP[str(element_type_tree.data)]
+        token = element_type_tree.children[0]
+        assert isinstance(token, Token)
+        filters: list[QueryFilter] = []
+        output_set = None
+        for child in children[1:]:
+            if isinstance(child, QueryFilter):
+                filters.append(child)
+            elif isinstance(child, SetAssignment):
+                output_set = child.set_ref
+        # TODO: walk filters to propagate input/output type constraints
+        return QueryStatement(
+            element_types=element_types,
+            filters=filters,
+            output_set=output_set,
+            token=token,
+        )
+
+    # Block Statement Transforms
+
+    def set_assignment(self, children: list[Any]) -> SetAssignment:
+        assert isinstance(children[0], SetReference)
+        return SetAssignment(set_ref=children[0])
+
+    def block_body(self, children: list[Any]) -> list[Any]:
+        return list(children)
+
+    def foreach_stmt(self, children: list[Any]) -> ForeachStatement:
+        input_set = SetReference(name="._", token=None)
+        output_set = None
+        body: list[Any] = []
+        for child in children:
+            if isinstance(child, SetReference):
+                input_set = child
+            elif isinstance(child, SetAssignment):
+                output_set = child.set_ref
+            elif isinstance(child, list):
+                body = child
+        return ForeachStatement(
+            input_set=input_set,
+            output_set=output_set,
+            body=body,
+            token=input_set.token,
+        )
+
+    def for_stmt(self, children: list[Any]) -> ForStatement:
+        input_set = SetReference(name="._", token=None)
+        output_set = None
+        evaluator = None
+        body: list[Any] = []
+        for child in children:
+            if isinstance(child, SetReference):
+                input_set = child
+            elif isinstance(child, SetAssignment):
+                output_set = child.set_ref
+            elif isinstance(child, Evaluator):
+                evaluator = child
+            elif isinstance(child, list):
+                body = child
+        assert evaluator is not None
+        return ForStatement(
+            input_set=input_set,
+            output_set=output_set,
+            evaluator=evaluator,
+            body=body,
+            token=evaluator.token,
+        )
+
+    def complete_stmt(self, children: list[Any]) -> CompleteStatement:
+        input_set = SetReference(name="._", token=None)
+        output_set = None
+        max_iterations = None
+        body: list[Any] = []
+        for child in children:
+            if isinstance(child, SetReference):
+                input_set = child
+            elif isinstance(child, SetAssignment):
+                output_set = child.set_ref
+            elif isinstance(child, Token) and child.type == "INTEGER":
+                max_iterations = int(child)
+            else:
+                body.append(child)
+        return CompleteStatement(
+            input_set=input_set,
+            output_set=output_set,
+            max_iterations=max_iterations,
+            body=body,
+            token=input_set.token,
+        )
+
+    def if_stmt(self, children: list[Any]) -> IfStatement:
+        condition = children[0]
+        assert isinstance(condition, Evaluator)
+        then_body = children[1]
+        else_body = children[2] if len(children) > 2 else None
+        return IfStatement(
+            condition=condition,
+            then_body=then_body,
+            else_body=else_body,
+            token=condition.token,
+        )
+
+    def retro_stmt(self, children: list[Any]) -> None:
+        evaluator = children[0]
+        assert isinstance(evaluator, Evaluator)
+        raise UnsupportedFeatureError(
+            "retro statement is not supported", evaluator.token
+        )
+
+    # Evaluator Transforms
 
     def ternary_expr(self, children: list[Any]) -> TernaryExpression:
         return TernaryExpression(

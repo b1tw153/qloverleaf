@@ -21,7 +21,7 @@ def _transform_query(text: str) -> Any:
 
 
 def _first_filter(text: str) -> Any:
-    return _transform_query(text).children[0].children[0].children[1]
+    return _transform_query(text).children[0].children[0].filters[0]
 
 
 # ---------------------------------------------------------------------------

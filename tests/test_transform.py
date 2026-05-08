@@ -48,6 +48,7 @@ from qloverleaf.transform import (
     TypeCheckFunction,
     UnaryExpression,
     UnaryOperator,
+    UnionStatement,
     ValExpression,
     _parse_datetime,
     _unquote,
@@ -590,6 +591,61 @@ def test_if_else_body() -> None:
     )
     assert stmt.else_body is not None
     assert len(stmt.else_body) == 2
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.union_stmt
+# ---------------------------------------------------------------------------
+
+
+def _union_stmt(text: str) -> UnionStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, UnionStatement)
+    return stmt
+
+
+def test_union_members() -> None:
+    stmt = _union_stmt("( node(1); node(2); node(3); );")
+    assert len(stmt.members) == 3
+
+
+def test_union_member_difference() -> None:
+    stmt = _union_stmt("( node(1); node(2); - node(3); );")
+    assert stmt.members[0].difference is False
+    assert stmt.members[1].difference is False
+    assert stmt.members[2].difference is True
+
+
+# TODO: test_union_member_statement — once statement production is handled
+
+
+def test_union_output_set() -> None:
+    stmt = _union_stmt("( node(1); node(2); ) -> .x;")
+    assert stmt.output_set.name == "x"
+    assert stmt.output_set.token is not None
+
+
+def test_union_no_output_set() -> None:
+    stmt = _union_stmt("( node(1); node(2); );")
+    assert stmt.output_set.name == "_"
+    assert stmt.output_set.token is None
+
+
+# TODO: test_union_token — token comes from first member's statement
+# revisit once statement production is handled
+
+
+def test_union_empty() -> None:
+    stmt = _union_stmt("();")
+    assert len(stmt.members) == 0
+    assert stmt.token is None
+
+
+def test_union_empty_token_with_output_set() -> None:
+    stmt = _union_stmt("() -> .x;")
+    assert len(stmt.members) == 0
+    assert stmt.output_set.name == "x"
+    assert stmt.output_set.token is not None
 
 
 # ---------------------------------------------------------------------------

@@ -262,7 +262,7 @@ class LengthExpression(Evaluator):
 @dataclass
 class CountExpression(Evaluator):
     count_type: CountType
-    set_ref: SetReference | None
+    set_ref: SetReference
 
 
 @dataclass
@@ -1201,7 +1201,10 @@ class OverpassTransformer(Transformer[Token, Any]):
     def count_expr(self, children: list[Any]) -> CountExpression:
         count_type_token = children[-1]
         assert isinstance(count_type_token, Token)
-        set_ref = children[0] if len(children) == 2 else None
+        if len(children) == 2:
+            set_ref = children[0]
+        else:
+            set_ref = SetReference(name="_", token=None)
         count_type = CountType(str(count_type_token))
         if count_type == CountType.DERIVEDS:
             raise UnsupportedFeatureError(

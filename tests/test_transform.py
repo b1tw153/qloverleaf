@@ -3,13 +3,17 @@ from typing import Any
 import pytest
 from lark import Token
 
+from qloverleaf.exceptions import UnsupportedFeatureError
 from qloverleaf.parser import parse
 from qloverleaf.transform import (
     AroundPointFilter,
     BboxFilter,
+    CompleteStatement,
     ElementType,
+    Evaluator,
     ForeachStatement,
     ForStatement,
+    IfStatement,
     OverpassTransformer,
     PolygonFilter,
     QueryStatement,
@@ -449,3 +453,102 @@ def test_for_evaluator() -> None:
 def test_for_body() -> None:
     stmt = _for_stmt("for(1) { node[amenity=cafe]; node[amenity=parking]; }")
     assert len(stmt.body) == 2
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.complete_stmt
+# ---------------------------------------------------------------------------
+
+
+def _complete_stmt(text: str) -> CompleteStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, CompleteStatement)
+    return stmt
+
+
+def test_complete_default_input_set() -> None:
+    stmt = _complete_stmt("complete { node; }")
+    assert stmt.input_set.name == "_"
+    assert stmt.input_set.token is None
+
+
+def test_complete_explicit_input_set() -> None:
+    stmt = _complete_stmt("complete .x { node; }")
+    assert stmt.input_set.name == "x"
+    assert isinstance(stmt.input_set.token, Token)
+
+
+def test_complete_output_set() -> None:
+    stmt = _complete_stmt("complete .x -> .y { node; }")
+    assert stmt.output_set is not None
+    assert stmt.output_set.name == "y"
+
+
+def test_complete_no_output_set() -> None:
+    stmt = _complete_stmt("complete .x { node; }")
+    assert stmt.output_set is None
+
+
+def test_complete_output_set_without_input() -> None:
+    stmt = _complete_stmt("complete -> .y { node; }")
+    assert stmt.input_set.name == "_"
+    assert stmt.output_set is not None
+    assert stmt.output_set.name == "y"
+
+
+def test_complete_max_iterations() -> None:
+    stmt = _complete_stmt("complete(5) { node; }")
+    assert stmt.max_iterations == 5
+
+
+def test_complete_no_max_iterations() -> None:
+    stmt = _complete_stmt("complete { node; }")
+    assert stmt.max_iterations is None
+
+
+def test_complete_body() -> None:
+    stmt = _complete_stmt("complete { node[amenity=cafe]; node[amenity=parking]; }")
+    assert len(stmt.body) == 2
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.if_stmt
+# ---------------------------------------------------------------------------
+
+
+def _if_stmt(text: str) -> IfStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, IfStatement)
+    return stmt
+
+
+def test_if_condition() -> None:
+    stmt = _if_stmt("if(1) { node; }")
+    assert stmt.condition is not None
+    assert isinstance(stmt.condition, Evaluator)
+
+
+def test_if_then_body() -> None:
+    stmt = _if_stmt("if(1) { node[amenity=cafe]; node[amenity=parking]; }")
+    assert len(stmt.then_body) == 2
+
+
+def test_if_no_else_body() -> None:
+    stmt = _if_stmt("if(1) { node; }")
+    assert stmt.else_body is None
+
+
+def test_if_else_body() -> None:
+    stmt = _if_stmt("if(1) { node[amenity=cafe]; } else { node[amenity=parking]; way; }")
+    assert stmt.else_body is not None
+    assert len(stmt.else_body) == 2
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.retro_stmt
+# ---------------------------------------------------------------------------
+
+
+def test_retro_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _transform_query("retro(1) { node; }")

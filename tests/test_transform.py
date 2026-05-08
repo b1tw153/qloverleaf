@@ -1066,6 +1066,96 @@ def test_angle_expr_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.unique_expr
+# ---------------------------------------------------------------------------
+
+
+def test_unique_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('u(t["name"])')
+
+
+def test_unique_expr_with_set_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('a.u(t["name"])')
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.min_expr
+# ---------------------------------------------------------------------------
+
+
+def test_min_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('min(t["ele"])')
+
+
+def test_min_expr_with_set_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('a.min(t["ele"])')
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.max_expr
+# ---------------------------------------------------------------------------
+
+
+def test_max_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('max(t["ele"])')
+
+
+def test_max_expr_with_set_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('a.max(t["ele"])')
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.sum_expr
+# ---------------------------------------------------------------------------
+
+
+def test_sum_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('sum(t["ele"])')
+
+
+def test_sum_expr_with_set_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('a.sum(t["ele"])')
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.set_expr
+# ---------------------------------------------------------------------------
+
+
+def test_set_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('set(t["name"])')
+
+
+def test_set_expr_with_set_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('a.set(t["name"])')
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.gcat_expr
+# ---------------------------------------------------------------------------
+
+
+def test_gcat_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("gcat(geom())")
+
+
+def test_gcat_expr_with_set_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("a.gcat(geom())")
+
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.lrs_in_expr
 # ---------------------------------------------------------------------------
 

@@ -15,12 +15,16 @@ from qloverleaf.transform import (
     CompareExpression,
     CompareOperator,
     CompleteStatement,
+    CoordinateAxis,
+    CoordinateExpression,
     ElementType,
     Evaluator,
     ForeachStatement,
     ForStatement,
     IfStatement,
+    IsClosedExpression,
     IsTagExpression,
+    LengthExpression,
     LiteralExpression,
     MetadataAttribute,
     MetadataExpression,
@@ -866,3 +870,115 @@ def test_count_by_role_expr_raises() -> None:
 def test_count_distinct_by_role_expr_raises() -> None:
     with pytest.raises(UnimplementedFeatureError):
         _evaluator('count_distinct_by_role("outer")')
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.is_closed_expr
+# ---------------------------------------------------------------------------
+
+
+def test_is_closed_expr() -> None:
+    e = _evaluator("is_closed()")
+    assert isinstance(e, IsClosedExpression)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.lat_expr
+# ---------------------------------------------------------------------------
+
+
+def test_lat_expr() -> None:
+    e = _evaluator("lat()")
+    assert isinstance(e, CoordinateExpression)
+    assert e.axis == CoordinateAxis.LAT
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.lon_expr
+# ---------------------------------------------------------------------------
+
+
+def test_lon_expr() -> None:
+    e = _evaluator("lon()")
+    assert isinstance(e, CoordinateExpression)
+    assert e.axis == CoordinateAxis.LON
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.geom_expr
+# ---------------------------------------------------------------------------
+
+
+def test_geom_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("geom()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.length_expr
+# ---------------------------------------------------------------------------
+
+
+def test_length_expr() -> None:
+    e = _evaluator("length()")
+    assert isinstance(e, LengthExpression)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.center_expr
+# ---------------------------------------------------------------------------
+
+
+def test_center_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("center(1)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.trace_expr
+# ---------------------------------------------------------------------------
+
+
+def test_trace_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("trace(1)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.hull_expr
+# ---------------------------------------------------------------------------
+
+
+def test_hull_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("hull(1)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.pt_expr
+# ---------------------------------------------------------------------------
+
+
+def test_pt_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("pt(1, 2)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.lstr_expr
+# ---------------------------------------------------------------------------
+
+
+def test_lstr_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("lstr(1, 2)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.poly_expr
+# ---------------------------------------------------------------------------
+
+
+def test_poly_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("poly(1, 2)")

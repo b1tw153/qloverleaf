@@ -6,6 +6,7 @@ from lark import Token
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 from qloverleaf.parser import parse
 from qloverleaf.transform import (
+    AbsExpression,
     AddExpression,
     AddOperator,
     AroundPointFilter,
@@ -15,6 +16,8 @@ from qloverleaf.transform import (
     CompareExpression,
     CompareOperator,
     CompleteStatement,
+    ConversionExpression,
+    ConversionFunction,
     CoordinateAxis,
     CoordinateExpression,
     ElementType,
@@ -33,10 +36,13 @@ from qloverleaf.transform import (
     OverpassTransformer,
     PolygonFilter,
     QueryStatement,
+    SuffixExpression,
     TagKeyFilter,
     TagValueExpression,
     TagValueFilter,
     TernaryExpression,
+    TypeCheckExpression,
+    TypeCheckFunction,
     UnaryExpression,
     UnaryOperator,
     _parse_datetime,
@@ -1107,3 +1113,71 @@ def test_lrs_min_expr_raises() -> None:
 def test_lrs_max_expr_raises() -> None:
     with pytest.raises(UnsupportedFeatureError):
         _evaluator("lrs_max(1)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.number_expr
+# ---------------------------------------------------------------------------
+
+
+def test_number_expr() -> None:
+    e = _evaluator('number(t["ele"])')
+    assert isinstance(e, ConversionExpression)
+    assert e.function == ConversionFunction.NUMBER
+    assert isinstance(e.operand, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.date_expr
+# ---------------------------------------------------------------------------
+
+
+def test_date_expr() -> None:
+    e = _evaluator('date(t["start_date"])')
+    assert isinstance(e, ConversionExpression)
+    assert e.function == ConversionFunction.DATE
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.suffix_expr
+# ---------------------------------------------------------------------------
+
+
+def test_suffix_expr() -> None:
+    e = _evaluator('suffix(t["ele"])')
+    assert isinstance(e, SuffixExpression)
+    assert isinstance(e.operand, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.abs_expr
+# ---------------------------------------------------------------------------
+
+
+def test_abs_expr() -> None:
+    e = _evaluator("abs(-1)")
+    assert isinstance(e, AbsExpression)
+    assert isinstance(e.operand, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.is_number_expr
+# ---------------------------------------------------------------------------
+
+
+def test_is_number_expr() -> None:
+    e = _evaluator('is_number(t["ele"])')
+    assert isinstance(e, TypeCheckExpression)
+    assert e.function == TypeCheckFunction.IS_NUMBER
+    assert isinstance(e.operand, Evaluator)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.is_date_expr
+# ---------------------------------------------------------------------------
+
+
+def test_is_date_expr() -> None:
+    e = _evaluator('is_date(t["start_date"])')
+    assert isinstance(e, TypeCheckExpression)
+    assert e.function == TypeCheckFunction.IS_DATE

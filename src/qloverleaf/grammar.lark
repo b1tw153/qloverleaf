@@ -381,7 +381,7 @@ NEGATE_OP: "-"
              | abs_expr
              | is_number_expr 
              | is_date_expr
-             | union_expr 
+             | unique_expr 
              | min_expr 
              | max_expr 
              | sum_expr 
@@ -440,7 +440,7 @@ suffix_expr:                  "suffix" "(" evaluator ")"
 abs_expr:                     "abs" "(" evaluator ")"
 is_number_expr:               "is_number" "(" evaluator ")"
 is_date_expr:                 "is_date" "(" evaluator ")"
-union_expr:                   (set_name ".")? "u" "(" evaluator ")"
+unique_expr:                  (set_name ".")? "u" "(" evaluator ")"
 min_expr:                     (set_name ".")? "min" "(" evaluator ")"
 max_expr:                     (set_name ".")? "max" "(" evaluator ")"
 sum_expr:                     (set_name ".")? "sum" "(" evaluator ")"

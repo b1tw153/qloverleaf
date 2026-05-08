@@ -88,6 +88,16 @@ class CoordinateAxis(Enum):
     LON = "lon"
 
 
+class ConversionFunction(Enum):
+    NUMBER = "number"
+    DATE = "date"
+
+
+class TypeCheckFunction(Enum):
+    IS_NUMBER = "is_number"
+    IS_DATE = "is_date"
+
+
 # Set Reference
 
 
@@ -204,6 +214,28 @@ class IsTagExpression(Evaluator):
 @dataclass
 class CoordinateExpression(Evaluator):
     axis: CoordinateAxis
+
+
+@dataclass
+class ConversionExpression(Evaluator):
+    function: ConversionFunction
+    operand: Evaluator
+
+
+@dataclass
+class SuffixExpression(Evaluator):
+    operand: Evaluator
+
+
+@dataclass
+class AbsExpression(Evaluator):
+    operand: Evaluator
+
+
+@dataclass
+class TypeCheckExpression(Evaluator):
+    function: TypeCheckFunction
+    operand: Evaluator
 
 
 @dataclass
@@ -1085,12 +1117,40 @@ class OverpassTransformer(Transformer[Token, Any]):
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("angle() is not supported", children[0])
 
-    # number_expr
-    # date_expr
-    # suffix_expr
-    # abs_expr
-    # is_number_expr
-    # is_date_expr
+    def number_expr(self, children: list[Any]) -> ConversionExpression:
+        return ConversionExpression(
+            function=ConversionFunction.NUMBER,
+            operand=children[0],
+            token=children[0].token,
+        )
+
+    def date_expr(self, children: list[Any]) -> ConversionExpression:
+        return ConversionExpression(
+            function=ConversionFunction.DATE,
+            operand=children[0],
+            token=children[0].token,
+        )
+
+    def suffix_expr(self, children: list[Any]) -> SuffixExpression:
+        return SuffixExpression(operand=children[0], token=children[0].token)
+
+    def abs_expr(self, children: list[Any]) -> AbsExpression:
+        return AbsExpression(operand=children[0], token=children[0].token)
+
+    def is_number_expr(self, children: list[Any]) -> TypeCheckExpression:
+        return TypeCheckExpression(
+            function=TypeCheckFunction.IS_NUMBER,
+            operand=children[0],
+            token=children[0].token,
+        )
+
+    def is_date_expr(self, children: list[Any]) -> TypeCheckExpression:
+        return TypeCheckExpression(
+            function=TypeCheckFunction.IS_DATE,
+            operand=children[0],
+            token=children[0].token,
+        )
+
     # union_expr
     # min_expr
     # max_expr

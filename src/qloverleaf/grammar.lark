@@ -246,7 +246,7 @@ union_stmt:   "(" union_body ")" set_assignment?
 
 union_body:   union_member*
 
-union_member: "-"? statement
+!union_member: "-"? statement
 
 item_stmt: set_ref set_assignment?
 

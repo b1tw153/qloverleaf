@@ -108,6 +108,10 @@ class CountType(Enum):
     NWR = "nwr"
     DERIVEDS = "deriveds"
 
+    # OUT_VERB
+    # RECURSE_DIR
+    # TIMELINE_TYPE
+
 
 # Set Reference
 
@@ -431,6 +435,18 @@ class IfStatement(Statement):
     condition: Evaluator
     then_body: list[Any]
     else_body: list[Any] | None
+
+
+@dataclass
+class UnionMember:
+    difference: bool
+    statement: Statement
+
+
+@dataclass
+class UnionStatement(Statement):
+    members: list[UnionMember]
+    output_set: SetReference
 
 
 # Helper Functions
@@ -934,6 +950,47 @@ class OverpassTransformer(Transformer[Token, Any]):
         raise UnsupportedFeatureError(
             "retro statement is not supported", evaluator.token
         )
+
+    # Other Statement Transforms
+
+    def union_member(self, children: list[Any]) -> UnionMember:
+        if isinstance(children[0], Token):
+            assert children[0].type == "NEGATE_OP"
+            return UnionMember(difference=True, statement=children[1])
+        return UnionMember(difference=False, statement=children[0])
+
+    def union_body(self, children: list[Any]) -> list[UnionMember]:
+        return list(children)
+
+    def union_stmt(self, children: list[Any]) -> UnionStatement:
+        members: list[UnionMember] = children[0]
+        output_set = SetReference(name="_", token=None)
+        if len(children) == 2:
+            assert isinstance(children[1], SetAssignment)
+            output_set = children[1].set_ref
+        # TODO: use members[0].statement.token once statement production is handled
+        # if members:
+        #     token = members[0].statement.token
+        # else:
+        token = output_set.token
+        return UnionStatement(
+            members=members,
+            output_set=output_set,
+            token=token,
+        )
+
+    # item_stmt
+    # out_stmt
+    # out_token
+    # recurse_stmt
+    # is_in_stmt
+    # timeline_stmt
+    # local_stmt
+    # convert_stmt
+    # tag_assignment
+    # make_stmt
+    # map_to_area_stmt
+    # compare_stmt
 
     # Evaluator Transforms
 

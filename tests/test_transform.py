@@ -798,7 +798,12 @@ def test_type_expr() -> None:
 def test_tag_value_expr() -> None:
     e = _evaluator('t["name"]')
     assert isinstance(e, TagValueExpression)
-    assert isinstance(e.evaluator, Evaluator)
+    assert isinstance(e.evaluator, LiteralExpression)
+
+
+def test_tag_value_expr_dynamic_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator('t["prefix" + "suffix"]')
 
 
 # ---------------------------------------------------------------------------
@@ -982,3 +987,123 @@ def test_lstr_expr_raises() -> None:
 def test_poly_expr_raises() -> None:
     with pytest.raises(UnsupportedFeatureError):
         _evaluator("poly(1, 2)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.per_member_expr
+# ---------------------------------------------------------------------------
+
+
+def test_per_member_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("per_member(1)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.per_vertex_expr
+# ---------------------------------------------------------------------------
+
+
+def test_per_vertex_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("per_vertex(1)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.pos_expr
+# ---------------------------------------------------------------------------
+
+
+def test_pos_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("pos()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.mtype_expr
+# ---------------------------------------------------------------------------
+
+
+def test_mtype_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("mtype()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.ref_expr
+# ---------------------------------------------------------------------------
+
+
+def test_ref_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("ref()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.role_expr
+# ---------------------------------------------------------------------------
+
+
+def test_role_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("role()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.angle_expr
+# ---------------------------------------------------------------------------
+
+
+def test_angle_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("angle()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.lrs_in_expr
+# ---------------------------------------------------------------------------
+
+
+def test_lrs_in_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("lrs_in(1, 2)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.lrs_isect_expr
+# ---------------------------------------------------------------------------
+
+
+def test_lrs_isect_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("lrs_isect(1, 2)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.lrs_union_expr
+# ---------------------------------------------------------------------------
+
+
+def test_lrs_union_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("lrs_union(1, 2)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.lrs_min_expr
+# ---------------------------------------------------------------------------
+
+
+def test_lrs_min_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("lrs_min(1)")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.lrs_max_expr
+# ---------------------------------------------------------------------------
+
+
+def test_lrs_max_expr_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("lrs_max(1)")

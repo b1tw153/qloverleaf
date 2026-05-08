@@ -265,6 +265,11 @@ class CountExpression(Evaluator):
     set_ref: SetReference | None
 
 
+@dataclass
+class ValExpression(Evaluator):
+    set_ref: SetReference
+
+
 # Query Filter Classes
 
 
@@ -1223,4 +1228,8 @@ class OverpassTransformer(Transformer[Token, Any]):
     def lrs_max_expr(self, children: list[Any]) -> None:
         raise UnsupportedFeatureError("lrs_max() is not supported", children[0].token)
 
-    # val_expr
+    def val_expr(self, children: list[Any]) -> ValExpression:
+        set_ref = children[0]
+        assert isinstance(set_ref, SetReference)
+        assert set_ref.token is not None
+        return ValExpression(set_ref=set_ref, token=set_ref.token)

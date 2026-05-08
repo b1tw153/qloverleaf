@@ -397,7 +397,7 @@ class Statement:
 class QueryStatement(Statement):
     element_types: frozenset[ElementType]
     filters: list[QueryFilter]
-    output_set: SetReference | None
+    output_set: SetReference
 
 
 # Block Statement Classes
@@ -406,14 +406,14 @@ class QueryStatement(Statement):
 @dataclass
 class ForeachStatement(Statement):
     input_set: SetReference
-    output_set: SetReference | None
+    output_set: SetReference
     body: list[Any]
 
 
 @dataclass
 class ForStatement(Statement):
     input_set: SetReference
-    output_set: SetReference | None
+    output_set: SetReference
     evaluator: Evaluator
     body: list[Any]
 
@@ -421,7 +421,7 @@ class ForStatement(Statement):
 @dataclass
 class CompleteStatement(Statement):
     input_set: SetReference
-    output_set: SetReference | None
+    output_set: SetReference
     max_iterations: int | None
     body: list[Any]
 
@@ -833,12 +833,13 @@ class OverpassTransformer(Transformer[Token, Any]):
         token = element_type_tree.children[0]
         assert isinstance(token, Token)
         filters: list[QueryFilter] = []
-        output_set = None
+        output_set = SetReference(name="_", token=None)
         for child in children[1:]:
             if isinstance(child, QueryFilter):
                 filters.append(child)
             elif isinstance(child, SetAssignment):
                 output_set = child.set_ref
+        output_set.required_types = element_types
         # TODO: walk filters to propagate input/output type constraints
         return QueryStatement(
             element_types=element_types,
@@ -854,7 +855,7 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def foreach_stmt(self, children: list[Any]) -> ForeachStatement:
         input_set = SetReference(name="_", token=None)
-        output_set = None
+        output_set = SetReference(name="_", token=None)
         body: list[Any] = []
         for child in children:
             if isinstance(child, SetReference):
@@ -872,7 +873,7 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def for_stmt(self, children: list[Any]) -> ForStatement:
         input_set = SetReference(name="_", token=None)
-        output_set = None
+        output_set = SetReference(name="_", token=None)
         evaluator = None
         body: list[Any] = []
         for child in children:
@@ -895,7 +896,7 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def complete_stmt(self, children: list[Any]) -> CompleteStatement:
         input_set = SetReference(name="_", token=None)
-        output_set = None
+        output_set = SetReference(name="_", token=None)
         max_iterations = None
         body: list[Any] = []
         for child in children:

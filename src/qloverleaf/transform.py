@@ -98,6 +98,17 @@ class TypeCheckFunction(Enum):
     IS_DATE = "is_date"
 
 
+class CountType(Enum):
+    NODES = "nodes"
+    WAYS = "ways"
+    RELATIONS = "relations"
+    NW = "nw"
+    WR = "wr"
+    NR = "nr"
+    NWR = "nwr"
+    DERIVEDS = "deriveds"
+
+
 # Set Reference
 
 
@@ -246,6 +257,12 @@ class IsClosedExpression(Evaluator):
 @dataclass
 class LengthExpression(Evaluator):
     pass
+
+
+@dataclass
+class CountExpression(Evaluator):
+    count_type: CountType
+    set_ref: SetReference | None
 
 
 # Query Filter Classes
@@ -1176,7 +1193,20 @@ class OverpassTransformer(Transformer[Token, Any]):
     def gcat_expr(self, children: list[Any]) -> None:
         raise UnsupportedFeatureError("gcat() is not supported", children[0].token)
 
-    # count_expr
+    def count_expr(self, children: list[Any]) -> CountExpression:
+        count_type_token = children[-1]
+        assert isinstance(count_type_token, Token)
+        set_ref = children[0] if len(children) == 2 else None
+        count_type = CountType(str(count_type_token))
+        if count_type == CountType.DERIVEDS:
+            raise UnsupportedFeatureError(
+                "count(deriveds) is not supported", count_type_token
+            )
+        return CountExpression(
+            count_type=count_type,
+            set_ref=set_ref,
+            token=count_type_token,
+        )
 
     def lrs_in_expr(self, children: list[Any]) -> None:
         raise UnsupportedFeatureError("lrs_in() is not supported", children[0].token)

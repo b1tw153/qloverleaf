@@ -20,6 +20,8 @@ from qloverleaf.transform import (
     ConversionFunction,
     CoordinateAxis,
     CoordinateExpression,
+    CountExpression,
+    CountType,
     ElementType,
     Evaluator,
     ForeachStatement,
@@ -35,6 +37,7 @@ from qloverleaf.transform import (
     MultiplyOperator,
     OverpassTransformer,
     PolygonFilter,
+    SetReference,
     QueryStatement,
     SuffixExpression,
     TagKeyFilter,
@@ -1153,6 +1156,74 @@ def test_gcat_expr_raises() -> None:
 def test_gcat_expr_with_set_raises() -> None:
     with pytest.raises(UnsupportedFeatureError):
         _evaluator("a.gcat(geom())")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.count_expr
+# ---------------------------------------------------------------------------
+
+
+def test_count_nodes() -> None:
+    result = _evaluator("count(nodes)")
+    assert isinstance(result, CountExpression)
+    assert result.count_type == CountType.NODES
+    assert result.set_ref is None
+
+
+def test_count_ways() -> None:
+    result = _evaluator("count(ways)")
+    assert isinstance(result, CountExpression)
+    assert result.count_type == CountType.WAYS
+    assert result.set_ref is None
+
+
+def test_count_relations() -> None:
+    result = _evaluator("count(relations)")
+    assert isinstance(result, CountExpression)
+    assert result.count_type == CountType.RELATIONS
+    assert result.set_ref is None
+
+
+def test_count_nw() -> None:
+    result = _evaluator("count(nw)")
+    assert isinstance(result, CountExpression)
+    assert result.count_type == CountType.NW
+
+
+def test_count_wr() -> None:
+    result = _evaluator("count(wr)")
+    assert isinstance(result, CountExpression)
+    assert result.count_type == CountType.WR
+
+
+def test_count_nr() -> None:
+    result = _evaluator("count(nr)")
+    assert isinstance(result, CountExpression)
+    assert result.count_type == CountType.NR
+
+
+def test_count_nwr() -> None:
+    result = _evaluator("count(nwr)")
+    assert isinstance(result, CountExpression)
+    assert result.count_type == CountType.NWR
+
+
+def test_count_with_set() -> None:
+    result = _evaluator("a.count(nodes)")
+    assert isinstance(result, CountExpression)
+    assert result.count_type == CountType.NODES
+    assert isinstance(result.set_ref, SetReference)
+    assert result.set_ref.name == "a"
+
+
+def test_count_deriveds_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("count(deriveds)")
+
+
+def test_count_deriveds_with_set_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _evaluator("a.count(deriveds)")
 
 
 # ---------------------------------------------------------------------------

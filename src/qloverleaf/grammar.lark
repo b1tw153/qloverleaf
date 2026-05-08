@@ -399,6 +399,7 @@ literal_expr : UNSIGNED_NUMBER | STRING
 
 ?grouped_expr: "(" evaluator ")"
 
+// ! forces the parser to preserve anonymous terminals
 !id_expr:                     "id" "(" ")"
 !type_expr:                   "type" "(" ")"
 tag_value_expr:               "t" "[" evaluator "]"

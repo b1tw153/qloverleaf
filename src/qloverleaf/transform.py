@@ -7,7 +7,7 @@ from typing import Any
 from lark import Token, Transformer, Tree
 from lark.exceptions import VisitError
 
-from qloverleaf.exceptions import UnsupportedFeatureError
+from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 
 
 @dataclass
@@ -939,17 +939,55 @@ class OverpassTransformer(Transformer[Token, Any]):
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("keys() evaluator is not supported", children[0])
 
-    # generic_tag_expr
-    # version_expr
-    # timestamp_expr
-    # changeset_expr
-    # uid_expr
-    # user_expr
-    # count_tags_expr
-    # count_members_expr
-    # count_distinct_members_expr
-    # count_by_role_expr
-    # count_distinct_by_role_expr
+    # generic_tag_expr - implemented only in the context of convert/make
+
+    def version_expr(self, children: list[Any]) -> MetadataExpression:
+        token = children[0]
+        assert isinstance(token, Token)
+        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+
+    def timestamp_expr(self, children: list[Any]) -> MetadataExpression:
+        token = children[0]
+        assert isinstance(token, Token)
+        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+
+    def changeset_expr(self, children: list[Any]) -> MetadataExpression:
+        token = children[0]
+        assert isinstance(token, Token)
+        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+
+    def uid_expr(self, children: list[Any]) -> MetadataExpression:
+        token = children[0]
+        assert isinstance(token, Token)
+        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+
+    def user_expr(self, children: list[Any]) -> MetadataExpression:
+        token = children[0]
+        assert isinstance(token, Token)
+        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+
+    def count_tags_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnimplementedFeatureError("count_tags() is not implemented", children[0])
+
+    def count_members_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnimplementedFeatureError(
+            "count_members() is not implemented", children[0]
+        )
+
+    def count_distinct_members_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnimplementedFeatureError(
+            "count_distinct_members() is not implemented", children[0]
+        )
+
+    def count_by_role_expr(self, children: list[Any]) -> None:
+        raise UnimplementedFeatureError("count_by_role() is not implemented", children[0].token)
+
+    def count_distinct_by_role_expr(self, children: list[Any]) -> None:
+        raise UnimplementedFeatureError("count_distinct_by_role() is not implemented", children[0].token)
+
     # is_closed_expr
     # lat_expr
     # lon_expr

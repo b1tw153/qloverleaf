@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from lark import Token
 
-from qloverleaf.exceptions import UnsupportedFeatureError
+from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 from qloverleaf.parser import parse
 from qloverleaf.transform import (
     AddExpression,
@@ -816,3 +816,53 @@ def test_is_tag_expr() -> None:
 def test_keys_expr_raises() -> None:
     with pytest.raises(UnsupportedFeatureError):
         _evaluator("keys()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.count_tags_expr
+# ---------------------------------------------------------------------------
+
+
+def test_count_tags_expr_raises() -> None:
+    with pytest.raises(UnimplementedFeatureError):
+        _evaluator("count_tags()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.count_members_expr
+# ---------------------------------------------------------------------------
+
+
+def test_count_members_expr_raises() -> None:
+    with pytest.raises(UnimplementedFeatureError):
+        _evaluator("count_members()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.count_distinct_members_expr
+# ---------------------------------------------------------------------------
+
+
+def test_count_distinct_members_expr_raises() -> None:
+    with pytest.raises(UnimplementedFeatureError):
+        _evaluator("count_distinct_members()")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.count_by_role_expr
+# ---------------------------------------------------------------------------
+
+
+def test_count_by_role_expr_raises() -> None:
+    with pytest.raises(UnimplementedFeatureError):
+        _evaluator('count_by_role("outer")')
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.count_distinct_by_role_expr
+# ---------------------------------------------------------------------------
+
+
+def test_count_distinct_by_role_expr_raises() -> None:
+    with pytest.raises(UnimplementedFeatureError):
+        _evaluator('count_distinct_by_role("outer")')

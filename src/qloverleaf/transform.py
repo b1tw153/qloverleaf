@@ -193,7 +193,7 @@ class MetadataExpression(Evaluator):
 
 @dataclass
 class TagValueExpression(Evaluator):
-    evaluator: Evaluator
+    evaluator: LiteralExpression
 
 
 @dataclass
@@ -947,7 +947,12 @@ class OverpassTransformer(Transformer[Token, Any]):
     def tag_value_expr(self, children: list[Any]) -> TagValueExpression:
         token = children[0].token
         assert isinstance(token, Token)
-        return TagValueExpression(evaluator=children[0], token=token)
+        evaluator = children[0]
+        if not isinstance(evaluator, LiteralExpression):
+            raise UnsupportedFeatureError(
+                "t[...] with a dynamic key expression is not supported", token
+            )
+        return TagValueExpression(evaluator=evaluator, token=token)
 
     def is_tag_expr(self, children: list[Any]) -> IsTagExpression:
         token = children[0]
@@ -1050,13 +1055,36 @@ class OverpassTransformer(Transformer[Token, Any]):
     def poly_expr(self, children: list[Any]) -> None:
         raise UnsupportedFeatureError("poly() is not supported", children[0].token)
 
-    # per_member_expr
-    # per_vertex_expr
-    # pos_expr
-    # mtype_expr
-    # ref_expr
-    # role_expr
-    # angle_expr
+    def per_member_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError(
+            "per_member() is not supported", children[0].token
+        )
+
+    def per_vertex_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError(
+            "per_vertex() is not supported", children[0].token
+        )
+
+    def pos_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError("pos() is not supported", children[0])
+
+    def mtype_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError("mtype() is not supported", children[0])
+
+    def ref_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError("ref() is not supported", children[0])
+
+    def role_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError("role() is not supported", children[0])
+
+    def angle_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError("angle() is not supported", children[0])
+
     # number_expr
     # date_expr
     # suffix_expr
@@ -1070,9 +1098,20 @@ class OverpassTransformer(Transformer[Token, Any]):
     # set_expr
     # gcat_expr
     # count_expr
-    # lrs_in_expr
-    # lrs_isect_expr
-    # lrs_union_expr
-    # lrs_min_expr
-    # lrs_max_expr
+
+    def lrs_in_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("lrs_in() is not supported", children[0].token)
+
+    def lrs_isect_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("lrs_isect() is not supported", children[0].token)
+
+    def lrs_union_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("lrs_union() is not supported", children[0].token)
+
+    def lrs_min_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("lrs_min() is not supported", children[0].token)
+
+    def lrs_max_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("lrs_max() is not supported", children[0].token)
+
     # val_expr

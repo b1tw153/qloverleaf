@@ -9,6 +9,7 @@ from qloverleaf.transform import (
     BboxFilter,
     ElementType,
     ForeachStatement,
+    ForStatement,
     OverpassTransformer,
     PolygonFilter,
     QueryStatement,
@@ -396,4 +397,55 @@ def test_foreach_output_set_without_input() -> None:
 
 def test_foreach_body() -> None:
     stmt = _foreach_stmt("foreach { node[amenity=cafe]; node[amenity=parking]; }")
+    assert len(stmt.body) == 2
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.for_stmt
+# ---------------------------------------------------------------------------
+
+
+def _for_stmt(text: str) -> ForStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, ForStatement)
+    return stmt
+
+
+def test_for_default_input_set() -> None:
+    stmt = _for_stmt("for(1) { node; }")
+    assert stmt.input_set.name == "_"
+    assert stmt.input_set.token is None
+
+
+def test_for_explicit_input_set() -> None:
+    stmt = _for_stmt("for .x (1) { node; }")
+    assert stmt.input_set.name == "x"
+    assert isinstance(stmt.input_set.token, Token)
+
+
+def test_for_output_set() -> None:
+    stmt = _for_stmt("for .x -> .y (1) { node; }")
+    assert stmt.output_set is not None
+    assert stmt.output_set.name == "y"
+
+
+def test_for_no_output_set() -> None:
+    stmt = _for_stmt("for .x (1) { node; }")
+    assert stmt.output_set is None
+
+
+def test_for_output_set_without_input() -> None:
+    stmt = _for_stmt("for -> .y (1) { node; }")
+    assert stmt.input_set.name == "_"
+    assert stmt.output_set is not None
+    assert stmt.output_set.name == "y"
+
+
+def test_for_evaluator() -> None:
+    stmt = _for_stmt("for(1) { node; }")
+    assert stmt.evaluator is not None
+
+
+def test_for_body() -> None:
+    stmt = _for_stmt("for(1) { node[amenity=cafe]; node[amenity=parking]; }")
     assert len(stmt.body) == 2

@@ -83,6 +83,11 @@ class MetadataAttribute(Enum):
     USER = "user"
 
 
+class CoordinateAxis(Enum):
+    LAT = "lat"
+    LON = "lon"
+
+
 # Set Reference
 
 
@@ -194,6 +199,21 @@ class TagValueExpression(Evaluator):
 @dataclass
 class IsTagExpression(Evaluator):
     key: str
+
+
+@dataclass
+class CoordinateExpression(Evaluator):
+    axis: CoordinateAxis
+
+
+@dataclass
+class IsClosedExpression(Evaluator):
+    pass
+
+
+@dataclass
+class LengthExpression(Evaluator):
+    pass
 
 
 # Query Filter Classes
@@ -983,22 +1003,53 @@ class OverpassTransformer(Transformer[Token, Any]):
         )
 
     def count_by_role_expr(self, children: list[Any]) -> None:
-        raise UnimplementedFeatureError("count_by_role() is not implemented", children[0].token)
+        raise UnimplementedFeatureError(
+            "count_by_role() is not implemented", children[0].token
+        )
 
     def count_distinct_by_role_expr(self, children: list[Any]) -> None:
-        raise UnimplementedFeatureError("count_distinct_by_role() is not implemented", children[0].token)
+        raise UnimplementedFeatureError(
+            "count_distinct_by_role() is not implemented", children[0].token
+        )
 
-    # is_closed_expr
-    # lat_expr
-    # lon_expr
-    # geom_expr
-    # length_expr
-    # center_expr
-    # trace_expr
-    # hull_expr
-    # pt_expr
-    # lstr_expr
-    # poly_expr
+    def is_closed_expr(self, children: list[Any]) -> IsClosedExpression:
+        assert isinstance(children[0], Token)
+        return IsClosedExpression(token=children[0])
+
+    def lat_expr(self, children: list[Any]) -> CoordinateExpression:
+        assert isinstance(children[0], Token)
+        return CoordinateExpression(axis=CoordinateAxis.LAT, token=children[0])
+
+    def lon_expr(self, children: list[Any]) -> CoordinateExpression:
+        assert isinstance(children[0], Token)
+        return CoordinateExpression(axis=CoordinateAxis.LON, token=children[0])
+
+    def geom_expr(self, children: list[Any]) -> None:
+        assert isinstance(children[0], Token)
+        raise UnsupportedFeatureError("geom() is not supported", children[0])
+
+    def length_expr(self, children: list[Any]) -> LengthExpression:
+        assert isinstance(children[0], Token)
+        return LengthExpression(token=children[0])
+
+    def center_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("center() is not supported", children[0].token)
+
+    def trace_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("trace() is not supported", children[0].token)
+
+    def hull_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("hull() is not supported", children[0].token)
+
+    def pt_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("pt() is not supported", children[0].token)
+
+    def lstr_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("lstr() is not supported", children[0].token)
+
+    def poly_expr(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError("poly() is not supported", children[0].token)
+
     # per_member_expr
     # per_vertex_expr
     # pos_expr

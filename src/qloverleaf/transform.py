@@ -7,7 +7,11 @@ from typing import Any
 from lark import Token, Transformer, Tree
 from lark.exceptions import VisitError
 
-from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
+from qloverleaf.exceptions import (
+    QueryError,
+    UnimplementedFeatureError,
+    UnsupportedFeatureError,
+)
 
 
 @dataclass
@@ -111,6 +115,19 @@ class CountType(Enum):
     # OUT_VERB
     # RECURSE_DIR
     # TIMELINE_TYPE
+
+
+class OutVerbosity(Enum):
+    IDS = "ids"
+    SKEL = "skel"
+    TAGS = "tags"
+    BODY = "body"
+    META = "meta"
+
+
+class OutSortOrder(Enum):
+    ASC = "asc"
+    QT = "qt"
 
 
 # Set Reference
@@ -453,6 +470,18 @@ class UnionStatement(Statement):
 class ItemStatement(Statement):
     input_set: SetReference
     output_set: SetReference
+
+
+@dataclass
+class OutStatement(Statement):
+    input_set: SetReference
+    count: bool
+    verbosity: OutVerbosity
+    geom: bool
+    bb: bool
+    center: bool
+    sort_order: OutSortOrder
+    limit: int | None
 
 
 # Helper Functions
@@ -998,8 +1027,108 @@ class OverpassTransformer(Transformer[Token, Any]):
             token=input_set.token,
         )
 
-    # out_stmt
-    # out_token
+    def out_token(self, children: list[Any]) -> Any:
+        return children[0]
+
+    def out_stmt(self, children: list[Any]) -> OutStatement:
+        input_set = SetReference(name="_", token=None)
+        token: Token | None = None
+        seen_verbs: dict[str, Token] = {}
+        verbosity_token: Token | None = None
+        count_token: Token | None = None
+        geom_token: Token | None = None
+        bb_token: Token | None = None
+        center_token: Token | None = None
+        sort_token: Token | None = None
+        limit_token: Token | None = None
+
+        for child in children:
+            if isinstance(child, SetReference):
+                input_set = child
+                if token is None:
+                    token = child.token
+            elif isinstance(child, BboxFilter):
+                raise UnsupportedFeatureError(
+                    "bbox_filter in out statement is not supported", child.token
+                )
+            elif isinstance(child, Token):
+                if child.type == "OUT_VERB":
+                    verb = str(child)
+                    if verb in seen_verbs:
+                        raise QueryError(f"duplicate out token: {verb!r}", child)
+                    seen_verbs[verb] = child
+                    if token is None:
+                        token = child
+                    if verb == "noids":
+                        raise UnsupportedFeatureError("noids is not supported", child)
+                    elif verb in ("ids", "skel", "tags", "body", "meta"):
+                        if verbosity_token is not None:
+                            raise QueryError(
+                                f"out verbosity conflict: "
+                                f"{str(verbosity_token)!r} and {verb!r}",
+                                child,
+                            )
+                        verbosity_token = child
+                    elif verb == "count":
+                        count_token = child
+                    elif verb == "geom":
+                        geom_token = child
+                    elif verb == "bb":
+                        bb_token = child
+                    elif verb == "center":
+                        center_token = child
+                    elif verb in ("asc", "qt"):
+                        if sort_token is not None:
+                            raise QueryError(
+                                f"out sort order conflict: "
+                                f"{str(sort_token)!r} and {verb!r}",
+                                child,
+                            )
+                        sort_token = child
+                elif child.type == "INTEGER":
+                    if limit_token is not None:
+                        raise QueryError("duplicate INTEGER in out statement", child)
+                    limit_token = child
+                    if token is None:
+                        token = child
+
+        if geom_token is not None and bb_token is not None:
+            raise QueryError("out geom and bb are mutually exclusive", geom_token)
+
+        if count_token is not None:
+            for conflicting, name in (
+                (verbosity_token, str(verbosity_token) if verbosity_token else None),
+                (geom_token, "geom"),
+                (bb_token, "bb"),
+                (center_token, "center"),
+                (sort_token, str(sort_token) if sort_token else None),
+                (limit_token, "INTEGER"),
+            ):
+                if conflicting is not None:
+                    raise QueryError(
+                        f"out count cannot be combined with {name!r}", count_token
+                    )
+
+        return OutStatement(
+            input_set=input_set,
+            count=count_token is not None,
+            verbosity=(
+                OutVerbosity(str(verbosity_token))
+                if verbosity_token is not None
+                else OutVerbosity.BODY
+            ),
+            geom=geom_token is not None,
+            bb=bb_token is not None,
+            center=center_token is not None,
+            sort_order=(
+                OutSortOrder(str(sort_token))
+                if sort_token is not None
+                else OutSortOrder.ASC
+            ),
+            limit=int(limit_token) if limit_token is not None else None,
+            token=token,
+        )
+
     # recurse_stmt
     # is_in_stmt
     # timeline_stmt

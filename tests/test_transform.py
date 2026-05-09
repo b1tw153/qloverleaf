@@ -3,7 +3,11 @@ from typing import Any
 import pytest
 from lark import Token
 
-from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
+from qloverleaf.exceptions import (
+    QueryError,
+    UnimplementedFeatureError,
+    UnsupportedFeatureError,
+)
 from qloverleaf.parser import parse
 from qloverleaf.transform import (
     AbsExpression,
@@ -27,15 +31,18 @@ from qloverleaf.transform import (
     ForeachStatement,
     ForStatement,
     IfStatement,
-    ItemStatement,
     IsClosedExpression,
     IsTagExpression,
+    ItemStatement,
     LengthExpression,
     LiteralExpression,
     MetadataAttribute,
     MetadataExpression,
     MultiplyExpression,
     MultiplyOperator,
+    OutSortOrder,
+    OutStatement,
+    OutVerbosity,
     OverpassTransformer,
     PolygonFilter,
     QueryStatement,
@@ -680,6 +687,206 @@ def test_item_output_set() -> None:
 def test_item_token() -> None:
     stmt = _item_stmt(".foo;")
     assert isinstance(stmt.token, Token)
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.out_stmt
+# ---------------------------------------------------------------------------
+
+
+def _out_stmt(text: str) -> OutStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, OutStatement)
+    return stmt
+
+
+def test_out_default() -> None:
+    stmt = _out_stmt("out;")
+    assert stmt.input_set.name == "_"
+    assert stmt.input_set.token is None
+    assert stmt.count is False
+    assert stmt.verbosity == OutVerbosity.BODY
+    assert stmt.geom is False
+    assert stmt.bb is False
+    assert stmt.center is False
+    assert stmt.sort_order == OutSortOrder.ASC
+    assert stmt.limit is None
+    assert stmt.token is None
+
+
+def test_out_input_set() -> None:
+    stmt = _out_stmt(".foo out;")
+    assert stmt.input_set.name == "foo"
+    assert isinstance(stmt.input_set.token, Token)
+
+
+def test_out_verbosity_ids() -> None:
+    stmt = _out_stmt("out ids;")
+    assert stmt.verbosity == OutVerbosity.IDS
+
+
+def test_out_verbosity_skel() -> None:
+    stmt = _out_stmt("out skel;")
+    assert stmt.verbosity == OutVerbosity.SKEL
+
+
+def test_out_verbosity_tags() -> None:
+    stmt = _out_stmt("out tags;")
+    assert stmt.verbosity == OutVerbosity.TAGS
+
+
+def test_out_verbosity_body() -> None:
+    stmt = _out_stmt("out body;")
+    assert stmt.verbosity == OutVerbosity.BODY
+
+
+def test_out_verbosity_meta() -> None:
+    stmt = _out_stmt("out meta;")
+    assert stmt.verbosity == OutVerbosity.META
+
+
+def test_out_count() -> None:
+    stmt = _out_stmt("out count;")
+    assert stmt.count is True
+    assert stmt.verbosity == OutVerbosity.BODY
+
+
+def test_out_geom() -> None:
+    stmt = _out_stmt("out geom;")
+    assert stmt.geom is True
+    assert stmt.bb is False
+    assert stmt.center is False
+
+
+def test_out_bb() -> None:
+    stmt = _out_stmt("out bb;")
+    assert stmt.bb is True
+    assert stmt.geom is False
+    assert stmt.center is False
+
+
+def test_out_center() -> None:
+    stmt = _out_stmt("out center;")
+    assert stmt.center is True
+    assert stmt.geom is False
+    assert stmt.bb is False
+
+
+def test_out_geom_center() -> None:
+    stmt = _out_stmt("out geom center;")
+    assert stmt.geom is True
+    assert stmt.center is True
+    assert stmt.bb is False
+
+
+def test_out_bb_center() -> None:
+    stmt = _out_stmt("out bb center;")
+    assert stmt.bb is True
+    assert stmt.center is True
+    assert stmt.geom is False
+
+
+def test_out_sort_qt() -> None:
+    stmt = _out_stmt("out qt;")
+    assert stmt.sort_order == OutSortOrder.QT
+
+
+def test_out_sort_asc() -> None:
+    stmt = _out_stmt("out asc;")
+    assert stmt.sort_order == OutSortOrder.ASC
+
+
+def test_out_limit() -> None:
+    stmt = _out_stmt("out 10;")
+    assert stmt.limit == 10
+
+
+def test_out_verbosity_and_geometry() -> None:
+    stmt = _out_stmt("out ids geom;")
+    assert stmt.verbosity == OutVerbosity.IDS
+    assert stmt.geom is True
+
+
+def test_out_verbosity_and_sort() -> None:
+    stmt = _out_stmt("out meta qt;")
+    assert stmt.verbosity == OutVerbosity.META
+    assert stmt.sort_order == OutSortOrder.QT
+
+
+def test_out_verbosity_and_limit() -> None:
+    stmt = _out_stmt("out skel 5;")
+    assert stmt.verbosity == OutVerbosity.SKEL
+    assert stmt.limit == 5
+
+
+def test_out_token_from_verb() -> None:
+    stmt = _out_stmt("out ids;")
+    assert isinstance(stmt.token, Token)
+
+
+def test_out_duplicate_verb_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out body body;")
+
+
+def test_out_duplicate_verbosity_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out ids body;")
+
+
+def test_out_geom_and_bb_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out geom bb;")
+
+
+def test_out_duplicate_sort_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out asc qt;")
+
+
+def test_out_duplicate_limit_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out 5 10;")
+
+
+def test_out_count_with_verbosity_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out count body;")
+
+
+def test_out_count_with_geom_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out count geom;")
+
+
+def test_out_count_with_bb_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out count bb;")
+
+
+def test_out_count_with_center_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out count center;")
+
+
+def test_out_count_with_sort_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out count qt;")
+
+
+def test_out_count_with_limit_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out count 5;")
+
+
+def test_out_noids_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _out_stmt("out noids;")
+
+
+def test_out_bbox_filter_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _out_stmt("out geom (1,2,3,4);")
 
 
 # ---------------------------------------------------------------------------

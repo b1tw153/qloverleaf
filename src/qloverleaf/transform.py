@@ -509,6 +509,12 @@ class IsInStatement(Statement):
     output_set: SetReference
 
 
+@dataclass
+class MapToAreaStatement(Statement):
+    input_set: SetReference
+    output_set: SetReference
+
+
 # Helper Functions
 
 
@@ -1223,7 +1229,24 @@ class OverpassTransformer(Transformer[Token, Any]):
             "make statement is not implemented", children[0]
         )
 
-    # map_to_area_stmt
+    def map_to_area_stmt(self, children: list[Any]) -> MapToAreaStatement:
+        input_set = SetReference(name="_", token=None, required_types=_WR)
+        output_set = SetReference(name="_", token=None, required_types=_AREA)
+        token = None
+        for child in children:
+            if isinstance(child, SetReference):
+                input_set = child
+                input_set.required_types = _WR
+                token = child.token if token is None else token
+            elif isinstance(child, SetAssignment):
+                output_set = child.set_ref
+                output_set.required_types = _AREA
+                token = child.set_ref.token if token is None else token
+        return MapToAreaStatement(
+            input_set=input_set,
+            output_set=output_set,
+            token=token,
+        )
 
     def compare_stmt(self, children: list[Any]) -> None:
         raise UnsupportedFeatureError(

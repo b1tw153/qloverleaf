@@ -1180,6 +1180,16 @@ class OverpassTransformer(Transformer[Token, Any]):
                 recurse_dir = RecurseDir(child.value)
                 token = child if token is None else token
         assert recurse_dir is not None
+        match recurse_dir:
+            case RecurseDir.DOWN:
+                input_set.required_types = _NWR
+                output_set.required_types = _NW
+            case RecurseDir.DOWN_RELATIONS:
+                input_set.required_types = _NWR
+                output_set.required_types = _NWR
+            case RecurseDir.UP | RecurseDir.UP_RELATIONS:
+                input_set.required_types = _NWR
+                output_set.required_types = _WR
         return RecurseStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1206,6 +1216,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             elif isinstance(child, SetAssignment):
                 output_set = child.set_ref
                 token = child.set_ref.token if token is None else token
+        input_set.required_types = _NODE
+        output_set.required_types = _AREA
         return IsInStatement(
             input_set=input_set,
             lat=lat,

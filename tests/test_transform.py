@@ -46,6 +46,8 @@ from qloverleaf.transform import (
     OverpassTransformer,
     PolygonFilter,
     QueryStatement,
+    RecurseDir,
+    RecurseStatement,
     SetReference,
     SuffixExpression,
     TagKeyFilter,
@@ -887,6 +889,67 @@ def test_out_noids_raises() -> None:
 def test_out_bbox_filter_raises() -> None:
     with pytest.raises(UnsupportedFeatureError):
         _out_stmt("out geom (1,2,3,4);")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.recurse_stmt
+# ---------------------------------------------------------------------------
+
+
+def _recurse_stmt(text: str) -> RecurseStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, RecurseStatement)
+    return stmt
+
+
+def test_recurse_default_sets() -> None:
+    stmt = _recurse_stmt(">;")
+    assert stmt.input_set.name == "_"
+    assert stmt.input_set.token is None
+    assert stmt.output_set.name == "_"
+    assert stmt.output_set.token is None
+
+
+def test_recurse_dir_down() -> None:
+    stmt = _recurse_stmt(">;")
+    assert stmt.recurse_dir == RecurseDir.DOWN
+
+
+def test_recurse_dir_up() -> None:
+    stmt = _recurse_stmt("<;")
+    assert stmt.recurse_dir == RecurseDir.UP
+
+
+def test_recurse_dir_down_relations() -> None:
+    stmt = _recurse_stmt(">>;")
+    assert stmt.recurse_dir == RecurseDir.DOWN_RELATIONS
+
+
+def test_recurse_dir_up_relations() -> None:
+    stmt = _recurse_stmt("<<;")
+    assert stmt.recurse_dir == RecurseDir.UP_RELATIONS
+
+
+def test_recurse_input_set() -> None:
+    stmt = _recurse_stmt(".foo >;")
+    assert stmt.input_set.name == "foo"
+    assert isinstance(stmt.input_set.token, Token)
+
+
+def test_recurse_output_set() -> None:
+    stmt = _recurse_stmt("> -> .bar;")
+    assert stmt.output_set.name == "bar"
+
+
+def test_recurse_token_from_dir() -> None:
+    stmt = _recurse_stmt(">;")
+    assert isinstance(stmt.token, Token)
+
+
+def test_recurse_token_from_input_set() -> None:
+    stmt = _recurse_stmt(".foo >;")
+    assert isinstance(stmt.token, Token)
+    assert stmt.token.value == "foo"
 
 
 # ---------------------------------------------------------------------------

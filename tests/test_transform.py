@@ -998,6 +998,46 @@ def test_is_in_output_set() -> None:
 
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.timeline_stmt
+# ---------------------------------------------------------------------------
+
+
+def test_timeline_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _transform_query("timeline(node,1);")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.local_stmt
+# ---------------------------------------------------------------------------
+
+
+def test_local_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _transform_query("local;")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.convert_stmt
+# ---------------------------------------------------------------------------
+
+
+def test_convert_raises() -> None:
+    with pytest.raises(UnimplementedFeatureError):
+        _transform_query("convert mytype;")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.make_stmt
+# ---------------------------------------------------------------------------
+
+
+def test_make_raises() -> None:
+    with pytest.raises(UnimplementedFeatureError):
+        _transform_query("make mytype;")
+
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.retro_stmt
 # ---------------------------------------------------------------------------
 

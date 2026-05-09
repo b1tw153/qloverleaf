@@ -37,6 +37,7 @@ from qloverleaf.transform import (
     ItemStatement,
     LengthExpression,
     LiteralExpression,
+    MapToAreaStatement,
     MetadataAttribute,
     MetadataExpression,
     MultiplyExpression,
@@ -1035,6 +1036,49 @@ def test_convert_raises() -> None:
 def test_make_raises() -> None:
     with pytest.raises(UnimplementedFeatureError):
         _transform_query("make mytype;")
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.map_to_area_stmt
+# ---------------------------------------------------------------------------
+
+
+def _map_to_area_stmt(text: str) -> MapToAreaStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, MapToAreaStatement)
+    return stmt
+
+
+def test_map_to_area_default() -> None:
+    stmt = _map_to_area_stmt("map_to_area;")
+    assert stmt.input_set.name == "_"
+    assert stmt.input_set.token is None
+    assert stmt.input_set.required_types == frozenset(
+        {ElementType.WAY, ElementType.RELATION}
+    )
+    assert stmt.output_set.name == "_"
+    assert stmt.output_set.token is None
+    assert stmt.output_set.required_types == frozenset({ElementType.AREA})
+    assert stmt.token is None
+
+
+def test_map_to_area_input_set() -> None:
+    stmt = _map_to_area_stmt(".foo map_to_area;")
+    assert stmt.input_set.name == "foo"
+    assert stmt.input_set.required_types == frozenset(
+        {ElementType.WAY, ElementType.RELATION}
+    )
+    assert isinstance(stmt.input_set.token, Token)
+    assert isinstance(stmt.token, Token)
+    assert stmt.token.value == "foo"
+
+
+def test_map_to_area_output_set() -> None:
+    stmt = _map_to_area_stmt("map_to_area -> .bar;")
+    assert stmt.output_set.name == "bar"
+    assert stmt.output_set.required_types == frozenset({ElementType.AREA})
+    assert isinstance(stmt.token, Token)
+    assert stmt.token.value == "bar"
 
 
 # ---------------------------------------------------------------------------

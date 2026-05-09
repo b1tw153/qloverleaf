@@ -73,7 +73,7 @@ class QueryTimeoutError(QueryLimitError):
     pass
 
 
-class MaxsizeError(QueryLimitError):
+class QueryMaxsizeError(QueryLimitError):
     """Query result exceeded its [maxsize:N] limit."""
 
     pass

@@ -449,6 +449,12 @@ class UnionStatement(Statement):
     output_set: SetReference
 
 
+@dataclass
+class ItemStatement(Statement):
+    input_set: SetReference
+    output_set: SetReference
+
+
 # Helper Functions
 
 
@@ -979,7 +985,19 @@ class OverpassTransformer(Transformer[Token, Any]):
             token=token,
         )
 
-    # item_stmt
+    def item_stmt(self, children: list[Any]) -> ItemStatement:
+        input_set = children[0]
+        assert isinstance(input_set, SetReference)
+        output_set = SetReference(name="_", token=None)
+        if len(children) == 2:
+            assert isinstance(children[1], SetAssignment)
+            output_set = children[1].set_ref
+        return ItemStatement(
+            input_set=input_set,
+            output_set=output_set,
+            token=input_set.token,
+        )
+
     # out_stmt
     # out_token
     # recurse_stmt

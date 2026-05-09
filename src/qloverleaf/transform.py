@@ -557,6 +557,11 @@ class OverpassTransformer(Transformer[Token, Any]):
         except VisitError as e:
             raise e.orig_exc from e
 
+    # Global Settings
+
+    def global_setting(self, children: list[Any]) -> None:
+        return None
+
     # Basic Type Transforms
 
     def tag_key(self, children: list[Any]) -> Token:

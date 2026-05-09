@@ -1203,11 +1203,26 @@ class OverpassTransformer(Transformer[Token, Any]):
             token=token,
         )
 
-    # timeline_stmt
-    # local_stmt
-    # convert_stmt
-    # tag_assignment
-    # make_stmt
+    def timeline_stmt(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError(
+            "timeline statement is not supported", children[0]
+        )
+
+    def local_stmt(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError(
+            "local statement is not supported", children[0] if children else None
+        )
+
+    def convert_stmt(self, children: list[Any]) -> None:
+        raise UnimplementedFeatureError(
+            "convert statement is not implemented", children[0]
+        )
+
+    def make_stmt(self, children: list[Any]) -> None:
+        raise UnimplementedFeatureError(
+            "make statement is not implemented", children[0]
+        )
+
     # map_to_area_stmt
     # compare_stmt
 

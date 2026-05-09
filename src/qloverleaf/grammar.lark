@@ -282,7 +282,11 @@ TIMELINE_TYPE: "node"
              | "way" 
              | "relation"
 
-local_stmt: set_ref? "local" ("l" | "ll" | "llb")? set_assignment?
+local_stmt: set_ref? "local" (LOCAL_TYPE)? set_assignment?
+
+LOCAL_TYPE: "l"
+          | "ll"
+          | "llb"
 
 convert_stmt: set_ref? "convert" DERIVED_NAME (convert_tag_assignment ("," convert_tag_assignment)*)? set_assignment?
 

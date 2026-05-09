@@ -1224,7 +1224,12 @@ class OverpassTransformer(Transformer[Token, Any]):
         )
 
     # map_to_area_stmt
-    # compare_stmt
+
+    def compare_stmt(self, children: list[Any]) -> None:
+        raise UnsupportedFeatureError(
+            "compare statement is not supported",
+            children[0] if children else None,
+        )
 
     # Evaluator Transforms
 

@@ -1038,6 +1038,16 @@ def test_make_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.compare_stmt
+# ---------------------------------------------------------------------------
+
+
+def test_compare_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _transform_query("compare();")
+
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.retro_stmt
 # ---------------------------------------------------------------------------
 

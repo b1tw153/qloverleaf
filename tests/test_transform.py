@@ -27,6 +27,7 @@ from qloverleaf.transform import (
     ForeachStatement,
     ForStatement,
     IfStatement,
+    ItemStatement,
     IsClosedExpression,
     IsTagExpression,
     LengthExpression,
@@ -646,6 +647,39 @@ def test_union_empty_token_with_output_set() -> None:
     assert len(stmt.members) == 0
     assert stmt.output_set.name == "x"
     assert stmt.output_set.token is not None
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.item_stmt
+# ---------------------------------------------------------------------------
+
+
+def _item_stmt(text: str) -> ItemStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, ItemStatement)
+    return stmt
+
+
+def test_item_input_set() -> None:
+    stmt = _item_stmt(".foo;")
+    assert stmt.input_set.name == "foo"
+    assert isinstance(stmt.input_set.token, Token)
+
+
+def test_item_no_output_set() -> None:
+    stmt = _item_stmt(".foo;")
+    assert stmt.output_set.name == "_"
+    assert stmt.output_set.token is None
+
+
+def test_item_output_set() -> None:
+    stmt = _item_stmt(".foo -> .bar;")
+    assert stmt.output_set.name == "bar"
+
+
+def test_item_token() -> None:
+    stmt = _item_stmt(".foo;")
+    assert isinstance(stmt.token, Token)
 
 
 # ---------------------------------------------------------------------------

@@ -186,6 +186,23 @@ def test_unquote_too_short_passthrough() -> None:
 
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.global_setting
+# ---------------------------------------------------------------------------
+
+
+def test_global_setting_timeout() -> None:
+    _transform_query("[timeout:25];")
+
+
+def test_global_setting_bbox() -> None:
+    _transform_query("[bbox:51.5,-0.2,51.6,-0.1];")
+
+
+def test_global_setting_out() -> None:
+    _transform_query("[out:json];")
+
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.tag_key
 # ---------------------------------------------------------------------------
 

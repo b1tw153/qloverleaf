@@ -130,6 +130,13 @@ class OutSortOrder(Enum):
     QT = "qt"
 
 
+class RecurseDir(Enum):
+    DOWN_RELATIONS = ">>"
+    UP_RELATIONS = "<<"
+    DOWN = ">"
+    UP = "<"
+
+
 # Set Reference
 
 
@@ -454,6 +461,9 @@ class IfStatement(Statement):
     else_body: list[Any] | None
 
 
+# Other Statement Classes
+
+
 @dataclass
 class UnionMember:
     difference: bool
@@ -482,6 +492,13 @@ class OutStatement(Statement):
     center: bool
     sort_order: OutSortOrder
     limit: int | None
+
+
+@dataclass
+class RecurseStatement(Statement):
+    input_set: SetReference
+    output_set: SetReference
+    recurse_dir: RecurseDir
 
 
 # Helper Functions
@@ -1130,6 +1147,28 @@ class OverpassTransformer(Transformer[Token, Any]):
         )
 
     # recurse_stmt
+    def recurse_stmt(self, children: list[Any]) -> RecurseStatement:
+        input_set = SetReference(name="_", token=None)
+        output_set = SetReference(name="_", token=None)
+        recurse_dir = None
+        token = None
+        for child in children:
+            if isinstance(child, SetReference):
+                input_set = child
+                token = child.token if token is None else token
+            elif isinstance(child, SetAssignment):
+                output_set = child.set_ref
+            elif isinstance(child, Token) and child.type == "RECURSE_DIR":
+                recurse_dir = RecurseDir(child.value)
+                token = child if token is None else token
+        assert recurse_dir is not None
+        return RecurseStatement(
+            input_set=input_set,
+            output_set=output_set,
+            recurse_dir=recurse_dir,
+            token=token,
+        )
+
     # is_in_stmt
     # timeline_stmt
     # local_stmt

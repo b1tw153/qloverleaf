@@ -501,6 +501,14 @@ class RecurseStatement(Statement):
     recurse_dir: RecurseDir
 
 
+@dataclass
+class IsInStatement(Statement):
+    input_set: SetReference
+    lat: str | None
+    lon: str | None
+    output_set: SetReference
+
+
 # Helper Functions
 
 
@@ -1146,7 +1154,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             token=token,
         )
 
-    # recurse_stmt
     def recurse_stmt(self, children: list[Any]) -> RecurseStatement:
         input_set = SetReference(name="_", token=None)
         output_set = SetReference(name="_", token=None)
@@ -1169,7 +1176,33 @@ class OverpassTransformer(Transformer[Token, Any]):
             token=token,
         )
 
-    # is_in_stmt
+    def is_in_stmt(self, children: list[Any]) -> IsInStatement:
+        input_set = SetReference(name="_", token=None)
+        output_set = SetReference(name="_", token=None)
+        lat: str | None = None
+        lon: str | None = None
+        token = None
+        for child in children:
+            if isinstance(child, SetReference):
+                input_set = child
+                token = child.token if token is None else token
+            elif isinstance(child, Token) and child.type == "NUMBER":
+                if lat is None:
+                    lat = child.value
+                    token = child if token is None else token
+                else:
+                    lon = child.value
+            elif isinstance(child, SetAssignment):
+                output_set = child.set_ref
+                token = child.set_ref.token if token is None else token
+        return IsInStatement(
+            input_set=input_set,
+            lat=lat,
+            lon=lon,
+            output_set=output_set,
+            token=token,
+        )
+
     # timeline_stmt
     # local_stmt
     # convert_stmt

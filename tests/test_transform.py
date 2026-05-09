@@ -32,6 +32,7 @@ from qloverleaf.transform import (
     ForStatement,
     IfStatement,
     IsClosedExpression,
+    IsInStatement,
     IsTagExpression,
     ItemStatement,
     LengthExpression,
@@ -950,6 +951,50 @@ def test_recurse_token_from_input_set() -> None:
     stmt = _recurse_stmt(".foo >;")
     assert isinstance(stmt.token, Token)
     assert stmt.token.value == "foo"
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.is_in_stmt
+# ---------------------------------------------------------------------------
+
+
+def _is_in_stmt(text: str) -> IsInStatement:
+    stmt = _transform_query(text).children[0].children[0]
+    assert isinstance(stmt, IsInStatement)
+    return stmt
+
+
+def test_is_in_default() -> None:
+    stmt = _is_in_stmt("is_in;")
+    assert stmt.input_set.name == "_"
+    assert stmt.input_set.token is None
+    assert stmt.lat is None
+    assert stmt.lon is None
+    assert stmt.output_set.name == "_"
+    assert stmt.output_set.token is None
+    assert stmt.token is None
+
+
+def test_is_in_input_set() -> None:
+    stmt = _is_in_stmt(".foo is_in;")
+    assert stmt.input_set.name == "foo"
+    assert isinstance(stmt.input_set.token, Token)
+    assert isinstance(stmt.token, Token)
+    assert stmt.token.value == "foo"
+
+
+def test_is_in_coordinates() -> None:
+    stmt = _is_in_stmt("is_in(51.5,-0.2);")
+    assert stmt.lat == "51.5"
+    assert stmt.lon == "-0.2"
+    assert isinstance(stmt.token, Token)
+
+
+def test_is_in_output_set() -> None:
+    stmt = _is_in_stmt("is_in -> .bar;")
+    assert stmt.output_set.name == "bar"
+    assert isinstance(stmt.token, Token)
+    assert stmt.token.value == "bar"
 
 
 # ---------------------------------------------------------------------------

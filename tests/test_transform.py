@@ -50,12 +50,14 @@ from qloverleaf.transform import (
     OutStatement,
     OutVerbosity,
     OverpassTransformer,
+    PivotFilter,
     PolygonFilter,
     QueryStatement,
     RecurseDir,
     RecurseFilter,
     RecurseFilterType,
     RecurseStatement,
+    SetFilter,
     SetReference,
     SuffixExpression,
     TagFilterOp,
@@ -71,6 +73,7 @@ from qloverleaf.transform import (
     UnionStatement,
     UserFilter,
     ValExpression,
+    WayCountFilter,
     _parse_datetime,
     _unquote,
 )
@@ -711,25 +714,63 @@ def test_recurse_filter_role() -> None:
 # OverpassTransformer.way_count_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_way_count_filter() -> None:
+    filter = _first_filter("node(way_cnt:3);")
+    assert isinstance(filter, WayCountFilter)
+    assert filter.min_count == 3
+    assert filter.max_count == 3
+    assert filter.exact is True
+    assert filter.input_types == frozenset({ElementType.WAY})
+    assert filter.output_types == frozenset({ElementType.NODE})
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.way_link_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_way_link_filter_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _first_filter("node(way_link:2);")
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.set_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_set_filter() -> None:
+    filter = _first_filter("node.foo;")
+    assert isinstance(filter, SetFilter)
+    assert filter.set_reference.name == "foo"
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.pivot_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_pivot_filter_default_set() -> None:
+    filter = _first_filter("way(pivot);")
+    assert isinstance(filter, PivotFilter)
+    assert filter.set_reference.name == "_"
+    assert filter.set_reference.token is None
+    assert filter.set_reference.required_types == frozenset({ElementType.AREA})
+    assert filter.input_types == frozenset({ElementType.WAY, ElementType.RELATION})
+    assert filter.output_types == frozenset({ElementType.WAY, ElementType.RELATION})
+    assert filter.token is None
+
+
+def test_pivot_filter_explicit_set() -> None:
+    filter = _first_filter("way(pivot.foo);")
+    assert isinstance(filter, PivotFilter)
+    assert filter.set_reference.name == "foo"
+    assert filter.set_reference.token is not None
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.if_filter

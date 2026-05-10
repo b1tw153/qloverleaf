@@ -611,7 +611,7 @@ def test_int_range_closed() -> None:
 # OverpassTransformer.around_lat_lon (via around_point_filter)
 # ---------------------------------------------------------------------------
 
-# around_lat_lon returns a value tuple; tested in around_point_filter
+# around_lat_lon returns a LatLon; tested in around_point_filter
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.around_line_filter
@@ -622,7 +622,10 @@ def test_around_line_filter() -> None:
     filter = _first_filter("node(around:100.0,51.5,-0.2,51.6,-0.1);")
     assert isinstance(filter, AroundLineFilter)
     assert filter.radius == "100.0"
-    assert filter.points == [("51.5", "-0.2"), ("51.6", "-0.1")]
+    assert [(p.lat, p.lon) for p in filter.points] == [
+        ("51.5", "-0.2"),
+        ("51.6", "-0.1"),
+    ]
     assert filter.token is not None
 
 
@@ -634,7 +637,11 @@ def test_around_line_filter() -> None:
 def test_poly_lat_lon_values() -> None:
     filter = _first_filter('node(poly:"51.5 -0.2 51.6 -0.1 51.5 -0.3");')
     assert isinstance(filter, PolygonFilter)
-    assert filter.points == [("51.5", "-0.2"), ("51.6", "-0.1"), ("51.5", "-0.3")]
+    assert [(p.lat, p.lon) for p in filter.points] == [
+        ("51.5", "-0.2"),
+        ("51.6", "-0.1"),
+        ("51.5", "-0.3"),
+    ]
 
 
 # ---------------------------------------------------------------------------

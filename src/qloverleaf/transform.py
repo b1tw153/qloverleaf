@@ -145,6 +145,13 @@ class IntRange:
     token: Token
 
 
+@dataclass
+class LatLon:
+    lat: str
+    lon: str
+    token: Token
+
+
 # Set Reference
 
 
@@ -359,12 +366,12 @@ class AroundPointFilter(QueryFilter):
 @dataclass
 class AroundLineFilter(QueryFilter):
     radius: str
-    points: list[tuple[str, str]]
+    points: list[LatLon]
 
 
 @dataclass
 class PolygonFilter(QueryFilter):
-    points: list[tuple[str, str]]
+    points: list[LatLon]
 
 
 @dataclass
@@ -596,17 +603,17 @@ class OverpassTransformer(Transformer[Token, Any]):
         assert isinstance(children[0], Token)
         return children[0]
 
-    def around_lat_lon(self, children: list[Any]) -> tuple[str, str]:
+    def around_lat_lon(self, children: list[Any]) -> LatLon:
         lat_tok, lon_tok = children
         assert isinstance(lat_tok, Token)
         assert isinstance(lon_tok, Token)
-        return (lat_tok.value, lon_tok.value)
+        return LatLon(lat=lat_tok.value, lon=lon_tok.value, token=lat_tok)
 
-    def poly_lat_lon(self, children: list[Any]) -> tuple[str, str, Token]:
+    def poly_lat_lon(self, children: list[Any]) -> LatLon:
         lat_tok, lon_tok = children
         assert isinstance(lat_tok, Token)
         assert isinstance(lon_tok, Token)
-        return (lat_tok.value, lon_tok.value, lat_tok)
+        return LatLon(lat=lat_tok.value, lon=lon_tok.value, token=lat_tok)
 
     def set_ref(self, children: list[Any]) -> SetReference:
         assert isinstance(children[0], Token)
@@ -755,12 +762,14 @@ class OverpassTransformer(Transformer[Token, Any]):
         )
 
     def around_point_filter(self, children: list[Any]) -> AroundPointFilter:
-        radius_token, (lat, lon) = children[0], children[1]
+        radius_token = children[0]
+        lat_lon = children[1]
         assert isinstance(radius_token, Token)
+        assert isinstance(lat_lon, LatLon)
         return AroundPointFilter(
             radius=radius_token.value,
-            lat=lat,
-            lon=lon,
+            lat=lat_lon.lat,
+            lon=lat_lon.lon,
             token=radius_token,
         )
 
@@ -774,11 +783,10 @@ class OverpassTransformer(Transformer[Token, Any]):
         )
 
     def polygon_filter(self, children: list[Any]) -> PolygonFilter:
-        first_token = children[0][2]
-        assert isinstance(first_token, Token)
+        assert isinstance(children[0], LatLon)
         return PolygonFilter(
-            points=[(lat, lon) for lat, lon, _ in children],
-            token=first_token,
+            points=list(children),
+            token=children[0].token,
         )
 
     def newer_filter(self, children: list[Any]) -> NewerFilter:

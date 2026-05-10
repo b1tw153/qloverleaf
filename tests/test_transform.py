@@ -49,6 +49,8 @@ from qloverleaf.transform import (
     PolygonFilter,
     QueryStatement,
     RecurseDir,
+    RecurseFilter,
+    RecurseFilterType,
     RecurseStatement,
     SetReference,
     SuffixExpression,
@@ -284,6 +286,30 @@ def test_tag_value_regex_case_insensitive() -> None:
 # (TODO)
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.tag_filter_exists / tag_filter_absent
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.tag_filter_eq / tag_filter_neq
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.tag_filter_regex / tag_filter_not_regex
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.tag_filter_key_regex
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.bbox_filter
 # ---------------------------------------------------------------------------
 
@@ -305,6 +331,12 @@ def test_bbox_filter_inverted_warns() -> None:
 
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.id_filter_single / id_filter_list
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.set_ref
 # ---------------------------------------------------------------------------
 
@@ -323,6 +355,12 @@ def test_bbox_filter_inverted_warns() -> None:
 # (TODO)
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.set_name
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.around_lat_lon (via around_point_filter)
 # ---------------------------------------------------------------------------
 
@@ -335,6 +373,12 @@ def test_around_lat_lon_values() -> None:
 
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.around_line_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.poly_lat_lon (via polygon_filter)
 # ---------------------------------------------------------------------------
 
@@ -344,6 +388,173 @@ def test_poly_lat_lon_values() -> None:
     assert isinstance(filter, PolygonFilter)
     assert filter.points == [("51.5", "-0.2"), ("51.6", "-0.1"), ("51.5", "-0.3")]
 
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.newer_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.changed_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.user_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.uid_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.user_touched_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.uid_touched_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.area_set_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.area_id_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.recurse_filter
+# ---------------------------------------------------------------------------
+
+
+def test_recurse_filter_w() -> None:
+    filter = _first_filter("node(w);")
+    assert isinstance(filter, RecurseFilter)
+    assert filter.recurse_type == RecurseFilterType.W
+    assert filter.input_types == frozenset({ElementType.NODE})
+    assert filter.output_types == frozenset({ElementType.NODE})
+    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
+    assert filter.set_ref.name == "_"
+    assert filter.token is not None
+    assert filter.role is None
+
+
+def test_recurse_filter_r() -> None:
+    filter = _first_filter("node(r);")
+    assert isinstance(filter, RecurseFilter)
+    assert filter.recurse_type == RecurseFilterType.R
+    assert filter.input_types == frozenset(
+        {ElementType.NODE, ElementType.WAY, ElementType.RELATION}
+    )
+    assert filter.output_types == frozenset(
+        {ElementType.NODE, ElementType.WAY, ElementType.RELATION}
+    )
+    assert filter.set_ref.required_types == frozenset({ElementType.RELATION})
+    assert filter.set_ref.name == "_"
+    assert filter.token is not None
+    assert filter.role is None
+
+
+def test_recurse_filter_bn() -> None:
+    filter = _first_filter("way(bn);")
+    assert isinstance(filter, RecurseFilter)
+    assert filter.recurse_type == RecurseFilterType.BN
+    assert filter.input_types == frozenset({ElementType.WAY, ElementType.RELATION})
+    assert filter.output_types == frozenset({ElementType.WAY, ElementType.RELATION})
+    assert filter.set_ref.required_types == frozenset({ElementType.NODE})
+    assert filter.set_ref.name == "_"
+    assert filter.token is not None
+    assert filter.role is None
+
+
+def test_recurse_filter_bw() -> None:
+    filter = _first_filter("rel(bw);")
+    assert isinstance(filter, RecurseFilter)
+    assert filter.recurse_type == RecurseFilterType.BW
+    assert filter.input_types == frozenset({ElementType.RELATION})
+    assert filter.output_types == frozenset({ElementType.RELATION})
+    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
+    assert filter.set_ref.name == "_"
+    assert filter.token is not None
+    assert filter.role is None
+
+
+def test_recurse_filter_br() -> None:
+    filter = _first_filter("rel(br);")
+    assert isinstance(filter, RecurseFilter)
+    assert filter.recurse_type == RecurseFilterType.BR
+    assert filter.input_types == frozenset({ElementType.RELATION})
+    assert filter.output_types == frozenset({ElementType.RELATION})
+    assert filter.set_ref.required_types == frozenset({ElementType.RELATION})
+    assert filter.set_ref.name == "_"
+    assert filter.token is not None
+    assert filter.role is None
+
+
+def test_recurse_filter_explicit_set() -> None:
+    filter = _first_filter("node(w.foo);")
+    assert isinstance(filter, RecurseFilter)
+    assert filter.set_ref.name == "foo"
+    assert filter.set_ref.token is not None
+    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
+
+
+def test_recurse_filter_role() -> None:
+    filter = _first_filter('node(r:"member");')
+    assert isinstance(filter, RecurseFilter)
+    assert filter.role == "member"
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.way_count_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.way_link_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.set_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.pivot_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.if_filter
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.set_assignment
+# ---------------------------------------------------------------------------
+
+# (TODO)
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.query_stmt
@@ -436,6 +647,12 @@ def test_query_stmt_no_output_set() -> None:
     assert stmt.output_set.token is None
     assert stmt.output_set.required_types == frozenset({ElementType.NODE})
 
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.block_body
+# ---------------------------------------------------------------------------
+
+# (TODO)
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.foreach_stmt
@@ -623,6 +840,18 @@ def test_if_else_body() -> None:
 
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.union_member
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.union_body
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.union_stmt
 # ---------------------------------------------------------------------------
 
@@ -709,6 +938,12 @@ def test_item_token() -> None:
     stmt = _item_stmt(".foo;")
     assert isinstance(stmt.token, Token)
 
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.out_token
+# ---------------------------------------------------------------------------
+
+# (TODO)
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.out_stmt
@@ -1368,6 +1603,36 @@ def test_keys_expr_raises() -> None:
     with pytest.raises(UnsupportedFeatureError):
         _evaluator("keys()")
 
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.version_expr
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.timestamp_expr
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.changeset_expr
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.uid_expr
+# ---------------------------------------------------------------------------
+
+# (TODO)
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.user_expr
+# ---------------------------------------------------------------------------
+
+# (TODO)
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.count_tags_expr

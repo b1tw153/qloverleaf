@@ -137,6 +137,14 @@ class RecurseDir(Enum):
     UP = "<"
 
 
+@dataclass
+class IntRange:
+    min_count: int
+    max_count: int | None
+    exact: bool
+    token: Token
+
+
 # Set Reference
 
 
@@ -393,6 +401,7 @@ class RecurseFilter(QueryFilter):
 
 @dataclass
 class WayCountFilter(QueryFilter):
+    set_ref: SetReference
     min_count: int
     max_count: int | None  # None means open upper bound (N-)
     exact: bool  # True if no dash (exact match)
@@ -610,15 +619,15 @@ class OverpassTransformer(Transformer[Token, Any]):
         assert isinstance(children[0], Token)
         return _unquote(children[0])
 
-    def int_range(self, children: list[Any]) -> tuple[int, int | None, bool, Token]:
+    def int_range(self, children: list[Any]) -> IntRange:
         assert isinstance(children[0], Token)
         if len(children) == 1:
-            return (int(children[0]), int(children[0]), True, children[0])
+            return IntRange(int(children[0]), int(children[0]), True, children[0])
         elif len(children) == 2:
-            return (int(children[0]), None, False, children[0])
+            return IntRange(int(children[0]), None, False, children[0])
         else:
             assert isinstance(children[2], Token)
-            return (int(children[0]), int(children[2]), False, children[0])
+            return IntRange(int(children[0]), int(children[2]), False, children[0])
 
     def set_name(self, children: list[Any]) -> SetReference:
         assert isinstance(children[0], Token)
@@ -860,19 +869,28 @@ class OverpassTransformer(Transformer[Token, Any]):
         )
 
     def way_count_filter(self, children: list[Any]) -> WayCountFilter:
-        min_count, max_count, exact, token = children[0]
+        if isinstance(children[0], SetReference):
+            set_ref = children[0]
+            set_ref.required_types = _WAY
+            int_range = children[1]
+        else:
+            set_ref = SetReference(name="_", token=None, required_types=_WAY)
+            int_range = children[0]
+        assert isinstance(int_range, IntRange)
         return WayCountFilter(
-            min_count=min_count,
-            max_count=max_count,
-            exact=exact,
-            token=token,
-            input_types=_WAY,
+            set_ref=set_ref,
+            min_count=int_range.min_count,
+            max_count=int_range.max_count,
+            exact=int_range.exact,
+            token=int_range.token,
+            input_types=_NODE,
             output_types=_NODE,
         )
 
     def way_link_filter(self, children: list[Any]) -> None:
-        min_count, max_count, exact, token = children[0]
-        raise UnsupportedFeatureError("way_link filter is not supported", token)
+        raise UnsupportedFeatureError(
+            "way_link filter is not supported", children[0].token
+        )
 
     def set_filter(self, children: list[Any]) -> SetFilter:
         assert isinstance(children[0], Token)

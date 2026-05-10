@@ -1572,9 +1572,11 @@ class OverpassTransformer(Transformer[Token, Any]):
         raise UnsupportedFeatureError("lrs_max() is not supported", children[0].token)
 
     def val_expr(self, children: list[Any]) -> ValExpression:
-        # set_ref must be the output set of the enclosing for_stmt; only that set
-        # is populated with per-iteration values. Enforcing this requires a semantic
-        # pass with for-loop context — it cannot be caught in the transformer.
+        # set_ref must be the output set of an enclosing for_stmt (sets are global,
+        # so any for loop on the stack is valid, not just the innermost). Only that
+        # set is populated with per-iteration values.
+        # TODO: validate in a semantic pass — walk the IR with a stack of for loop
+        # output set names; raise if set_ref.name matches none of them.
         set_ref = children[0]
         assert isinstance(set_ref, SetReference)
         assert set_ref.token is not None

@@ -828,13 +828,11 @@ class OverpassTransformer(Transformer[Token, Any]):
         match recurse_type:
             case RecurseFilterType.BN:
                 set_reference.required_types = _NODE
-                input_types: frozenset[ElementType] | None = _NODE
-                # TODO: output_types depends on element type (way→_WAYS, rel→_RELATIONS)
-                # fill in from query_stmt transformer once that exists
-                output_types: frozenset[ElementType] | None = None
+                input_types: frozenset[ElementType] | None = _WR
+                output_types: frozenset[ElementType] | None = _WR
             case RecurseFilterType.BW:
                 set_reference.required_types = _WAY
-                input_types = _WAY
+                input_types = _RELATION
                 output_types = _RELATION
             case RecurseFilterType.BR:
                 set_reference.required_types = _RELATION
@@ -842,14 +840,12 @@ class OverpassTransformer(Transformer[Token, Any]):
                 output_types = _RELATION
             case RecurseFilterType.W:
                 set_reference.required_types = _WAY
-                input_types = _WAY
+                input_types = _NODE
                 output_types = _NODE
             case RecurseFilterType.R:
                 set_reference.required_types = _RELATION
-                input_types = _RELATION
-                # TODO: output_types depends on element type (node→_NODES, way→_WAYS,
-                # rel→_RELATIONS); fill in from query_stmt transformer once that exists
-                output_types = None
+                input_types = _NWR
+                output_types = _NWR
         return RecurseFilter(
             recurse_type=recurse_type,
             set_ref=set_reference,

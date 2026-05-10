@@ -842,12 +842,23 @@ def test_recurse_filter_role() -> None:
 def test_way_count_filter() -> None:
     filter = _first_filter("node(way_cnt:3);")
     assert isinstance(filter, WayCountFilter)
+    assert filter.set_ref.name == "_"
+    assert filter.set_ref.token is None
+    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
     assert filter.min_count == 3
     assert filter.max_count == 3
     assert filter.exact is True
-    assert filter.input_types == frozenset({ElementType.WAY})
+    assert filter.input_types == frozenset({ElementType.NODE})
     assert filter.output_types == frozenset({ElementType.NODE})
     assert filter.token is not None
+
+
+def test_way_count_filter_named_set() -> None:
+    filter = _first_filter("node(way_cnt.foo:3);")
+    assert isinstance(filter, WayCountFilter)
+    assert filter.set_ref.name == "foo"
+    assert filter.set_ref.token is not None
+    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
 
 
 # ---------------------------------------------------------------------------

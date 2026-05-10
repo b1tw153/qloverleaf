@@ -13,6 +13,7 @@ from qloverleaf.transform import (
     AbsExpression,
     AddExpression,
     AddOperator,
+    AroundLineFilter,
     BboxFilter,
     BinaryExpression,
     BinaryOperator,
@@ -42,6 +43,7 @@ from qloverleaf.transform import (
     MetadataExpression,
     MultiplyExpression,
     MultiplyOperator,
+    NewerFilter,
     OutSortOrder,
     OutStatement,
     OutVerbosity,
@@ -61,9 +63,11 @@ from qloverleaf.transform import (
     TernaryExpression,
     TypeCheckExpression,
     TypeCheckFunction,
+    UidFilter,
     UnaryExpression,
     UnaryOperator,
     UnionStatement,
+    UserFilter,
     ValExpression,
     _parse_datetime,
     _unquote,
@@ -484,7 +488,14 @@ def test_int_range_closed() -> None:
 # OverpassTransformer.around_line_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_around_line_filter() -> None:
+    filter = _first_filter("node(around:100.0,51.5,-0.2,51.6,-0.1);")
+    assert isinstance(filter, AroundLineFilter)
+    assert filter.radius == "100.0"
+    assert filter.points == [("51.5", "-0.2"), ("51.6", "-0.1")]
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.poly_lat_lon (via polygon_filter)
@@ -501,25 +512,61 @@ def test_poly_lat_lon_values() -> None:
 # OverpassTransformer.newer_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_newer_filter() -> None:
+    filter = _first_filter('node(newer:"2024-03-12T11:03:25Z");')
+    assert isinstance(filter, NewerFilter)
+    assert filter.timestamp.year == 2024
+    assert filter.timestamp.month == 3
+    assert filter.timestamp.day == 12
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.changed_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_changed_filter_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _first_filter('node(changed:"2024-03-12T11:03:25Z");')
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.user_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_user_filter_single() -> None:
+    filter = _first_filter('node(user:"alice");')
+    assert isinstance(filter, UserFilter)
+    assert filter.users == ["alice"]
+    assert filter.token is not None
+
+
+def test_user_filter_multiple() -> None:
+    filter = _first_filter('node(user:"alice","bob");')
+    assert isinstance(filter, UserFilter)
+    assert filter.users == ["alice", "bob"]
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.uid_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_uid_filter_single() -> None:
+    filter = _first_filter("node(uid:42);")
+    assert isinstance(filter, UidFilter)
+    assert filter.uids == [42]
+    assert filter.token is not None
+
+
+def test_uid_filter_multiple() -> None:
+    filter = _first_filter("node(uid:1,2,3);")
+    assert isinstance(filter, UidFilter)
+    assert filter.uids == [1, 2, 3]
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.user_touched_filter

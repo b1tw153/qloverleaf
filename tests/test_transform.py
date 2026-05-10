@@ -1843,31 +1843,61 @@ def test_keys_expr_raises() -> None:
 # OverpassTransformer.version_expr
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_version_expr() -> None:
+    expr = _evaluator("version()")
+    assert isinstance(expr, MetadataExpression)
+    assert expr.attribute == MetadataAttribute.VERSION
+    assert expr.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.timestamp_expr
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_timestamp_expr() -> None:
+    expr = _evaluator("timestamp()")
+    assert isinstance(expr, MetadataExpression)
+    assert expr.attribute == MetadataAttribute.TIMESTAMP
+    assert expr.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.changeset_expr
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_changeset_expr() -> None:
+    expr = _evaluator("changeset()")
+    assert isinstance(expr, MetadataExpression)
+    assert expr.attribute == MetadataAttribute.CHANGESET
+    assert expr.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.uid_expr
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_uid_expr() -> None:
+    expr = _evaluator("uid()")
+    assert isinstance(expr, MetadataExpression)
+    assert expr.attribute == MetadataAttribute.UID
+    assert expr.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.user_expr
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_user_expr() -> None:
+    expr = _evaluator("user()")
+    assert isinstance(expr, MetadataExpression)
+    assert expr.attribute == MetadataAttribute.USER
+    assert expr.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.count_tags_expr

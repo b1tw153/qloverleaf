@@ -1034,6 +1034,9 @@ class OverpassTransformer(Transformer[Token, Any]):
         return list(children)
 
     def union_stmt(self, children: list[Any]) -> UnionStatement:
+        # TODO: validate that no member is a foreach_stmt or out_stmt — wiki says
+        # these cannot appear as sub-elements of a union (raise QueryError if found);
+        # requires a full recursive walk of the member subtree
         members: list[UnionMember] = children[0]
         output_set = SetReference(name="_", token=None)
         if len(children) == 2:

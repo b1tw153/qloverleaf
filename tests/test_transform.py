@@ -33,6 +33,7 @@ from qloverleaf.transform import (
     ForeachStatement,
     ForStatement,
     IdFilter,
+    IfFilter,
     IfStatement,
     IsClosedExpression,
     IsInStatement,
@@ -776,13 +777,19 @@ def test_pivot_filter_explicit_set() -> None:
 # OverpassTransformer.if_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_if_filter() -> None:
+    filter = _first_filter("node(if:1);")
+    assert isinstance(filter, IfFilter)
+    assert isinstance(filter.evaluator, Evaluator)
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.set_assignment
 # ---------------------------------------------------------------------------
 
-# (TODO)
+# set_assignment is a passthrough; tested via query_stmt
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.query_stmt
@@ -880,7 +887,7 @@ def test_query_stmt_no_output_set() -> None:
 # OverpassTransformer.block_body
 # ---------------------------------------------------------------------------
 
-# (TODO)
+# block_body is a passthrough; tested via foreach/for/complete body tests
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.foreach_stmt
@@ -1071,13 +1078,13 @@ def test_if_else_body() -> None:
 # OverpassTransformer.union_member
 # ---------------------------------------------------------------------------
 
-# (TODO)
+# union_member is a passthrough; tested via union_stmt
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.union_body
 # ---------------------------------------------------------------------------
 
-# (TODO)
+# union_body is a passthrough; tested via union_stmt
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.union_stmt
@@ -1171,7 +1178,7 @@ def test_item_token() -> None:
 # OverpassTransformer.out_token
 # ---------------------------------------------------------------------------
 
-# (TODO)
+# out_token is a passthrough; tested via out_stmt
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.out_stmt

@@ -13,6 +13,8 @@ from qloverleaf.transform import (
     AbsExpression,
     AddExpression,
     AddOperator,
+    AreaIdFilter,
+    AreaSetFilter,
     AroundLineFilter,
     BboxFilter,
     BinaryExpression,
@@ -572,25 +574,55 @@ def test_uid_filter_multiple() -> None:
 # OverpassTransformer.user_touched_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_user_touched_filter_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _first_filter('node(user_touched:"alice");')
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.uid_touched_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_uid_touched_filter_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _first_filter("node(uid_touched:42);")
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.area_set_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_area_set_filter_default_set() -> None:
+    filter = _first_filter("node(area);")
+    assert isinstance(filter, AreaSetFilter)
+    assert filter.set_ref.name == "_"
+    assert filter.set_ref.token is None
+    assert filter.set_ref.required_types == frozenset({ElementType.AREA})
+    assert filter.token is None
+
+
+def test_area_set_filter_explicit_set() -> None:
+    filter = _first_filter("node(area.foo);")
+    assert isinstance(filter, AreaSetFilter)
+    assert filter.set_ref.name == "foo"
+    assert filter.set_ref.token is not None
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.area_id_filter
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_area_id_filter() -> None:
+    filter = _first_filter("node(area:3600000001);")
+    assert isinstance(filter, AreaIdFilter)
+    assert filter.area_id == 3600000001
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.recurse_filter

@@ -1,7 +1,8 @@
+import dataclasses
 from typing import Any
 
 import pytest
-from lark import Token
+from lark import Token, Tree
 
 from qloverleaf.exceptions import (
     QueryError,
@@ -86,6 +87,128 @@ def _transform_query(text: str) -> Any:
 
 def _first_filter(text: str) -> Any:
     return _transform_query(text).children[0].children[0].filters[0]
+
+
+def _assert_no_raw_nodes(value: Any, path: str = "root") -> None:
+    """Recursively assert no Tree or Token appears outside .token fields."""
+    if isinstance(value, (Tree, Token)):
+        raise AssertionError(f"Raw Lark node at {path}: {type(value).__name__}")
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        for field in dataclasses.fields(value):
+            if field.name == "token":
+                continue
+            _assert_no_raw_nodes(getattr(value, field.name), f"{path}.{field.name}")
+    elif isinstance(value, list):
+        for i, item in enumerate(value):
+            _assert_no_raw_nodes(item, f"{path}[{i}]")
+    elif isinstance(value, frozenset):
+        for item in value:
+            _assert_no_raw_nodes(item, f"{path}{{...}}")
+
+
+def _stmt(text: str) -> Any:
+    return _transform_query(text).children[0].children[0]
+
+
+# ---------------------------------------------------------------------------
+# IR completeness — no raw Tree/Token nodes outside .token fields
+# ---------------------------------------------------------------------------
+
+
+def test_ir_completeness_query_stmt() -> None:
+    _assert_no_raw_nodes(
+        _stmt('node[amenity=cafe][name~"Foo"](51.5,-0.2,51.6,-0.1)(123)(around:50.0);')
+    )
+
+
+def test_ir_completeness_filters() -> None:
+    _assert_no_raw_nodes(_stmt('node(w.x)(r:"member")(area.y)(uid:1,2)(user:"alice");'))
+
+
+# TODO: test_ir_completeness_foreach_stmt — body contains untransformed statement
+# Trees until the query/statement rules are handled
+
+# TODO: test_ir_completeness_for_stmt — same reason as foreach
+
+# TODO: test_ir_completeness_complete_stmt — same reason as foreach
+
+# TODO: test_ir_completeness_if_stmt — same reason as foreach
+
+# TODO: test_ir_completeness_union_stmt — UnionMember.statement is an untransformed
+# Tree until the query/statement rules are handled
+
+# TODO: test_ir_completeness_val_expr — val_expr is only valid inside a for body;
+# test via "for -> .a (1) { node(if:a.val); }" once block body transforms are handled
+
+
+def test_ir_completeness_tag_and_positional_filters() -> None:
+    _assert_no_raw_nodes(
+        _stmt(
+            'node[amenity][!name][amenity!=cafe][name!~"Foo"]'
+            "(id:1,2,3)"
+            "(around:100.0,51.5,-0.2)"
+            "(around:100.0,51.5,-0.2,51.6,-0.1)"
+            '(poly:"51.5 -0.2 51.6 -0.1 51.5 -0.3")'
+            '(newer:"2024-03-12T11:03:25Z");'
+        )
+    )
+
+
+def test_ir_completeness_remaining_filters() -> None:
+    for query in [
+        "node(area);",
+        "node(area:3600000001);",
+        "way(bn);",
+        "rel(bw);",
+        "rel(br);",
+        "node(way_cnt:3);",
+        "node.foo;",
+        "way(pivot);",
+        "node(if:1);",
+        ".foo;",
+    ]:
+        _assert_no_raw_nodes(_stmt(query))
+
+
+def test_ir_completeness_evaluators() -> None:
+    for query in [
+        # metadata
+        "node(if:id());",
+        "node(if:type());",
+        "node(if:version());",
+        "node(if:timestamp());",
+        "node(if:changeset());",
+        "node(if:uid());",
+        "node(if:user());",
+        # geometry
+        "node(if:lat());",
+        "node(if:lon());",
+        "node(if:length());",
+        "node(if:is_closed());",
+        # tag access
+        'node(if:t["name"]);',
+        "node(if:is_tag(name));",
+        # conversion and math
+        "node(if:number(1));",
+        "node(if:date(1));",
+        "node(if:suffix(1));",
+        "node(if:abs(-1));",
+        "node(if:is_number(1));",
+        "node(if:is_date(1));",
+        # count
+        "node(if:count(nodes));",
+        # compound expressions
+        "node(if:1 == 2);",
+        "node(if:1 + 2);",
+        "node(if:2 * 3);",
+        "node(if:!1);",
+        "node(if:1 ? 2 : 3);",
+    ]:
+        _assert_no_raw_nodes(_stmt(query))
+
+
+def test_ir_completeness_out_stmt() -> None:
+    _assert_no_raw_nodes(_stmt("out meta qt 10;"))
 
 
 # ---------------------------------------------------------------------------

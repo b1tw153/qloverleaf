@@ -11,6 +11,8 @@ from qloverleaf.exceptions import (
 )
 from qloverleaf.parser import parse
 from qloverleaf.transform import (
+    _NWR,
+    _NWRA,
     AbsExpression,
     AddExpression,
     AddOperator,
@@ -436,6 +438,8 @@ def test_tag_filter_exists() -> None:
     assert filter.key == "amenity"
     assert filter.absent is False
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 def test_tag_filter_absent() -> None:
@@ -444,6 +448,8 @@ def test_tag_filter_absent() -> None:
     assert filter.key == "amenity"
     assert filter.absent is True
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 # ---------------------------------------------------------------------------
@@ -459,6 +465,8 @@ def test_tag_filter_eq() -> None:
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 def test_tag_filter_neq() -> None:
@@ -469,6 +477,8 @@ def test_tag_filter_neq() -> None:
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +494,8 @@ def test_tag_filter_regex() -> None:
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 def test_tag_filter_regex_case_insensitive() -> None:
@@ -492,6 +504,8 @@ def test_tag_filter_regex_case_insensitive() -> None:
     assert filter.op == TagFilterOp.REGEX
     assert filter.case_insensitive is True
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 def test_tag_filter_not_regex() -> None:
@@ -502,6 +516,8 @@ def test_tag_filter_not_regex() -> None:
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 def test_tag_filter_not_regex_case_insensitive() -> None:
@@ -510,6 +526,8 @@ def test_tag_filter_not_regex_case_insensitive() -> None:
     assert filter.op == TagFilterOp.NOT_REGEX
     assert filter.case_insensitive is True
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 # ---------------------------------------------------------------------------
@@ -535,6 +553,8 @@ def test_bbox_filter_values() -> None:
     assert filter.north == "51.6"
     assert filter.east == "-0.1"
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 def test_bbox_filter_inverted_warns() -> None:
@@ -554,6 +574,8 @@ def test_id_filter_single() -> None:
     assert isinstance(filter, IdFilter)
     assert filter.ids == [123]
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 def test_id_filter_list() -> None:
@@ -561,6 +583,8 @@ def test_id_filter_list() -> None:
     assert isinstance(filter, IdFilter)
     assert filter.ids == [1, 2, 3]
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 # ---------------------------------------------------------------------------
@@ -627,6 +651,8 @@ def test_around_line_filter() -> None:
         ("51.6", "-0.1"),
     ]
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 # ---------------------------------------------------------------------------
@@ -642,6 +668,8 @@ def test_poly_lat_lon_values() -> None:
         ("51.6", "-0.1"),
         ("51.5", "-0.3"),
     ]
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 # ---------------------------------------------------------------------------
@@ -656,6 +684,8 @@ def test_newer_filter() -> None:
     assert filter.timestamp.month == 3
     assert filter.timestamp.day == 12
     assert filter.token is not None
+    assert filter.input_types == _NWR
+    assert filter.output_types == _NWR
 
 
 # ---------------------------------------------------------------------------
@@ -678,12 +708,16 @@ def test_user_filter_single() -> None:
     assert isinstance(filter, UserFilter)
     assert filter.users == ["alice"]
     assert filter.token is not None
+    assert filter.input_types == _NWR
+    assert filter.output_types == _NWR
 
 
 def test_user_filter_multiple() -> None:
     filter = _first_filter('node(user:"alice","bob");')
     assert isinstance(filter, UserFilter)
     assert filter.users == ["alice", "bob"]
+    assert filter.input_types == _NWR
+    assert filter.output_types == _NWR
 
 
 # ---------------------------------------------------------------------------
@@ -696,12 +730,16 @@ def test_uid_filter_single() -> None:
     assert isinstance(filter, UidFilter)
     assert filter.uids == [42]
     assert filter.token is not None
+    assert filter.input_types == _NWR
+    assert filter.output_types == _NWR
 
 
 def test_uid_filter_multiple() -> None:
     filter = _first_filter("node(uid:1,2,3);")
     assert isinstance(filter, UidFilter)
     assert filter.uids == [1, 2, 3]
+    assert filter.input_types == _NWR
+    assert filter.output_types == _NWR
 
 
 # ---------------------------------------------------------------------------
@@ -736,6 +774,8 @@ def test_area_set_filter_default_set() -> None:
     assert filter.set_ref.token is None
     assert filter.set_ref.required_types == frozenset({ElementType.AREA})
     assert filter.token is None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 def test_area_set_filter_explicit_set() -> None:
@@ -744,6 +784,8 @@ def test_area_set_filter_explicit_set() -> None:
     assert filter.set_ref.name == "foo"
     assert filter.set_ref.token is not None
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 # ---------------------------------------------------------------------------
@@ -756,6 +798,8 @@ def test_area_id_filter() -> None:
     assert isinstance(filter, AreaIdFilter)
     assert filter.area_id == 3600000001
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 # ---------------------------------------------------------------------------
@@ -888,6 +932,8 @@ def test_set_filter() -> None:
     assert isinstance(filter, SetFilter)
     assert filter.set_reference.name == "foo"
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types is None
 
 
 # ---------------------------------------------------------------------------
@@ -924,6 +970,8 @@ def test_if_filter() -> None:
     assert isinstance(filter, IfFilter)
     assert isinstance(filter.evaluator, Evaluator)
     assert filter.token is not None
+    assert filter.input_types == _NWRA
+    assert filter.output_types == _NWRA
 
 
 # ---------------------------------------------------------------------------

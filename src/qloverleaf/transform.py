@@ -177,6 +177,9 @@ _WAY = frozenset({ElementType.WAY})
 _RELATION = frozenset({ElementType.RELATION})
 _AREA = frozenset({ElementType.AREA})
 _NWR = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
+_NWRA = frozenset(
+    {ElementType.NODE, ElementType.WAY, ElementType.RELATION, ElementType.AREA}
+)
 _WR = frozenset({ElementType.WAY, ElementType.RELATION})
 _NW = frozenset({ElementType.NODE, ElementType.WAY})
 _NR = frozenset({ElementType.NODE, ElementType.RELATION})
@@ -650,6 +653,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             key=_unquote(children[0]),
             absent=False,
             token=children[0],
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def tag_filter_absent(self, children: list[Any]) -> TagKeyFilter:
@@ -657,6 +662,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             key=_unquote(children[0]),
             absent=True,
             token=children[0],
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def tag_filter_eq(self, children: list[Any]) -> TagValueFilter:
@@ -666,6 +673,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             value=_unquote(children[1]),
             case_insensitive=False,
             token=children[0],
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def tag_filter_neq(self, children: list[Any]) -> TagValueFilter:
@@ -675,6 +684,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             value=_unquote(children[1]),
             case_insensitive=False,
             token=children[0],
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def tag_filter_regex(self, children: list[Any]) -> TagValueFilter:
@@ -685,6 +696,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             value=_unquote(children[1]),
             case_insensitive=case_insensitive,
             token=children[0],
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def tag_filter_not_regex(self, children: list[Any]) -> TagValueFilter:
@@ -695,6 +708,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             value=_unquote(children[1]),
             case_insensitive=case_insensitive,
             token=children[0],
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def tag_filter_key_regex(self, children: list[Any]) -> None:
@@ -727,6 +742,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             north=north,
             east=east,
             token=s_tok,
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def id_filter_single(self, children: list[Any]) -> IdFilter:
@@ -734,6 +751,8 @@ class OverpassTransformer(Transformer[Token, Any]):
         return IdFilter(
             ids=[int(children[0])],
             token=children[0],
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def id_filter_list(self, children: list[Any]) -> IdFilter:
@@ -741,6 +760,8 @@ class OverpassTransformer(Transformer[Token, Any]):
         return IdFilter(
             ids=[int(t) for t in children],
             token=children[0],
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def around_set_filter(self, children: list[Any]) -> AroundSetFilter:
@@ -759,6 +780,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             radius=radius_token.value,
             set_ref=set_reference,
             token=radius_token,
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def around_point_filter(self, children: list[Any]) -> AroundPointFilter:
@@ -771,6 +794,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             lat=lat_lon.lat,
             lon=lat_lon.lon,
             token=radius_token,
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def around_line_filter(self, children: list[Any]) -> AroundLineFilter:
@@ -780,6 +805,8 @@ class OverpassTransformer(Transformer[Token, Any]):
             radius=radius_token.value,
             points=list(children[1:]),
             token=radius_token,
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def polygon_filter(self, children: list[Any]) -> PolygonFilter:
@@ -787,11 +814,18 @@ class OverpassTransformer(Transformer[Token, Any]):
         return PolygonFilter(
             points=list(children),
             token=children[0].token,
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def newer_filter(self, children: list[Any]) -> NewerFilter:
         assert isinstance(children[0], Token)
-        return NewerFilter(timestamp=_parse_datetime(children[0]), token=children[0])
+        return NewerFilter(
+            timestamp=_parse_datetime(children[0]),
+            token=children[0],
+            input_types=_NWR,
+            output_types=_NWR,
+        )
 
     def changed_filter(self, children: list[Any]) -> None:
         assert isinstance(children[0], Token)
@@ -799,11 +833,21 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def user_filter(self, children: list[Any]) -> UserFilter:
         assert isinstance(children[0], Token)
-        return UserFilter(users=[_unquote(t) for t in children], token=children[0])
+        return UserFilter(
+            users=[_unquote(t) for t in children],
+            token=children[0],
+            input_types=_NWR,
+            output_types=_NWR,
+        )
 
     def uid_filter(self, children: list[Any]) -> UidFilter:
         assert isinstance(children[0], Token)
-        return UidFilter(uids=[int(t) for t in children], token=children[0])
+        return UidFilter(
+            uids=[int(t) for t in children],
+            token=children[0],
+            input_types=_NWR,
+            output_types=_NWR,
+        )
 
     def user_touched_filter(self, children: list[Any]) -> None:
         assert isinstance(children[0], Token)
@@ -822,10 +866,14 @@ class OverpassTransformer(Transformer[Token, Any]):
             ref = children[0]
             assert isinstance(ref, SetReference)
             ref.required_types = _AREA
-            return AreaSetFilter(set_ref=ref, token=ref.token)
+            return AreaSetFilter(
+                set_ref=ref, token=ref.token, input_types=_NWRA, output_types=_NWRA
+            )
         return AreaSetFilter(
             set_ref=SetReference(name="_", token=None, required_types=_AREA),
             token=None,
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def area_id_filter(self, children: list[Any]) -> AreaIdFilter:
@@ -833,6 +881,8 @@ class OverpassTransformer(Transformer[Token, Any]):
         return AreaIdFilter(
             area_id=int(children[0]),
             token=children[0],
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def recurse_filter(self, children: list[Any]) -> RecurseFilter:
@@ -905,6 +955,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         return SetFilter(
             set_reference=SetReference(name=str(children[0]), token=children[0]),
             token=children[0],
+            input_types=_NWRA,
         )
 
     def pivot_filter(self, children: list[Any]) -> PivotFilter:
@@ -931,6 +982,8 @@ class OverpassTransformer(Transformer[Token, Any]):
         return IfFilter(
             evaluator=evaluator,
             token=evaluator.token,
+            input_types=_NWRA,
+            output_types=_NWRA,
         )
 
     def set_assignment(self, children: list[Any]) -> SetAssignment:

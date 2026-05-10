@@ -13,7 +13,6 @@ from qloverleaf.transform import (
     AbsExpression,
     AddExpression,
     AddOperator,
-    AroundPointFilter,
     BboxFilter,
     BinaryExpression,
     BinaryOperator,
@@ -30,6 +29,7 @@ from qloverleaf.transform import (
     Evaluator,
     ForeachStatement,
     ForStatement,
+    IdFilter,
     IfStatement,
     IsClosedExpression,
     IsInStatement,
@@ -54,6 +54,7 @@ from qloverleaf.transform import (
     RecurseStatement,
     SetReference,
     SuffixExpression,
+    TagFilterOp,
     TagKeyFilter,
     TagValueExpression,
     TagValueFilter,
@@ -228,6 +229,12 @@ def test_tag_key_quoted_single() -> None:
 
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.tag_key_regex
+# ---------------------------------------------------------------------------
+
+# tag_key_regex is a passthrough; tested via tag_filter_key_regex
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.tag_value
 # ---------------------------------------------------------------------------
 
@@ -283,31 +290,104 @@ def test_tag_value_regex_case_insensitive() -> None:
 # OverpassTransformer.around_radius
 # ---------------------------------------------------------------------------
 
-# (TODO)
+# around_radius returns a Token; tested via around_set_filter and around_point_filter
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.tag_filter_exists / tag_filter_absent
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_tag_filter_exists() -> None:
+    filter = _first_filter("node[amenity];")
+    assert isinstance(filter, TagKeyFilter)
+    assert filter.key == "amenity"
+    assert filter.absent is False
+    assert filter.token is not None
+
+
+def test_tag_filter_absent() -> None:
+    filter = _first_filter("node[!amenity];")
+    assert isinstance(filter, TagKeyFilter)
+    assert filter.key == "amenity"
+    assert filter.absent is True
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.tag_filter_eq / tag_filter_neq
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_tag_filter_eq() -> None:
+    filter = _first_filter("node[amenity=cafe];")
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "amenity"
+    assert filter.op == TagFilterOp.EQ
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+
+
+def test_tag_filter_neq() -> None:
+    filter = _first_filter("node[amenity!=cafe];")
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "amenity"
+    assert filter.op == TagFilterOp.NEQ
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.tag_filter_regex / tag_filter_not_regex
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_tag_filter_regex() -> None:
+    filter = _first_filter('node[name~"cafe"];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "name"
+    assert filter.op == TagFilterOp.REGEX
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+
+
+def test_tag_filter_regex_case_insensitive() -> None:
+    filter = _first_filter('node[name~"cafe",i];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.op == TagFilterOp.REGEX
+    assert filter.case_insensitive is True
+    assert filter.token is not None
+
+
+def test_tag_filter_not_regex() -> None:
+    filter = _first_filter('node[name!~"cafe"];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "name"
+    assert filter.op == TagFilterOp.NOT_REGEX
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+
+
+def test_tag_filter_not_regex_case_insensitive() -> None:
+    filter = _first_filter('node[name!~"cafe",i];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.op == TagFilterOp.NOT_REGEX
+    assert filter.case_insensitive is True
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.tag_filter_key_regex
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_tag_filter_key_regex_raises() -> None:
+    with pytest.raises(UnsupportedFeatureError):
+        _first_filter('node[~"name"~"cafe"];')
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.bbox_filter
@@ -321,6 +401,7 @@ def test_bbox_filter_values() -> None:
     assert filter.west == "-0.2"
     assert filter.north == "51.6"
     assert filter.east == "-0.1"
+    assert filter.token is not None
 
 
 def test_bbox_filter_inverted_warns() -> None:
@@ -334,43 +415,70 @@ def test_bbox_filter_inverted_warns() -> None:
 # OverpassTransformer.id_filter_single / id_filter_list
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_id_filter_single() -> None:
+    filter = _first_filter("node(123);")
+    assert isinstance(filter, IdFilter)
+    assert filter.ids == [123]
+    assert filter.token is not None
+
+
+def test_id_filter_list() -> None:
+    filter = _first_filter("node(id:1,2,3);")
+    assert isinstance(filter, IdFilter)
+    assert filter.ids == [1, 2, 3]
+    assert filter.token is not None
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.set_ref
 # ---------------------------------------------------------------------------
 
-# (TODO)
+# set_ref returns a SetReference; tested via recurse_filter
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.recurse_role
 # ---------------------------------------------------------------------------
 
-# (TODO)
+# recurse_role returns a str; tested via recurse_filter
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.int_range
 # ---------------------------------------------------------------------------
 
-# (TODO)
+
+def test_int_range_exact() -> None:
+    filter = _first_filter("node(way_cnt:3);")
+    assert filter.min_count == 3
+    assert filter.max_count == 3
+    assert filter.exact is True
+
+
+def test_int_range_open_upper() -> None:
+    filter = _first_filter("node(way_cnt:3-);")
+    assert filter.min_count == 3
+    assert filter.max_count is None
+    assert filter.exact is False
+
+
+def test_int_range_closed() -> None:
+    filter = _first_filter("node(way_cnt:3-5);")
+    assert filter.min_count == 3
+    assert filter.max_count == 5
+    assert filter.exact is False
+
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.set_name
 # ---------------------------------------------------------------------------
 
-# (TODO)
+# set_name returns a SetReference; tested in test_query_stmt_explicit_output_set
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.around_lat_lon (via around_point_filter)
 # ---------------------------------------------------------------------------
 
-
-def test_around_lat_lon_values() -> None:
-    filter = _first_filter("node(around:100.0,51.5,-0.2);")
-    assert isinstance(filter, AroundPointFilter)
-    assert filter.lat == "51.5"
-    assert filter.lon == "-0.2"
-
+# around_lat_lon returns a value tuple; tested in around_point_filter
 
 # ---------------------------------------------------------------------------
 # OverpassTransformer.around_line_filter

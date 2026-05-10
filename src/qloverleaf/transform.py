@@ -568,6 +568,10 @@ class OverpassTransformer(Transformer[Token, Any]):
         assert isinstance(children[0], Token)
         return children[0]
 
+    def tag_key_regex(self, children: list[Any]) -> Token:
+        assert isinstance(children[0], Token)
+        return children[0]
+
     def tag_value(self, children: list[Any]) -> Token:
         assert isinstance(children[0], Token)
         return children[0]

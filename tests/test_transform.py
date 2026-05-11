@@ -11,6 +11,8 @@ from qloverleaf.exceptions import (
 )
 from qloverleaf.parser import parse
 from qloverleaf.transform import (
+    _NODE,
+    _NONE,
     _NWR,
     _NWRA,
     AbsExpression,
@@ -77,6 +79,7 @@ from qloverleaf.transform import (
     UnionStatement,
     UserFilter,
     ValExpression,
+    Warning,
     WayCountFilter,
     _parse_datetime,
     _unquote,
@@ -1070,6 +1073,38 @@ def test_query_stmt_no_output_set() -> None:
     assert stmt.output_set.name == "_"
     assert stmt.output_set.token is None
     assert stmt.output_set.required_types == frozenset({ElementType.NODE})
+
+
+def test_query_stmt_output_types() -> None:
+    stmt = _query_stmt("node;")
+    warnings: list[Warning] = list()
+    output_types = stmt.get_output_types(warnings)
+    assert output_types == _NODE
+    assert not warnings
+
+
+def test_query_stmt_output_mismatch() -> None:
+    stmt = _query_stmt("area(uid:1);")
+    warnings: list[Warning] = list()
+    output_types = stmt.get_output_types(warnings)
+    assert output_types == _NONE
+    assert warnings
+
+
+def test_query_stmt_output_filter_mismatch() -> None:
+    stmt = _query_stmt("node(w)(bw);")
+    warnings: list[Warning] = list()
+    output_types = stmt.get_output_types(warnings)
+    assert output_types == _NONE
+    assert warnings
+
+
+def test_query_stmt_output_indefinite() -> None:
+    stmt = _query_stmt("node.a;")
+    warnings: list[Warning] = list()
+    output_types = stmt.get_output_types(warnings)
+    assert output_types is None
+    assert not warnings
 
 
 # ---------------------------------------------------------------------------

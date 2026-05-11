@@ -17,7 +17,7 @@ from qloverleaf.exceptions import (
 @dataclass
 class Warning:
     message: str
-    token: Token
+    token: Token | None
 
 
 # Basic Types
@@ -183,6 +183,7 @@ _NWRA = frozenset(
 _WR = frozenset({ElementType.WAY, ElementType.RELATION})
 _NW = frozenset({ElementType.NODE, ElementType.WAY})
 _NR = frozenset({ElementType.NODE, ElementType.RELATION})
+_NONE: frozenset[ElementType] = frozenset()
 
 _ELEMENT_TYPE_MAP: dict[str, frozenset[ElementType]] = {
     "element_type_node": _NODE,
@@ -439,12 +440,61 @@ class IfFilter(QueryFilter):
 class Statement:
     token: Token | None
 
+    def get_output_types(
+        self,
+        warnings: list[Warning],
+    ) -> frozenset[ElementType] | None:
+        return None
+
 
 @dataclass
 class QueryStatement(Statement):
     element_types: frozenset[ElementType]
     filters: list[QueryFilter]
     output_set: SetReference
+
+    def get_output_types(
+        self,
+        warnings: list[Warning],
+    ) -> frozenset[ElementType] | None:
+        current_types: frozenset[ElementType] | None = self.element_types
+        for filter in self.filters:
+            if filter.input_types is None:  # noop but defensive code
+                current_types = None
+                break
+            assert current_types is not None
+            compatible_types = current_types & filter.input_types
+
+            if compatible_types == _NONE:
+                warnings.append(
+                    Warning(
+                        "Filter requires "
+                        f"{[e.value for e in filter.input_types]}"
+                        " but only "
+                        f"{[e.value for e in current_types]}"
+                        " elements are available",
+                        filter.token,
+                    )
+                )
+                current_types = compatible_types
+                break
+
+            if filter.output_types is None:
+                current_types = None
+                break
+            current_types = current_types & filter.output_types
+
+            if current_types == _NONE:
+                warnings.append(
+                    Warning(
+                        f"Filter cannot output any elements given "
+                        f"{[e.name for e in current_types]} as input",
+                        filter.token,
+                    )
+                )
+                break
+
+        return current_types
 
 
 # Block Statement Classes
@@ -454,7 +504,7 @@ class QueryStatement(Statement):
 class ForeachStatement(Statement):
     input_set: SetReference
     output_set: SetReference
-    body: list[Any]
+    body: list[Any]  # TODO: change this to list[Statement]
 
 
 @dataclass
@@ -462,7 +512,7 @@ class ForStatement(Statement):
     input_set: SetReference
     output_set: SetReference
     evaluator: Evaluator
-    body: list[Any]
+    body: list[Any]  # TODO: change this to list[Statement]
 
 
 @dataclass
@@ -470,14 +520,14 @@ class CompleteStatement(Statement):
     input_set: SetReference
     output_set: SetReference
     max_iterations: int | None
-    body: list[Any]
+    body: list[Any]  # TODO: change this to list[Statement]
 
 
 @dataclass
 class IfStatement(Statement):
     condition: Evaluator
-    then_body: list[Any]
-    else_body: list[Any] | None
+    then_body: list[Any]  # TODO: change this to list[Statement]
+    else_body: list[Any] | None  # TODO: change this to list[Statement]
 
 
 # Other Statement Classes
@@ -1007,12 +1057,16 @@ class OverpassTransformer(Transformer[Token, Any]):
                 output_set = child.set_ref
         output_set.required_types = element_types
         # TODO: walk filters to propagate input/output type constraints
-        return QueryStatement(
+        query_statement = QueryStatement(
             element_types=element_types,
             filters=filters,
             output_set=output_set,
             token=token,
         )
+        warnings: list[Warning] = list()
+        query_statement.get_output_types(warnings)
+        self.warnings.extend(warnings)
+        return query_statement
 
     # Block Statement Transforms
 

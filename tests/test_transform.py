@@ -441,7 +441,6 @@ def test_tag_filter_exists() -> None:
     assert filter.key == "amenity"
     assert filter.absent is False
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -451,7 +450,6 @@ def test_tag_filter_absent() -> None:
     assert filter.key == "amenity"
     assert filter.absent is True
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -468,7 +466,6 @@ def test_tag_filter_eq() -> None:
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -480,7 +477,6 @@ def test_tag_filter_neq() -> None:
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -497,7 +493,6 @@ def test_tag_filter_regex() -> None:
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -507,7 +502,6 @@ def test_tag_filter_regex_case_insensitive() -> None:
     assert filter.op == TagFilterOp.REGEX
     assert filter.case_insensitive is True
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -519,7 +513,6 @@ def test_tag_filter_not_regex() -> None:
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -529,7 +522,6 @@ def test_tag_filter_not_regex_case_insensitive() -> None:
     assert filter.op == TagFilterOp.NOT_REGEX
     assert filter.case_insensitive is True
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -556,7 +548,6 @@ def test_bbox_filter_values() -> None:
     assert filter.north == "51.6"
     assert filter.east == "-0.1"
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -577,7 +568,6 @@ def test_id_filter_single() -> None:
     assert isinstance(filter, IdFilter)
     assert filter.ids == [123]
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -586,7 +576,6 @@ def test_id_filter_list() -> None:
     assert isinstance(filter, IdFilter)
     assert filter.ids == [1, 2, 3]
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -654,7 +643,6 @@ def test_around_line_filter() -> None:
         ("51.6", "-0.1"),
     ]
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -671,7 +659,6 @@ def test_poly_lat_lon_values() -> None:
         ("51.6", "-0.1"),
         ("51.5", "-0.3"),
     ]
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -687,7 +674,6 @@ def test_newer_filter() -> None:
     assert filter.timestamp.month == 3
     assert filter.timestamp.day == 12
     assert filter.token is not None
-    assert filter.input_types == _NWR
     assert filter.output_types == _NWR
 
 
@@ -711,7 +697,6 @@ def test_user_filter_single() -> None:
     assert isinstance(filter, UserFilter)
     assert filter.users == ["alice"]
     assert filter.token is not None
-    assert filter.input_types == _NWR
     assert filter.output_types == _NWR
 
 
@@ -719,7 +704,6 @@ def test_user_filter_multiple() -> None:
     filter = _first_filter('node(user:"alice","bob");')
     assert isinstance(filter, UserFilter)
     assert filter.users == ["alice", "bob"]
-    assert filter.input_types == _NWR
     assert filter.output_types == _NWR
 
 
@@ -733,7 +717,6 @@ def test_uid_filter_single() -> None:
     assert isinstance(filter, UidFilter)
     assert filter.uids == [42]
     assert filter.token is not None
-    assert filter.input_types == _NWR
     assert filter.output_types == _NWR
 
 
@@ -741,7 +724,6 @@ def test_uid_filter_multiple() -> None:
     filter = _first_filter("node(uid:1,2,3);")
     assert isinstance(filter, UidFilter)
     assert filter.uids == [1, 2, 3]
-    assert filter.input_types == _NWR
     assert filter.output_types == _NWR
 
 
@@ -777,7 +759,6 @@ def test_area_set_filter_default_set() -> None:
     assert filter.set_ref.token is None
     assert filter.set_ref.required_types == frozenset({ElementType.AREA})
     assert filter.token is None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -787,7 +768,6 @@ def test_area_set_filter_explicit_set() -> None:
     assert filter.set_ref.name == "foo"
     assert filter.set_ref.token is not None
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -801,7 +781,6 @@ def test_area_id_filter() -> None:
     assert isinstance(filter, AreaIdFilter)
     assert filter.area_id == 3600000001
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 
@@ -814,7 +793,6 @@ def test_recurse_filter_w() -> None:
     filter = _first_filter("node(w);")
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.W
-    assert filter.input_types == frozenset({ElementType.NODE})
     assert filter.output_types == frozenset({ElementType.NODE})
     assert filter.set_ref.required_types == frozenset({ElementType.WAY})
     assert filter.set_ref.name == "_"
@@ -826,9 +804,6 @@ def test_recurse_filter_r() -> None:
     filter = _first_filter("node(r);")
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.R
-    assert filter.input_types == frozenset(
-        {ElementType.NODE, ElementType.WAY, ElementType.RELATION}
-    )
     assert filter.output_types == frozenset(
         {ElementType.NODE, ElementType.WAY, ElementType.RELATION}
     )
@@ -842,7 +817,6 @@ def test_recurse_filter_bn() -> None:
     filter = _first_filter("way(bn);")
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.BN
-    assert filter.input_types == frozenset({ElementType.WAY, ElementType.RELATION})
     assert filter.output_types == frozenset({ElementType.WAY, ElementType.RELATION})
     assert filter.set_ref.required_types == frozenset({ElementType.NODE})
     assert filter.set_ref.name == "_"
@@ -854,7 +828,6 @@ def test_recurse_filter_bw() -> None:
     filter = _first_filter("rel(bw);")
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.BW
-    assert filter.input_types == frozenset({ElementType.RELATION})
     assert filter.output_types == frozenset({ElementType.RELATION})
     assert filter.set_ref.required_types == frozenset({ElementType.WAY})
     assert filter.set_ref.name == "_"
@@ -866,7 +839,6 @@ def test_recurse_filter_br() -> None:
     filter = _first_filter("rel(br);")
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.BR
-    assert filter.input_types == frozenset({ElementType.RELATION})
     assert filter.output_types == frozenset({ElementType.RELATION})
     assert filter.set_ref.required_types == frozenset({ElementType.RELATION})
     assert filter.set_ref.name == "_"
@@ -902,7 +874,6 @@ def test_way_count_filter() -> None:
     assert filter.min_count == 3
     assert filter.max_count == 3
     assert filter.exact is True
-    assert filter.input_types == frozenset({ElementType.NODE})
     assert filter.output_types == frozenset({ElementType.NODE})
     assert filter.token is not None
 
@@ -935,7 +906,6 @@ def test_set_filter() -> None:
     assert isinstance(filter, SetFilter)
     assert filter.set_reference.name == "foo"
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types is None
 
 
@@ -950,7 +920,6 @@ def test_pivot_filter_default_set() -> None:
     assert filter.set_reference.name == "_"
     assert filter.set_reference.token is None
     assert filter.set_reference.required_types == frozenset({ElementType.AREA})
-    assert filter.input_types == frozenset({ElementType.WAY, ElementType.RELATION})
     assert filter.output_types == frozenset({ElementType.WAY, ElementType.RELATION})
     assert filter.token is None
 
@@ -973,7 +942,6 @@ def test_if_filter() -> None:
     assert isinstance(filter, IfFilter)
     assert isinstance(filter.evaluator, Evaluator)
     assert filter.token is not None
-    assert filter.input_types == _NWRA
     assert filter.output_types == _NWRA
 
 

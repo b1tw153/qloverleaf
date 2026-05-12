@@ -323,7 +323,6 @@ class ValExpression(Evaluator):
 @dataclass(kw_only=True)
 class QueryFilter:
     token: Token | None  # None when set_ref is implicit
-    input_types: frozenset[ElementType] | None = field(default=None)
     output_types: frozenset[ElementType] | None = field(default=None)
 
 
@@ -459,31 +458,11 @@ class QueryStatement(Statement):
     ) -> frozenset[ElementType] | None:
         current_types: frozenset[ElementType] | None = self.element_types
         for filter in self.filters:
-            if filter.input_types is None:  # noop but defensive code
-                current_types = None
-                break
-            assert current_types is not None
-            compatible_types = current_types & filter.input_types
-
-            if compatible_types == _NONE:
-                warnings.append(
-                    Warning(
-                        "Filter requires "
-                        f"{[e.value for e in filter.input_types]}"
-                        " but only "
-                        f"{[e.value for e in current_types]}"
-                        " elements are available",
-                        filter.token,
-                    )
-                )
-                current_types = compatible_types
-                break
-
             if filter.output_types is None:
                 current_types = None
                 break
+            assert current_types is not None
             current_types = current_types & filter.output_types
-
             if current_types == _NONE:
                 warnings.append(
                     Warning(
@@ -493,7 +472,6 @@ class QueryStatement(Statement):
                     )
                 )
                 break
-
         return current_types
 
 
@@ -703,7 +681,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             key=_unquote(children[0]),
             absent=False,
             token=children[0],
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -712,7 +689,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             key=_unquote(children[0]),
             absent=True,
             token=children[0],
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -723,7 +699,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             value=_unquote(children[1]),
             case_insensitive=False,
             token=children[0],
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -734,7 +709,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             value=_unquote(children[1]),
             case_insensitive=False,
             token=children[0],
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -746,7 +720,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             value=_unquote(children[1]),
             case_insensitive=case_insensitive,
             token=children[0],
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -758,7 +731,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             value=_unquote(children[1]),
             case_insensitive=case_insensitive,
             token=children[0],
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -792,7 +764,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             north=north,
             east=east,
             token=s_tok,
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -801,7 +772,6 @@ class OverpassTransformer(Transformer[Token, Any]):
         return IdFilter(
             ids=[int(children[0])],
             token=children[0],
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -810,7 +780,6 @@ class OverpassTransformer(Transformer[Token, Any]):
         return IdFilter(
             ids=[int(t) for t in children],
             token=children[0],
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -830,7 +799,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             radius=radius_token.value,
             set_ref=set_reference,
             token=radius_token,
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -844,7 +812,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             lat=lat_lon.lat,
             lon=lat_lon.lon,
             token=radius_token,
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -855,7 +822,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             radius=radius_token.value,
             points=list(children[1:]),
             token=radius_token,
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -864,7 +830,6 @@ class OverpassTransformer(Transformer[Token, Any]):
         return PolygonFilter(
             points=list(children),
             token=children[0].token,
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -873,7 +838,6 @@ class OverpassTransformer(Transformer[Token, Any]):
         return NewerFilter(
             timestamp=_parse_datetime(children[0]),
             token=children[0],
-            input_types=_NWR,
             output_types=_NWR,
         )
 
@@ -886,7 +850,6 @@ class OverpassTransformer(Transformer[Token, Any]):
         return UserFilter(
             users=[_unquote(t) for t in children],
             token=children[0],
-            input_types=_NWR,
             output_types=_NWR,
         )
 
@@ -895,7 +858,6 @@ class OverpassTransformer(Transformer[Token, Any]):
         return UidFilter(
             uids=[int(t) for t in children],
             token=children[0],
-            input_types=_NWR,
             output_types=_NWR,
         )
 
@@ -916,13 +878,10 @@ class OverpassTransformer(Transformer[Token, Any]):
             ref = children[0]
             assert isinstance(ref, SetReference)
             ref.required_types = _AREA
-            return AreaSetFilter(
-                set_ref=ref, token=ref.token, input_types=_NWRA, output_types=_NWRA
-            )
+            return AreaSetFilter(set_ref=ref, token=ref.token, output_types=_NWRA)
         return AreaSetFilter(
             set_ref=SetReference(name="_", token=None, required_types=_AREA),
             token=None,
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -931,7 +890,6 @@ class OverpassTransformer(Transformer[Token, Any]):
         return AreaIdFilter(
             area_id=int(children[0]),
             token=children[0],
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 
@@ -949,30 +907,24 @@ class OverpassTransformer(Transformer[Token, Any]):
         match recurse_type:
             case RecurseFilterType.BN:
                 set_reference.required_types = _NODE
-                input_types: frozenset[ElementType] | None = _WR
                 output_types: frozenset[ElementType] | None = _WR
             case RecurseFilterType.BW:
                 set_reference.required_types = _WAY
-                input_types = _RELATION
                 output_types = _RELATION
             case RecurseFilterType.BR:
                 set_reference.required_types = _RELATION
-                input_types = _RELATION
                 output_types = _RELATION
             case RecurseFilterType.W:
                 set_reference.required_types = _WAY
-                input_types = _NODE
                 output_types = _NODE
             case RecurseFilterType.R:
                 set_reference.required_types = _RELATION
-                input_types = _NWR
                 output_types = _NWR
         return RecurseFilter(
             recurse_type=recurse_type,
             set_ref=set_reference,
             role=role,
             token=type_token,
-            input_types=input_types,
             output_types=output_types,
         )
 
@@ -991,7 +943,6 @@ class OverpassTransformer(Transformer[Token, Any]):
             max_count=int_range.max_count,
             exact=int_range.exact,
             token=int_range.token,
-            input_types=_NODE,
             output_types=_NODE,
         )
 
@@ -1005,7 +956,6 @@ class OverpassTransformer(Transformer[Token, Any]):
         return SetFilter(
             set_reference=SetReference(name=str(children[0]), token=children[0]),
             token=children[0],
-            input_types=_NWRA,
         )
 
     def pivot_filter(self, children: list[Any]) -> PivotFilter:
@@ -1016,12 +966,10 @@ class OverpassTransformer(Transformer[Token, Any]):
             return PivotFilter(
                 set_reference=set_reference,
                 token=set_reference.token,
-                input_types=_WR,
                 output_types=_WR,
             )
         return PivotFilter(
             set_reference=SetReference(name="_", token=None, required_types=_AREA),
-            input_types=_WR,
             output_types=_WR,
             token=None,
         )
@@ -1032,7 +980,6 @@ class OverpassTransformer(Transformer[Token, Any]):
         return IfFilter(
             evaluator=evaluator,
             token=evaluator.token,
-            input_types=_NWRA,
             output_types=_NWRA,
         )
 

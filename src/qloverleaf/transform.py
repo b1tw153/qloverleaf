@@ -1004,16 +1004,12 @@ class OverpassTransformer(Transformer[Token, Any]):
                 output_set = child.set_ref
         output_set.required_types = element_types
         # TODO: walk filters to propagate input/output type constraints
-        query_statement = QueryStatement(
+        return QueryStatement(
             element_types=element_types,
             filters=filters,
             output_set=output_set,
             token=token,
         )
-        warnings: list[Warning] = list()
-        query_statement.get_output_types(warnings)
-        self.warnings.extend(warnings)
-        return query_statement
 
     # Block Statement Transforms
 

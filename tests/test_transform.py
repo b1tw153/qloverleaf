@@ -65,6 +65,7 @@ from qloverleaf.transform import (
     RecurseStatement,
     SetFilter,
     SetReference,
+    Statement,
     SuffixExpression,
     TagFilterOp,
     TagKeyFilter,
@@ -91,7 +92,7 @@ def _transform_query(text: str) -> Any:
 
 
 def _first_filter(text: str) -> Any:
-    return _transform_query(text).children[0].children[0].filters[0]
+    return _transform_query(text).children[0].filters[0]
 
 
 def _assert_no_raw_nodes(value: Any, path: str = "root") -> None:
@@ -112,7 +113,7 @@ def _assert_no_raw_nodes(value: Any, path: str = "root") -> None:
 
 
 def _stmt(text: str) -> Any:
-    return _transform_query(text).children[0].children[0]
+    return _transform_query(text).children[0]
 
 
 # ---------------------------------------------------------------------------
@@ -952,12 +953,28 @@ def test_if_filter() -> None:
 # set_assignment is a passthrough; tested via query_stmt
 
 # ---------------------------------------------------------------------------
+# OverpassTransformer.statement
+# ---------------------------------------------------------------------------
+
+
+def _statement(text: str) -> Statement:
+    stmt = _transform_query(text).children[0]
+    assert isinstance(stmt, Statement)
+    return stmt
+
+
+def test_statement() -> None:
+    stmt = _statement("node;")
+    assert isinstance(stmt, Statement)
+
+
+# ---------------------------------------------------------------------------
 # OverpassTransformer.query_stmt
 # ---------------------------------------------------------------------------
 
 
 def _query_stmt(text: str) -> QueryStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, QueryStatement)
     return stmt
 
@@ -1087,7 +1104,7 @@ def test_query_stmt_output_indefinite() -> None:
 
 
 def _foreach_stmt(text: str) -> ForeachStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, ForeachStatement)
     return stmt
 
@@ -1132,7 +1149,7 @@ def test_foreach_body() -> None:
 
 
 def _for_stmt(text: str) -> ForStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, ForStatement)
     return stmt
 
@@ -1182,7 +1199,7 @@ def test_for_body() -> None:
 
 
 def _complete_stmt(text: str) -> CompleteStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, CompleteStatement)
     return stmt
 
@@ -1237,7 +1254,7 @@ def test_complete_body() -> None:
 
 
 def _if_stmt(text: str) -> IfStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, IfStatement)
     return stmt
 
@@ -1284,7 +1301,7 @@ def test_if_else_body() -> None:
 
 
 def _union_stmt(text: str) -> UnionStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, UnionStatement)
     return stmt
 
@@ -1339,7 +1356,7 @@ def test_union_empty_token_with_output_set() -> None:
 
 
 def _item_stmt(text: str) -> ItemStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, ItemStatement)
     return stmt
 
@@ -1378,7 +1395,7 @@ def test_item_token() -> None:
 
 
 def _out_stmt(text: str) -> OutStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, OutStatement)
     return stmt
 
@@ -1578,7 +1595,7 @@ def test_out_bbox_filter_raises() -> None:
 
 
 def _recurse_stmt(text: str) -> RecurseStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, RecurseStatement)
     return stmt
 
@@ -1639,7 +1656,7 @@ def test_recurse_token_from_input_set() -> None:
 
 
 def _is_in_stmt(text: str) -> IsInStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, IsInStatement)
     return stmt
 
@@ -1723,7 +1740,7 @@ def test_make_raises() -> None:
 
 
 def _map_to_area_stmt(text: str) -> MapToAreaStatement:
-    stmt = _transform_query(text).children[0].children[0]
+    stmt = _transform_query(text).children[0]
     assert isinstance(stmt, MapToAreaStatement)
     return stmt
 

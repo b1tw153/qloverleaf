@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 from lark import Token, Tree
 
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
-from qloverleaf.query import Bbox, OutputFormat, Query
+from qloverleaf.query import Bbox, OutputFormat, QueryContext
 
 MEDIA_TYPES = {
     OutputFormat.XML: "application/osm3s+xml",
@@ -14,7 +14,7 @@ MEDIA_TYPES = {
 }
 
 
-async def initialize(query: Query) -> tuple[AsyncGenerator[str, None], str]:
+async def initialize(query: QueryContext) -> tuple[AsyncGenerator[str, None], str]:
     _apply_global_settings(query)
     # TODO: transform AST to IR
     # TODO: walk IR and annotate with versioned set names
@@ -53,7 +53,7 @@ def _dump_ast(node: Tree[Token] | Token, indent: int = 0) -> str:
     return lines
 
 
-def _apply_global_settings(query: Query) -> None:
+def _apply_global_settings(query: QueryContext) -> None:
     # apply global timeout
     matches = list(query.tree.find_data("global_timeout"))
     if len(matches) > 1:
@@ -179,7 +179,7 @@ def _apply_global_settings(query: Query) -> None:
         raise UnsupportedFeatureError("Global adiff setting is not supported", token)
 
 
-async def _execute(query: Query) -> AsyncGenerator[str, None]:
+async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     yield query.tree.pretty()
     yield _dump_ast(query.tree)
     # yield _dump_ir(query.ir)

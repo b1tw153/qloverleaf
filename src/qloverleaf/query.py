@@ -35,7 +35,7 @@ class OutputFormat(Enum):
 
 
 @dataclass
-class Query:
+class QueryContext:
     text: str
     tree: Tree[Token]
     stats: Stats = field(default_factory=Stats)

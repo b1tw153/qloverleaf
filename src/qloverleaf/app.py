@@ -9,7 +9,7 @@ from starlette.routing import Route
 
 from qloverleaf import interpreter
 from qloverleaf.parser import parse
-from qloverleaf.query import Query
+from qloverleaf.query import QueryContext
 
 
 async def _safe_stream(
@@ -46,7 +46,7 @@ async def listener(request: Request) -> Response:
     except Exception as e:
         return Response(str(e), status_code=400)
 
-    query = Query(text=query_text, tree=tree)
+    query = QueryContext(text=query_text, tree=tree)
     query.stats.parse_time = parse_time
 
     try:

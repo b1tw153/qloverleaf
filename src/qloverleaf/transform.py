@@ -987,6 +987,13 @@ class OverpassTransformer(Transformer[Token, Any]):
         assert isinstance(children[0], SetReference)
         return SetAssignment(set_ref=children[0])
 
+    # Statement Transform
+
+    def statement(self, children: list[Any]) -> Statement:
+        assert len(children) == 1
+        assert isinstance(children[0], Statement)
+        return children[0]
+
     # Simple Statement Transforms
 
     def query_stmt(self, children: list[Any]) -> QueryStatement:

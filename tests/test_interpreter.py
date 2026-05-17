@@ -3,11 +3,11 @@ import pytest
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.interpreter import _apply_global_settings
 from qloverleaf.parser import parse
-from qloverleaf.query import Bbox, OutputFormat, Query
+from qloverleaf.query import Bbox, OutputFormat, QueryContext
 
 
-def make_query(text: str) -> Query:
-    return Query(text=text, tree=parse(text))
+def make_query(text: str) -> QueryContext:
+    return QueryContext(text=text, tree=parse(text))
 
 
 # ---------------------------------------------------------------------------

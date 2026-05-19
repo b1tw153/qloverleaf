@@ -584,6 +584,11 @@ class IfStatement(Statement):
     then_body: list[Statement]
     else_body: list[Statement] | None
 
+    def get_output_types(
+        self, warnings: list[Warning]
+    ) -> frozenset[ElementType] | None:
+        return _NONE
+
 
 # Other Statement Classes
 

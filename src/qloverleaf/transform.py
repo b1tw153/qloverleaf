@@ -160,8 +160,9 @@ class SetReference:
     name: str  # canonical name; "_" if implicit
     token: Token | None  # None if implicit
     versioned: str = ""  # filled in by SSA phase
-    # None = no constraint on what types the set must contain
+    # None = set types are indefinite
     required_types: frozenset[ElementType] | None = field(default=None)
+    content_types: frozenset[ElementType] | None = field(default=None)
 
 
 # Set Assignment
@@ -482,7 +483,7 @@ class QueryStatement(Statement):
 class ForeachStatement(Statement):
     input_set: SetReference
     output_set: SetReference
-    body: list[Any]  # TODO: change this to list[Statement]
+    body: list[Statement]
 
 
 @dataclass
@@ -490,7 +491,7 @@ class ForStatement(Statement):
     input_set: SetReference
     output_set: SetReference
     evaluator: Evaluator
-    body: list[Any]  # TODO: change this to list[Statement]
+    body: list[Statement]
 
 
 @dataclass
@@ -498,14 +499,14 @@ class CompleteStatement(Statement):
     input_set: SetReference
     output_set: SetReference
     max_iterations: int | None
-    body: list[Any]  # TODO: change this to list[Statement]
+    body: list[Statement]
 
 
 @dataclass
 class IfStatement(Statement):
     condition: Evaluator
-    then_body: list[Any]  # TODO: change this to list[Statement]
-    else_body: list[Any] | None  # TODO: change this to list[Statement]
+    then_body: list[Statement]
+    else_body: list[Statement] | None
 
 
 # Other Statement Classes

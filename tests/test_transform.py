@@ -15,6 +15,7 @@ from qloverleaf.transform import (
     _NONE,
     _NWR,
     _NWRA,
+    _WAY,
     AbsExpression,
     AddExpression,
     AddOperator,
@@ -1348,6 +1349,62 @@ def test_union_empty_token_with_output_set() -> None:
     assert len(stmt.members) == 0
     assert stmt.output_set.name == "x"
     assert stmt.output_set.token is not None
+
+
+def test_union_stmt_output_types() -> None:
+    stmt = _union_stmt("( node(1); way(1); );")
+    warnings: list[Warning] = []
+    output_types = stmt.get_output_types(warnings)
+    assert output_types == _NODE | _WAY
+    assert not warnings
+
+
+def test_union_stmt_output_types_empty() -> None:
+    stmt = _union_stmt("();")
+    warnings: list[Warning] = []
+    output_types = stmt.get_output_types(warnings)
+    assert output_types == _NONE
+    assert warnings
+
+
+def test_union_stmt_output_types_indefinite_member() -> None:
+    stmt = _union_stmt("( node.a; );")
+    warnings: list[Warning] = []
+    output_types = stmt.get_output_types(warnings)
+    assert output_types is None
+    assert not warnings
+
+
+def test_union_stmt_output_types_difference_excluded() -> None:
+    stmt = _union_stmt("( node(1); - way(1); );")
+    warnings: list[Warning] = []
+    output_types = stmt.get_output_types(warnings)
+    assert output_types == _NODE
+    assert not warnings
+
+
+def test_union_stmt_output_types_difference_indefinite() -> None:
+    stmt = _union_stmt("( node(1); - node.a; );")
+    warnings: list[Warning] = []
+    output_types = stmt.get_output_types(warnings)
+    assert output_types == _NODE
+    assert not warnings
+
+
+def test_union_stmt_output_types_difference_warning() -> None:
+    stmt = _union_stmt("( node(1); - area(uid:1); );")
+    warnings: list[Warning] = []
+    output_types = stmt.get_output_types(warnings)
+    assert output_types == _NODE
+    assert warnings
+
+
+def test_union_stmt_output_types_all_difference() -> None:
+    stmt = _union_stmt("( - node(1); );")
+    warnings: list[Warning] = []
+    output_types = stmt.get_output_types(warnings)
+    assert output_types == _NONE
+    assert warnings
 
 
 # ---------------------------------------------------------------------------

@@ -485,6 +485,11 @@ class ForeachStatement(Statement):
     output_set: SetReference
     body: list[Statement]
 
+    def get_output_types(
+        self, warnings: list[Warning]
+    ) -> frozenset[ElementType] | None:
+        return self.input_set.content_types
+
 
 @dataclass
 class ForStatement(Statement):

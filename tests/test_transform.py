@@ -1404,6 +1404,13 @@ def test_if_else_body() -> None:
     assert len(stmt.else_body) == 2
 
 
+def test_if_get_output_types() -> None:
+    stmt = _if_stmt("if(1) { node; }")
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NONE
+    assert not warnings
+
+
 # ---------------------------------------------------------------------------
 # OverpassTransformer.union_member
 # ---------------------------------------------------------------------------

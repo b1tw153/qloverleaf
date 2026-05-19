@@ -1209,6 +1209,21 @@ def test_for_body() -> None:
     assert len(stmt.body) == 2
 
 
+def test_for_get_output_types_indefinite() -> None:
+    stmt = _for_stmt("for .x -> .a (1) { out; }")
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) is None
+    assert not warnings
+
+
+def test_for_get_output_types_concrete() -> None:
+    stmt = _for_stmt("for .x -> .a (1) { out; }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE
+    assert not warnings
+
+
 # ---------------------------------------------------------------------------
 # OverpassTransformer.complete_stmt
 # ---------------------------------------------------------------------------
@@ -1262,6 +1277,96 @@ def test_complete_no_max_iterations() -> None:
 def test_complete_body() -> None:
     stmt = _complete_stmt("complete { node[amenity=cafe]; node[amenity=parking]; }")
     assert len(stmt.body) == 2
+
+
+def test_complete_get_output_types_indefinite_input() -> None:
+    stmt = _complete_stmt("complete { node; }")
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) is None
+    assert not warnings
+
+
+def test_complete_get_output_types_no_body_contribution() -> None:
+    stmt = _complete_stmt("complete { out; }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE
+    assert not warnings
+
+
+def test_complete_get_output_types_indefinite_body() -> None:
+    stmt = _complete_stmt("complete { .a; }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) is None
+    assert not warnings
+
+
+def test_complete_get_output_types_body_leaf() -> None:
+    stmt = _complete_stmt("complete { way; }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE | _WAY
+    assert not warnings
+
+
+def test_complete_get_output_types_foreach_skipped() -> None:
+    stmt = _complete_stmt("complete { foreach { way; } }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE
+    assert not warnings
+
+
+def test_complete_get_output_types_for_skipped() -> None:
+    stmt = _complete_stmt("complete { for(1) { way; } }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE
+    assert not warnings
+
+
+def test_complete_get_output_types_if_branch() -> None:
+    stmt = _complete_stmt("complete { if(1) { way; } }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE | _WAY
+    assert not warnings
+
+
+def test_complete_get_output_types_if_else_branches() -> None:
+    stmt = _complete_stmt("complete { if(1) { way; } else { relation; } }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NWR
+    assert not warnings
+
+
+def test_complete_get_output_types_nested_complete() -> None:
+    stmt = _complete_stmt("complete { complete { way; } }")
+    stmt.input_set.content_types = _NODE
+    inner = stmt.body[0]
+    assert isinstance(inner, CompleteStatement)
+    inner.input_set.content_types = _NONE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE | _WAY
+    assert not warnings
+
+
+def test_complete_get_output_types_union_to_underscore() -> None:
+    stmt = _complete_stmt("complete { ( node; way; ); }")
+    stmt.input_set.content_types = _NONE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE | _WAY
+    assert not warnings
+
+
+def test_complete_get_output_types_union_to_named_set() -> None:
+    stmt = _complete_stmt("complete { ( node; way; ) -> .found; }")
+    stmt.input_set.content_types = _NONE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE | _WAY
+    assert not warnings
 
 
 # ---------------------------------------------------------------------------

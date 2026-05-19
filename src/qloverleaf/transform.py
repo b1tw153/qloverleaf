@@ -522,6 +522,27 @@ class UnionStatement(Statement):
     members: list[UnionMember]
     output_set: SetReference
 
+    def get_output_types(
+        self,
+        warnings: list[Warning],
+    ) -> frozenset[ElementType] | None:
+        result = _NONE
+        for member in self.members:
+            member_output_types = member.statement.get_output_types(warnings)
+            if member.difference:
+                continue
+            if member_output_types is None:
+                return None
+            result = result | member_output_types
+        if result == _NONE:
+            warnings.append(
+                Warning(
+                    "Union statement returns no data",
+                    None,
+                )
+            )
+        return result
+
 
 @dataclass
 class ItemStatement(Statement):

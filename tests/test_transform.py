@@ -1144,6 +1144,21 @@ def test_foreach_body() -> None:
     assert len(stmt.body) == 2
 
 
+def test_foreach_get_output_types_indefinite() -> None:
+    stmt = _foreach_stmt("foreach .x -> .a { out; }")
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) is None
+    assert not warnings
+
+
+def test_foreach_get_output_types_concrete() -> None:
+    stmt = _foreach_stmt("foreach .x -> .a { out; }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE
+    assert not warnings
+
+
 # ---------------------------------------------------------------------------
 # OverpassTransformer.for_stmt
 # ---------------------------------------------------------------------------

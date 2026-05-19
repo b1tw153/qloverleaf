@@ -498,6 +498,11 @@ class ForStatement(Statement):
     evaluator: Evaluator
     body: list[Statement]
 
+    def get_output_types(
+        self, warnings: list[Warning]
+    ) -> frozenset[ElementType] | None:
+        return self.input_set.content_types
+
 
 @dataclass
 class CompleteStatement(Statement):
@@ -505,6 +510,72 @@ class CompleteStatement(Statement):
     output_set: SetReference
     max_iterations: int | None
     body: list[Statement]
+
+    def get_output_types(
+        self, warnings: list[Warning]
+    ) -> frozenset[ElementType] | None:
+        # complete accumulates elements written to ._ across body statements.
+        # Not all statement types can contribute. See below.
+        def walk(statements: list[Statement]) -> frozenset[ElementType] | None:
+            accumulator: frozenset[ElementType] = _NONE
+            for statement in statements:
+                # foreach/for isolate ._; their body writes are not visible here
+                if isinstance(statement, (ForeachStatement, ForStatement)):
+                    continue
+
+                # if has no frame isolation; walk both branches.
+                if isinstance(statement, IfStatement):
+                    then_types = walk(statement.then_body)
+                    if then_types is None:
+                        return None
+                    branch_types: frozenset[ElementType] = then_types
+                    if statement.else_body:
+                        else_types = walk(statement.else_body)
+                        if else_types is None:
+                            return None
+                        branch_types = branch_types | else_types
+                    accumulator = accumulator | branch_types
+
+                # nested complete always propagates its output to the caller;
+                # collect via get_output_types()
+                elif isinstance(statement, CompleteStatement):
+                    types = statement.get_output_types(warnings)
+                    if types is None:
+                        return None
+                    accumulator = accumulator | types
+
+                # union -> ._: output goes directly to ._;
+                # collect via get_output_types()
+                elif isinstance(statement, UnionStatement):
+                    if statement.output_set.name == "_":
+                        types = statement.get_output_types(warnings)
+                        if types is None:
+                            return None
+                        accumulator = accumulator | types
+                    else:
+                        # union -> named set: members may still write to ._;
+                        # walk member statements
+                        member_types = walk([m.statement for m in statement.members])
+                        if member_types is None:
+                            return None
+                        accumulator = accumulator | member_types
+                else:
+                    # other leaf statements contribute only when output_set is "_ "
+                    output_set: SetReference | None = getattr(
+                        statement, "output_set", None
+                    )
+                    if output_set is None or output_set.name != "_":
+                        continue
+                    types = statement.get_output_types(warnings)
+                    if types is None:
+                        return None
+                    accumulator = accumulator | types
+            return accumulator
+
+        body_types = walk(self.body)
+        if self.input_set.content_types is None or body_types is None:
+            return None
+        return self.input_set.content_types | body_types
 
 
 @dataclass

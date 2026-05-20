@@ -535,68 +535,87 @@ class CompleteStatement(Statement):
     def get_output_types(
         self, warnings: list[Warning]
     ) -> frozenset[ElementType] | None:
-        # complete accumulates elements written to ._ across body statements.
-        # Not all statement types can contribute. See below.
-        def walk(statements: list[Statement]) -> frozenset[ElementType] | None:
-            accumulator: frozenset[ElementType] = _NONE
+        # union_inward fires once per iteration, after all body statements finish,
+        # examining only the final value of the input set. Walk forward tracking
+        # the current type of the input set: each write replaces the previous value.
+        accum_name = self.input_set.name
+
+        def walk(
+            statements: list[Statement],
+            current: frozenset[ElementType],
+        ) -> frozenset[ElementType] | None:
             for statement in statements:
-                # foreach/for isolate ._; their body writes are not visible here
                 if isinstance(statement, (ForeachStatement, ForStatement)):
-                    continue
-
-                # if has no frame isolation; walk both branches.
-                if isinstance(statement, IfStatement):
-                    then_types = walk(statement.then_body)
-                    if then_types is None:
-                        return None
-                    branch_types: frozenset[ElementType] = then_types
-                    if statement.else_body:
-                        else_types = walk(statement.else_body)
-                        if else_types is None:
+                    if statement.output_set.name == accum_name:
+                        # loop exit overwrites the output set with empty
+                        current = _NONE
+                    else:
+                        # walk body; writes to accum_name persist after the loop
+                        body_result = walk(statement.body, current)
+                        if body_result is None:
                             return None
-                        branch_types = branch_types | else_types
-                    accumulator = accumulator | branch_types
+                        current = body_result
 
-                # nested complete always propagates its output to the caller;
-                # collect via get_output_types()
-                elif isinstance(statement, CompleteStatement):
-                    types = statement.get_output_types(warnings)
-                    if types is None:
+                # either branch may be the final writer; take the union of both outcomes
+                if isinstance(statement, IfStatement):
+                    then_result = walk(statement.then_body, current)
+                    if then_result is None:
                         return None
-                    accumulator = accumulator | types
+                    else_result = (
+                        walk(statement.else_body, current)
+                        if statement.else_body
+                        else current
+                    )
+                    if else_result is None:
+                        return None
+                    current = then_result | else_result
 
-                # union -> ._: output goes directly to ._;
-                # collect via get_output_types()
-                elif isinstance(statement, UnionStatement):
-                    if statement.output_set.name == "_":
+                # nested complete propagates its output set to the caller
+                elif isinstance(statement, CompleteStatement):
+                    if statement.output_set.name == accum_name:
                         types = statement.get_output_types(warnings)
                         if types is None:
                             return None
-                        accumulator = accumulator | types
-                    else:
-                        # union -> named set: members may still write to ._;
-                        # walk member statements
-                        member_types = walk([m.statement for m in statement.members])
-                        if member_types is None:
+                        current = types
+
+                # union -> input set: output goes directly to the input set
+                elif isinstance(statement, UnionStatement):
+                    if statement.output_set.name == accum_name:
+                        types = statement.get_output_types(warnings)
+                        if types is None:
                             return None
-                        accumulator = accumulator | member_types
+                        current = types
+                    else:
+                        # union -> other set: propagates inner ._ as a side effect;
+                        # walk members to determine the final value of the input set
+                        union_result = walk(
+                            [m.statement for m in statement.members], current
+                        )
+                        if union_result is None:
+                            return None
+                        current = union_result
+
                 else:
-                    # other leaf statements contribute only when output_set is "_ "
                     output_set: SetReference | None = getattr(
                         statement, "output_set", None
                     )
-                    if output_set is None or output_set.name != "_":
-                        continue
-                    types = statement.get_output_types(warnings)
-                    if types is None:
-                        return None
-                    accumulator = accumulator | types
-            return accumulator
+                    if output_set is not None and output_set.name == accum_name:
+                        types = statement.get_output_types(warnings)
+                        if types is None:
+                            return None
+                        current = types
 
-        body_types = walk(self.body)
-        if self.input_set.content_types is None or body_types is None:
+            return current
+
+        if self.input_set.content_types is None:
             return None
-        return self.input_set.content_types | body_types
+        body_final = walk(self.body, self.input_set.content_types)
+        if body_final is None:
+            return None
+        # Single-pass approximation: models one iteration of the loop. A more
+        # precise approach would repeat walk() feeding the result back as the new
+        # incoming type until body_final stabilizes (fixed-point iteration).
+        return self.input_set.content_types | body_final
 
 
 @dataclass
@@ -838,6 +857,7 @@ def _walk_loop(
         _stamp_evaluator(stmt.evaluator, state, warnings)
     _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
     _walk_stmts(stmt.body, state, warnings)
+    _stamp_write(stmt.output_set, state, _NONE)
 
 
 def _walk_complete(
@@ -846,6 +866,7 @@ def _walk_complete(
     warnings: list[Warning],
 ) -> None:
     _stamp_read(stmt.input_set, state, warnings)
+    _stamp_write(stmt.output_set, state, stmt.input_set.content_types)
     _walk_stmts(stmt.body, state, warnings)
     _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
 
@@ -1419,9 +1440,10 @@ class OverpassTransformer(Transformer[Token, Any]):
         return list(children)
 
     def union_stmt(self, children: list[Any]) -> UnionStatement:
-        # TODO: validate that no member is a foreach_stmt or out_stmt — wiki says
-        # these cannot appear as sub-elements of a union (raise QueryError if found);
-        # requires a full recursive walk of the member subtree
+        # TODO: validate that disallowed statements don't appear as union members;
+        # research needed to confirm the full set of disallowed statements (known:
+        # foreach, for, out — possibly others); raise QueryError on any match;
+        # requires a full recursive walk of the member subtree, not just top level
         members: list[UnionMember] = children[0]
         output_set = SetReference(name="_", token=None)
         if len(children) == 2:

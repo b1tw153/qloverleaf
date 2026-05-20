@@ -457,8 +457,8 @@ def test_resolve_types_for_block() -> None:
     assert isinstance(for_stmt, ForStatement)
     assert for_stmt.input_set.version == 1
     assert for_stmt.input_set.content_types == _NODE
-    assert for_stmt.output_set.version == 1
-    assert for_stmt.output_set.content_types == _NODE
+    assert for_stmt.output_set.version == 2
+    assert for_stmt.output_set.content_types == _NONE
     body_out = for_stmt.body[0]
     assert isinstance(body_out, OutStatement)
     assert body_out.input_set.version == 1
@@ -499,8 +499,8 @@ def test_resolve_types_union_for_if() -> None:
     assert isinstance(for_stmt, ForStatement)
     assert for_stmt.input_set.version == 1
     assert for_stmt.input_set.content_types == _NODE
-    assert for_stmt.output_set.version == 1
-    assert for_stmt.output_set.content_types == _NODE
+    assert for_stmt.output_set.version == 2
+    assert for_stmt.output_set.content_types == _NONE
 
     if_stmt = for_stmt.body[0]
     assert isinstance(if_stmt, IfStatement)
@@ -536,6 +536,51 @@ def test_resolve_types_union_for_if() -> None:
     assert c_out.input_set.content_types == _NODE
 
 
+def test_resolve_types_complete_output_set_versioned_in_body() -> None:
+    # output set gets a start-of-loop stamp before the body walk, so reads of it
+    # inside the body see that version rather than the pre-complete version
+    query = _transform_query(
+        "node(1) -> .a;"
+        "complete .a -> .b {"
+        "  .b out ids;"
+        "  way -> .b;"
+        "  .b out ids;"
+        "}"
+        ".b out ids;"
+    )
+    assert not query.warnings
+    complete = query.statements[1]
+    assert isinstance(complete, CompleteStatement)
+
+    first_out, way_stmt, second_out = complete.body
+    assert isinstance(first_out, OutStatement)
+    assert isinstance(way_stmt, QueryStatement)
+    assert isinstance(second_out, OutStatement)
+
+    # start-of-loop stamp: .b@1 seeded from input set (.a = _NODE)
+    assert first_out.input_set.version == 1
+    assert first_out.input_set.content_types == _NODE
+
+    # body write: .b@2 (_WAY)
+    assert way_stmt.output_set.version == 2
+    assert way_stmt.output_set.content_types == _WAY
+
+    # read after body write: .b@2
+    assert second_out.input_set.version == 2
+    assert second_out.input_set.content_types == _WAY
+
+    # end-of-statement stamp: .b@3; body wrote ways to .b but copy_outward overwrites
+    # it — the accumulated output reflects only the input set (.a = _NODE)
+    assert complete.output_set.version == 3
+    assert complete.output_set.content_types == _NODE
+
+    # post-complete read sees .b@3
+    final_out = query.statements[2]
+    assert isinstance(final_out, OutStatement)
+    assert final_out.input_set.version == 3
+    assert final_out.input_set.content_types == _NODE
+
+
 def test_resolve_types_complete() -> None:
     query = _transform_query(
         "way(689254681);"
@@ -554,12 +599,12 @@ def test_resolve_types_complete() -> None:
     assert way_stmt.output_set.version == 1
     assert way_stmt.output_set.content_types == _WAY
 
-    # complete reads ._@1; recurse types fully resolve so output is _WAY
+    # complete reads ._@1; start-of-loop stamps .ways@1; end-of-statement stamps .ways@2
     complete = query.statements[1]
     assert isinstance(complete, CompleteStatement)
     assert complete.input_set.version == 1
     assert complete.input_set.content_types == _WAY
-    assert complete.output_set.version == 1
+    assert complete.output_set.version == 2
     assert complete.output_set.content_types == _WAY
 
     # body[0]: recurse > on _WAY produces _NODE (way members are nodes)
@@ -585,10 +630,67 @@ def test_resolve_types_complete() -> None:
     assert way_query.output_set.version == 2
     assert way_query.output_set.content_types == _WAY
 
-    # .ways out ids reads .ways@1 with fully resolved _WAY
+    # .ways out ids reads .ways@2 with fully resolved _WAY
     ways_out = query.statements[2]
     assert isinstance(ways_out, OutStatement)
-    assert ways_out.input_set.version == 1
+    assert ways_out.input_set.version == 2
+    assert ways_out.input_set.content_types == _WAY
+
+
+def test_resolve_types_complete_named_input() -> None:
+    query = _transform_query(
+        "way(689254681) -> .seed;"
+        "complete .seed -> .ways {"
+        "  .seed > -> .nodes;"
+        "  .nodes < -> .parents;"
+        '  way.parents["highway"="track"] -> .seed;'
+        "}"
+        ".ways out ids;"
+    )
+    assert not query.warnings
+
+    # way query writes ._@1 with _WAY
+    way_stmt = query.statements[0]
+    assert isinstance(way_stmt, QueryStatement)
+    assert way_stmt.output_set.version == 1
+    assert way_stmt.output_set.content_types == _WAY
+
+    # complete reads .seed@1; start-of-loop stamps .ways@1;
+    # end-of-statement stamps .ways@2
+    complete = query.statements[1]
+    assert isinstance(complete, CompleteStatement)
+    assert complete.input_set.version == 1
+    assert complete.input_set.content_types == _WAY
+    assert complete.output_set.version == 2
+    assert complete.output_set.content_types == _WAY
+
+    # body[0]: recurse > on _WAY produces _NODE (way members are nodes)
+    recurse_down, recurse_up, way_query = complete.body
+    assert isinstance(recurse_down, RecurseStatement)
+    assert recurse_down.input_set.version == 1
+    assert recurse_down.input_set.content_types == _WAY
+    assert recurse_down.output_set.version == 1
+    assert recurse_down.output_set.content_types == _NODE
+
+    # body[1]: recurse < on _NODE produces _WR (nodes are members of ways and relations)
+    assert isinstance(recurse_up, RecurseStatement)
+    assert recurse_up.input_set.version == 1
+    assert recurse_up.input_set.content_types == _NODE
+    assert recurse_up.output_set.version == 1
+    assert recurse_up.output_set.content_types == _WR
+
+    # body[2]: way query intersects _WAY stream with .parents@1 (_WR), writes .seed@2
+    assert isinstance(way_query, QueryStatement)
+    set_filter = next(f for f in way_query.filters if isinstance(f, SetFilter))
+    assert set_filter.set_reference.version == 1
+    assert set_filter.set_reference.content_types == _WR
+    assert way_query.output_set.version == 2
+    assert way_query.output_set.content_types == _WAY
+
+    # .ways out ids reads .ways@2 with fully resolved _WAY
+    ways_out = query.statements[2]
+    assert isinstance(ways_out, OutStatement)
+    assert ways_out.input_set.version == 2
     assert ways_out.input_set.content_types == _WAY
 
 
@@ -1433,7 +1535,7 @@ def test_foreach_get_output_types_assigned() -> None:
     stmt = stmts[1]
     assert isinstance(stmt, ForeachStatement)
     assert stmt.input_set.content_types == _NODE
-    assert stmt.output_set.content_types == _NODE
+    assert stmt.output_set.content_types == _NONE
 
 
 def test_foreach_get_output_types_concrete() -> None:
@@ -1503,7 +1605,7 @@ def test_for_get_output_types_assigned() -> None:
     assert not query.warnings
     stmt = query.statements[1]
     assert stmt.input_set.content_types == _NODE
-    assert stmt.output_set.content_types == _NODE
+    assert stmt.output_set.content_types == _NONE
 
 
 # ---------------------------------------------------------------------------
@@ -1617,7 +1719,8 @@ def test_complete_get_output_types_body_leaf() -> None:
     assert not warnings
 
 
-def test_complete_get_output_types_foreach_skipped() -> None:
+def test_complete_get_output_types_foreach_output_is_accum() -> None:
+    # foreach output_set == accum; loop exit clears accum, no body contribution
     stmt = _complete_stmt("complete { foreach { way; } }")
     stmt.input_set.content_types = _NODE
     warnings: list[Warning] = []
@@ -1625,11 +1728,30 @@ def test_complete_get_output_types_foreach_skipped() -> None:
     assert not warnings
 
 
-def test_complete_get_output_types_for_skipped() -> None:
+def test_complete_get_output_types_foreach_body_writes_accum() -> None:
+    # foreach output_set != accum; body write to ._ persists
+    stmt = _complete_stmt("complete { foreach -> .each { way; } }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE | _WAY
+    assert not warnings
+
+
+def test_complete_get_output_types_for_output_is_accum() -> None:
+    # for output_set == accum; loop exit clears accum, no body contribution
     stmt = _complete_stmt("complete { for(1) { way; } }")
     stmt.input_set.content_types = _NODE
     warnings: list[Warning] = []
     assert stmt.get_output_types(warnings) == _NODE
+    assert not warnings
+
+
+def test_complete_get_output_types_for_body_writes_accum() -> None:
+    # for output_set != accum; body write to ._ persists
+    stmt = _complete_stmt("complete { for -> .group (1) { way; } }")
+    stmt.input_set.content_types = _NODE
+    warnings: list[Warning] = []
+    assert stmt.get_output_types(warnings) == _NODE | _WAY
     assert not warnings
 
 
@@ -1669,10 +1791,11 @@ def test_complete_get_output_types_union_to_underscore() -> None:
 
 
 def test_complete_get_output_types_union_to_named_set() -> None:
+    # union -> .found propagates inner ._ as a side effect; last member (way) wins
     stmt = _complete_stmt("complete { ( node; way; ) -> .found; }")
     stmt.input_set.content_types = _NONE
     warnings: list[Warning] = []
-    assert stmt.get_output_types(warnings) == _NODE | _WAY
+    assert stmt.get_output_types(warnings) == _WAY
     assert not warnings
 
 

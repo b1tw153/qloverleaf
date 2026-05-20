@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -159,7 +159,7 @@ class LatLon:
 class SetReference:
     name: str  # canonical name; "_" if implicit
     token: Token | None  # None if implicit
-    versioned: str = ""  # filled in by SSA phase
+    version: int = 0  # filled in by Phase 2
     # None = set types are indefinite
     required_types: frozenset[ElementType] | None = field(default=None)
     content_types: frozenset[ElementType] | None = field(default=None)
@@ -170,7 +170,7 @@ class SetReference:
 
 @dataclass
 class SetAssignment:
-    set_ref: SetReference
+    set_reference: SetReference
 
 
 _NODE = frozenset({ElementType.NODE})
@@ -310,12 +310,12 @@ class LengthExpression(Evaluator):
 @dataclass
 class CountExpression(Evaluator):
     count_type: CountType
-    set_ref: SetReference
+    set_reference: SetReference
 
 
 @dataclass
 class ValExpression(Evaluator):
-    set_ref: SetReference
+    set_reference: SetReference
 
 
 # Query Filter Classes
@@ -323,7 +323,7 @@ class ValExpression(Evaluator):
 
 @dataclass(kw_only=True)
 class QueryFilter:
-    token: Token | None  # None when set_ref is implicit
+    token: Token | None  # None when set_reference is implicit
     output_types: frozenset[ElementType] | None = field(default=None)
 
 
@@ -357,7 +357,7 @@ class IdFilter(QueryFilter):
 @dataclass
 class AroundSetFilter(QueryFilter):
     radius: str
-    set_ref: SetReference
+    set_reference: SetReference
 
 
 @dataclass
@@ -395,7 +395,7 @@ class UidFilter(QueryFilter):
 
 @dataclass
 class AreaSetFilter(QueryFilter):
-    set_ref: SetReference
+    set_reference: SetReference
 
 
 @dataclass
@@ -406,13 +406,13 @@ class AreaIdFilter(QueryFilter):
 @dataclass
 class RecurseFilter(QueryFilter):
     recurse_type: RecurseFilterType
-    set_ref: SetReference
+    set_reference: SetReference
     role: str | None
 
 
 @dataclass
 class WayCountFilter(QueryFilter):
-    set_ref: SetReference
+    set_reference: SetReference
     min_count: int
     max_count: int | None  # None means open upper bound (N-)
     exact: bool  # True if no dash (exact match)
@@ -468,11 +468,23 @@ class QueryStatement(Statement):
     ) -> frozenset[ElementType] | None:
         current_types: frozenset[ElementType] | None = self.element_types
         for filter in self.filters:
-            if filter.output_types is None:
+            filter_output = filter.output_types
+            if filter_output is None and isinstance(filter, SetFilter):
+                # SetFilter intersects the stream with the named set's types.
+                # Use Phase 2 content_types if available; otherwise indefinite.
+                set_types = filter.set_reference.content_types
+                filter_output = (
+                    None
+                    if set_types is None
+                    else current_types & set_types
+                    if current_types is not None
+                    else None
+                )
+            if filter_output is None:
                 current_types = None
                 break
             assert current_types is not None
-            current_types = current_types & filter.output_types
+            current_types = current_types & filter_output
             if current_types == _NONE:
                 warnings.append(
                     Warning(
@@ -640,6 +652,11 @@ class ItemStatement(Statement):
     input_set: SetReference
     output_set: SetReference
 
+    def get_output_types(
+        self, warnings: list[Warning]
+    ) -> frozenset[ElementType] | None:
+        return self.input_set.content_types
+
 
 @dataclass
 class OutStatement(Statement):
@@ -658,6 +675,35 @@ class RecurseStatement(Statement):
     input_set: SetReference
     output_set: SetReference
     recurse_dir: RecurseDir
+
+    def get_output_types(
+        self, warnings: list[Warning]
+    ) -> frozenset[ElementType] | None:
+        input_types = self.input_set.content_types
+        if input_types is None:
+            return None
+        result: frozenset[ElementType] = _NONE
+        if self.recurse_dir == RecurseDir.DOWN:
+            if ElementType.WAY in input_types:
+                result |= _NODE
+            if ElementType.RELATION in input_types:
+                result |= _NW
+        elif self.recurse_dir == RecurseDir.DOWN_RELATIONS:
+            if ElementType.WAY in input_types:
+                result |= _NODE
+            if ElementType.RELATION in input_types:
+                result |= _NWR
+        elif self.recurse_dir == RecurseDir.UP:
+            if ElementType.NODE in input_types:
+                result |= _WR
+            if ElementType.WAY in input_types or ElementType.RELATION in input_types:
+                result |= _RELATION
+        elif self.recurse_dir == RecurseDir.UP_RELATIONS:
+            if ElementType.NODE in input_types:
+                result |= _WR
+            if ElementType.WAY in input_types or ElementType.RELATION in input_types:
+                result |= _RELATION
+        return result
 
 
 @dataclass
@@ -702,6 +748,140 @@ def _unquote(token: Token) -> str:
     return re.sub(r'\\(u[0-9A-Fa-f]{4}|[nt"\'\\])', replace_escape, inner)
 
 
+# Phase 2 — Set Version Assignment
+
+
+_SetState = tuple[int, frozenset[ElementType] | None]
+_State = dict[str, _SetState]
+
+
+def _stamp_read(ref: SetReference, state: _State, warnings: list[Warning]) -> None:
+    if ref.name not in state:
+        warnings.append(
+            Warning(f"Uninitialized set .{ref.name} contains no data", ref.token)
+        )
+        state[ref.name] = (0, _NONE)
+    version, content_types = state[ref.name]
+    ref.version = version
+    ref.content_types = content_types
+
+
+def _stamp_write(
+    ref: SetReference,
+    state: _State,
+    types: frozenset[ElementType] | None,
+) -> None:
+    version = (state[ref.name][0] if ref.name in state else 0) + 1
+    state[ref.name] = (version, types)
+    ref.version = version
+    ref.content_types = types
+
+
+def _stamp_evaluator(
+    evaluator: Evaluator, state: _State, warnings: list[Warning]
+) -> None:
+    for f in fields(evaluator):
+        val = getattr(evaluator, f.name)
+        if isinstance(val, SetReference):
+            _stamp_read(val, state, warnings)
+        elif isinstance(val, Evaluator):
+            _stamp_evaluator(val, state, warnings)
+        elif isinstance(val, list):
+            for item in val:
+                if isinstance(item, Evaluator):
+                    _stamp_evaluator(item, state, warnings)
+
+
+def _stamp_filter_refs(
+    filter_: QueryFilter, state: _State, warnings: list[Warning]
+) -> None:
+    set_reference: SetReference | None = getattr(filter_, "set_reference", None)
+    if set_reference is not None:
+        _stamp_read(set_reference, state, warnings)
+    elif isinstance(filter_, IfFilter):
+        _stamp_evaluator(filter_.evaluator, state, warnings)
+
+
+def _walk_stmts(stmts: list[Statement], state: _State, warnings: list[Warning]) -> None:
+    for stmt in stmts:
+        _walk_stmt(stmt, state, warnings)
+
+
+def _walk_stmt(stmt: Statement, state: _State, warnings: list[Warning]) -> None:
+    if isinstance(stmt, IfStatement):
+        _walk_if(stmt, state, warnings)
+    elif isinstance(stmt, (ForeachStatement, ForStatement)):
+        _walk_loop(stmt, state, warnings)
+    elif isinstance(stmt, CompleteStatement):
+        _walk_complete(stmt, state, warnings)
+    elif isinstance(stmt, UnionStatement):
+        _walk_union(stmt, state, warnings)
+    else:
+        input_set: SetReference | None = getattr(stmt, "input_set", None)
+        if input_set is not None:
+            _stamp_read(input_set, state, warnings)
+        if isinstance(stmt, QueryStatement):
+            for f in stmt.filters:
+                _stamp_filter_refs(f, state, warnings)
+        output_set: SetReference | None = getattr(stmt, "output_set", None)
+        if output_set is not None:
+            _stamp_write(output_set, state, stmt.get_output_types(warnings))
+
+
+def _walk_loop(
+    stmt: ForeachStatement | ForStatement,
+    state: _State,
+    warnings: list[Warning],
+) -> None:
+    _stamp_read(stmt.input_set, state, warnings)
+    if isinstance(stmt, ForStatement):
+        _stamp_evaluator(stmt.evaluator, state, warnings)
+    _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
+    _walk_stmts(stmt.body, state, warnings)
+
+
+def _walk_complete(
+    stmt: CompleteStatement,
+    state: _State,
+    warnings: list[Warning],
+) -> None:
+    _stamp_read(stmt.input_set, state, warnings)
+    _walk_stmts(stmt.body, state, warnings)
+    _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
+
+
+def _walk_union(stmt: UnionStatement, state: _State, warnings: list[Warning]) -> None:
+    for member in stmt.members:
+        _walk_stmt(member.statement, state, warnings)
+    _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
+
+
+def _walk_if(stmt: IfStatement, state: _State, warnings: list[Warning]) -> None:
+    _stamp_evaluator(stmt.condition, state, warnings)
+    then_state = dict(state)
+    else_state = dict(state)
+    _walk_stmts(stmt.then_body, then_state, warnings)
+    _walk_stmts(stmt.else_body or [], else_state, warnings)
+
+    def _written(branch: _State) -> set[str]:
+        return {n for n in branch if branch[n][0] > state.get(n, (0, _NONE))[0]}
+
+    written = _written(then_state) | _written(else_state)
+    for name in written:
+        then_types = then_state.get(name, state.get(name, (0, _NONE)))[1]
+        else_types = else_state.get(name, state.get(name, (0, _NONE)))[1]
+        if then_types is None or else_types is None:
+            merged_types: frozenset[ElementType] | None = None
+        else:
+            merged_types = then_types | else_types
+        state[name] = (state.get(name, (0, _NONE))[0] + 1, merged_types)
+
+
+def _resolve_types(query: Query) -> None:
+    state: _State = {}
+    _walk_stmts(query.statements, state, query.warnings)
+
+
 # Overpass Transformer
 
 
@@ -722,7 +902,9 @@ class OverpassTransformer(Transformer[Token, Any]):
         for child in children:
             if isinstance(child, Statement):
                 statements.append(child)
-        return Query(statements=statements, warnings=self.warnings)
+        result = Query(statements=statements, warnings=self.warnings)
+        _resolve_types(result)
+        return result
 
     # Global Settings Transform
 
@@ -917,7 +1099,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         assert isinstance(radius_token, Token)
         return AroundSetFilter(
             radius=radius_token.value,
-            set_ref=set_reference,
+            set_reference=set_reference,
             token=radius_token,
             output_types=_NWRA,
         )
@@ -998,9 +1180,9 @@ class OverpassTransformer(Transformer[Token, Any]):
             ref = children[0]
             assert isinstance(ref, SetReference)
             ref.required_types = _AREA
-            return AreaSetFilter(set_ref=ref, token=ref.token, output_types=_NWRA)
+            return AreaSetFilter(set_reference=ref, token=ref.token, output_types=_NWRA)
         return AreaSetFilter(
-            set_ref=SetReference(name="_", token=None, required_types=_AREA),
+            set_reference=SetReference(name="_", token=None, required_types=_AREA),
             token=None,
             output_types=_NWRA,
         )
@@ -1042,7 +1224,7 @@ class OverpassTransformer(Transformer[Token, Any]):
                 output_types = _NWR
         return RecurseFilter(
             recurse_type=recurse_type,
-            set_ref=set_reference,
+            set_reference=set_reference,
             role=role,
             token=type_token,
             output_types=output_types,
@@ -1050,15 +1232,15 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def way_count_filter(self, children: list[Any]) -> WayCountFilter:
         if isinstance(children[0], SetReference):
-            set_ref = children[0]
-            set_ref.required_types = _WAY
+            set_reference = children[0]
+            set_reference.required_types = _WAY
             int_range = children[1]
         else:
-            set_ref = SetReference(name="_", token=None, required_types=_WAY)
+            set_reference = SetReference(name="_", token=None, required_types=_WAY)
             int_range = children[0]
         assert isinstance(int_range, IntRange)
         return WayCountFilter(
-            set_ref=set_ref,
+            set_reference=set_reference,
             min_count=int_range.min_count,
             max_count=int_range.max_count,
             exact=int_range.exact,
@@ -1105,7 +1287,7 @@ class OverpassTransformer(Transformer[Token, Any]):
 
     def set_assignment(self, children: list[Any]) -> SetAssignment:
         assert isinstance(children[0], SetReference)
-        return SetAssignment(set_ref=children[0])
+        return SetAssignment(set_reference=children[0])
 
     # Statement Transform
 
@@ -1128,7 +1310,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             if isinstance(child, QueryFilter):
                 filters.append(child)
             elif isinstance(child, SetAssignment):
-                output_set = child.set_ref
+                output_set = child.set_reference
         output_set.required_types = element_types
         # TODO: walk filters to propagate input/output type constraints
         return QueryStatement(
@@ -1151,7 +1333,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             if isinstance(child, SetReference):
                 input_set = child
             elif isinstance(child, SetAssignment):
-                output_set = child.set_ref
+                output_set = child.set_reference
             elif isinstance(child, list):
                 body = child
         return ForeachStatement(
@@ -1170,7 +1352,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             if isinstance(child, SetReference):
                 input_set = child
             elif isinstance(child, SetAssignment):
-                output_set = child.set_ref
+                output_set = child.set_reference
             elif isinstance(child, Evaluator):
                 evaluator = child
             elif isinstance(child, list):
@@ -1193,7 +1375,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             if isinstance(child, SetReference):
                 input_set = child
             elif isinstance(child, SetAssignment):
-                output_set = child.set_ref
+                output_set = child.set_reference
             elif isinstance(child, Token) and child.type == "INTEGER":
                 max_iterations = int(child)
             else:
@@ -1244,7 +1426,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         output_set = SetReference(name="_", token=None)
         if len(children) == 2:
             assert isinstance(children[1], SetAssignment)
-            output_set = children[1].set_ref
+            output_set = children[1].set_reference
         # TODO: use members[0].statement.token once statement production is handled
         # if members:
         #     token = members[0].statement.token
@@ -1262,7 +1444,7 @@ class OverpassTransformer(Transformer[Token, Any]):
         output_set = SetReference(name="_", token=None)
         if len(children) == 2:
             assert isinstance(children[1], SetAssignment)
-            output_set = children[1].set_ref
+            output_set = children[1].set_reference
         return ItemStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1381,7 +1563,7 @@ class OverpassTransformer(Transformer[Token, Any]):
                 input_set = child
                 token = child.token if token is None else token
             elif isinstance(child, SetAssignment):
-                output_set = child.set_ref
+                output_set = child.set_reference
             elif isinstance(child, Token) and child.type == "RECURSE_DIR":
                 recurse_dir = RecurseDir(child.value)
                 token = child if token is None else token
@@ -1420,8 +1602,8 @@ class OverpassTransformer(Transformer[Token, Any]):
                 else:
                     lon = child.value
             elif isinstance(child, SetAssignment):
-                output_set = child.set_ref
-                token = child.set_ref.token if token is None else token
+                output_set = child.set_reference
+                token = child.set_reference.token if token is None else token
         input_set.required_types = _NODE
         output_set.required_types = _AREA
         return IsInStatement(
@@ -1462,9 +1644,9 @@ class OverpassTransformer(Transformer[Token, Any]):
                 input_set.required_types = _WR
                 token = child.token if token is None else token
             elif isinstance(child, SetAssignment):
-                output_set = child.set_ref
+                output_set = child.set_reference
                 output_set.required_types = _AREA
-                token = child.set_ref.token if token is None else token
+                token = child.set_reference.token if token is None else token
         return MapToAreaStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1745,9 +1927,9 @@ class OverpassTransformer(Transformer[Token, Any]):
         count_type_token = children[-1]
         assert isinstance(count_type_token, Token)
         if len(children) == 2:
-            set_ref = children[0]
+            set_reference = children[0]
         else:
-            set_ref = SetReference(name="_", token=None)
+            set_reference = SetReference(name="_", token=None)
         count_type = CountType(str(count_type_token))
         if count_type == CountType.DERIVEDS:
             raise UnsupportedFeatureError(
@@ -1755,7 +1937,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             )
         return CountExpression(
             count_type=count_type,
-            set_ref=set_ref,
+            set_reference=set_reference,
             token=count_type_token,
         )
 
@@ -1775,12 +1957,12 @@ class OverpassTransformer(Transformer[Token, Any]):
         raise UnsupportedFeatureError("lrs_max() is not supported", children[0].token)
 
     def val_expr(self, children: list[Any]) -> ValExpression:
-        # set_ref must be the output set of an enclosing for_stmt (sets are global,
-        # so any for loop on the stack is valid, not just the innermost). Only that
-        # set is populated with per-iteration values.
+        # set_reference must be the output set of an enclosing for_stmt (sets are
+        # global, so any for loop on the stack is valid, not just the innermost). Only
+        # that set is populated with per-iteration values.
         # TODO: validate in a semantic pass — walk the IR with a stack of for loop
-        # output set names; raise if set_ref.name matches none of them.
-        set_ref = children[0]
-        assert isinstance(set_ref, SetReference)
-        assert set_ref.token is not None
-        return ValExpression(set_ref=set_ref, token=set_ref.token)
+        # output set names; raise if set_reference.name matches none of them.
+        set_reference = children[0]
+        assert isinstance(set_reference, SetReference)
+        assert set_reference.token is not None
+        return ValExpression(set_reference=set_reference, token=set_reference.token)

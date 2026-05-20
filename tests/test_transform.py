@@ -59,6 +59,7 @@ from qloverleaf.transform import (
     OverpassTransformer,
     PivotFilter,
     PolygonFilter,
+    Query,
     QueryStatement,
     RecurseDir,
     RecurseFilter,
@@ -93,7 +94,7 @@ def _transform_query(text: str) -> Any:
 
 
 def _first_filter(text: str) -> Any:
-    return _transform_query(text).children[0].filters[0]
+    return _transform_query(text).statements[0].filters[0]
 
 
 def _assert_no_raw_nodes(value: Any, path: str = "root") -> None:
@@ -114,7 +115,7 @@ def _assert_no_raw_nodes(value: Any, path: str = "root") -> None:
 
 
 def _stmt(text: str) -> Any:
-    return _transform_query(text).children[0]
+    return _transform_query(text).statements[0]
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +327,43 @@ def test_unquote_multiple_escapes() -> None:
 
 def test_unquote_too_short_passthrough() -> None:
     assert _unquote(_string_token('"')) == '"'
+
+
+# ---------------------------------------------------------------------------
+# OverpassTransformer.query
+# ---------------------------------------------------------------------------
+
+
+def test_query_settings_only() -> None:
+    result = _transform_query("[out:json];")
+    assert isinstance(result, Query)
+    assert result.statements == []
+    assert result.warnings == []
+
+
+def test_query_single_statement() -> None:
+    result = _transform_query("node;")
+    assert isinstance(result, Query)
+    assert len(result.statements) == 1
+    assert isinstance(result.statements[0], QueryStatement)
+
+
+def test_query_multiple_statements() -> None:
+    result = _transform_query("node;way;relation;")
+    assert isinstance(result, Query)
+    assert len(result.statements) == 3
+
+
+def test_query_settings_block_statements() -> None:
+    result = _transform_query("if(1){node;}else{way;}foreach->.a{.a out;}")
+    assert isinstance(result, Query)
+    assert len(result.statements) == 2
+
+
+def test_query_settings_excluded_from_statements() -> None:
+    result = _transform_query("[out:json][timeout:25];node;")
+    assert isinstance(result, Query)
+    assert len(result.statements) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -959,7 +997,7 @@ def test_if_filter() -> None:
 
 
 def _statement(text: str) -> Statement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, Statement)
     return stmt
 
@@ -975,7 +1013,7 @@ def test_statement() -> None:
 
 
 def _query_stmt(text: str) -> QueryStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, QueryStatement)
     return stmt
 
@@ -1105,7 +1143,7 @@ def test_query_stmt_output_indefinite() -> None:
 
 
 def _foreach_stmt(text: str) -> ForeachStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, ForeachStatement)
     return stmt
 
@@ -1165,7 +1203,7 @@ def test_foreach_get_output_types_concrete() -> None:
 
 
 def _for_stmt(text: str) -> ForStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, ForStatement)
     return stmt
 
@@ -1230,7 +1268,7 @@ def test_for_get_output_types_concrete() -> None:
 
 
 def _complete_stmt(text: str) -> CompleteStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, CompleteStatement)
     return stmt
 
@@ -1375,7 +1413,7 @@ def test_complete_get_output_types_union_to_named_set() -> None:
 
 
 def _if_stmt(text: str) -> IfStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, IfStatement)
     return stmt
 
@@ -1429,7 +1467,7 @@ def test_if_get_output_types() -> None:
 
 
 def _union_stmt(text: str) -> UnionStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, UnionStatement)
     return stmt
 
@@ -1540,7 +1578,7 @@ def test_union_stmt_output_types_all_difference() -> None:
 
 
 def _item_stmt(text: str) -> ItemStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, ItemStatement)
     return stmt
 
@@ -1579,7 +1617,7 @@ def test_item_token() -> None:
 
 
 def _out_stmt(text: str) -> OutStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, OutStatement)
     return stmt
 
@@ -1779,7 +1817,7 @@ def test_out_bbox_filter_raises() -> None:
 
 
 def _recurse_stmt(text: str) -> RecurseStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, RecurseStatement)
     return stmt
 
@@ -1840,7 +1878,7 @@ def test_recurse_token_from_input_set() -> None:
 
 
 def _is_in_stmt(text: str) -> IsInStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, IsInStatement)
     return stmt
 
@@ -1924,7 +1962,7 @@ def test_make_raises() -> None:
 
 
 def _map_to_area_stmt(text: str) -> MapToAreaStatement:
-    stmt = _transform_query(text).children[0]
+    stmt = _transform_query(text).statements[0]
     assert isinstance(stmt, MapToAreaStatement)
     return stmt
 

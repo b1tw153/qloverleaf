@@ -433,7 +433,7 @@ class IfFilter(QueryFilter):
     evaluator: Evaluator
 
 
-# Simple Statement Classes
+# Top Level Classes
 
 
 @dataclass(kw_only=True)
@@ -445,6 +445,15 @@ class Statement:
         warnings: list[Warning],
     ) -> frozenset[ElementType] | None:
         return None
+
+
+@dataclass
+class Query:
+    statements: list[Statement]
+    warnings: list[Warning]
+
+
+# Simple Statement Classes
 
 
 @dataclass
@@ -707,7 +716,15 @@ class OverpassTransformer(Transformer[Token, Any]):
         except VisitError as e:
             raise e.orig_exc from e
 
-    # Global Settings
+    # Query Transform
+    def query(self, children: list[Any]) -> Query:
+        statements: list[Statement] = []
+        for child in children:
+            if isinstance(child, Statement):
+                statements.append(child)
+        return Query(statements=statements, warnings=self.warnings)
+
+    # Global Settings Transform
 
     def global_setting(self, children: list[Any]) -> None:
         return None

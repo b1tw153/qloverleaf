@@ -15,13 +15,16 @@ from qloverleaf.transform import (
     _NONE,
     _NWR,
     _NWRA,
+    _RELATION,
     _WAY,
+    _WR,
     AbsExpression,
     AddExpression,
     AddOperator,
     AreaIdFilter,
     AreaSetFilter,
     AroundLineFilter,
+    AroundSetFilter,
     BboxFilter,
     BinaryExpression,
     BinaryOperator,
@@ -364,6 +367,229 @@ def test_query_settings_excluded_from_statements() -> None:
     result = _transform_query("[out:json][timeout:25];node;")
     assert isinstance(result, Query)
     assert len(result.statements) == 1
+
+
+# ---------------------------------------------------------------------------
+# _resolve_types (Phase 2 — Set Version Assignment)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_types_write() -> None:
+    stmt = _transform_query("node;").statements[0]
+    assert isinstance(stmt, QueryStatement)
+    assert stmt.output_set.version == 1
+    assert stmt.output_set.content_types == _NODE
+
+
+def test_resolve_types_sequential_writes() -> None:
+    stmts = _transform_query("node;way;").statements
+    assert stmts[0].output_set.version == 1
+    assert stmts[1].output_set.version == 2
+
+
+def test_resolve_types_named_set_independent_version() -> None:
+    stmts = _transform_query("node -> .a; way;").statements
+    assert stmts[0].output_set.version == 1  # .a@1
+    assert stmts[1].output_set.version == 1  # ._@1 — independent counter
+
+
+def test_resolve_types_read_after_write() -> None:
+    stmts = _transform_query("node -> .a; .a;").statements
+    assert isinstance(stmts[1], ItemStatement)
+    assert stmts[1].input_set.version == stmts[0].output_set.version
+    assert stmts[1].input_set.content_types == _NODE
+    assert stmts[1].output_set.content_types == _NODE
+
+
+def test_resolve_types_uninitialized_read() -> None:
+    result = _transform_query("node(around.foo:100);")
+    assert any("Uninitialized" in w.message for w in result.warnings)
+    stmt = result.statements[0]
+    assert isinstance(stmt, QueryStatement)
+    around = next(f for f in stmt.filters if isinstance(f, AroundSetFilter))
+    assert around.set_reference.version == 0
+    assert around.set_reference.content_types == _NONE
+
+
+def test_resolve_types_filter_ref_stamped() -> None:
+    stmts = _transform_query("node -> .a; node(around.a:100);").statements
+    stmt = stmts[1]
+    assert isinstance(stmt, QueryStatement)
+    around = next(f for f in stmt.filters if isinstance(f, AroundSetFilter))
+    assert around.set_reference.version == 1
+    assert around.set_reference.content_types == _NODE
+
+
+def test_resolve_types_if_both_branches_write() -> None:
+    # then writes {way}, else writes {relation}; merge = {way, relation}
+    stmts = _transform_query("node; if(1) { way; } else { relation; } out;").statements
+    assert isinstance(stmts[2], OutStatement)
+    assert stmts[2].input_set.version == 2
+    assert stmts[2].input_set.content_types == _WAY | _RELATION
+
+
+def test_resolve_types_if_one_branch_writes() -> None:
+    # only then writes {way}; merge includes pre-if {node}
+    stmts = _transform_query("node; if(1) { way; } out;").statements
+    assert isinstance(stmts[2], OutStatement)
+    assert stmts[2].input_set.version == 2
+    assert stmts[2].input_set.content_types == _NODE | _WAY
+
+
+def test_resolve_types_evaluator_ref_stamped() -> None:
+    # node -> .a; node(if:a.count(nodes)>0);
+    stmts = _transform_query("node -> .a; node(if:a.count(nodes)>0);").statements
+    if_filter = stmts[1].filters[0]
+    assert isinstance(if_filter, IfFilter)
+    assert isinstance(if_filter.evaluator, CompareExpression)
+    count_expr = if_filter.evaluator.left_operand
+    assert isinstance(count_expr, CountExpression)
+    assert count_expr.set_reference.version == 1
+    assert count_expr.set_reference.content_types == _NODE
+
+
+def test_resolve_types_for_block() -> None:
+    # node -> .a; for .a -> .b (version()==1) { .b out; }
+    stmts = _transform_query(
+        "node -> .a; for .a -> .b (version()==1) { .b out; }"
+    ).statements
+    for_stmt = stmts[1]
+    assert isinstance(for_stmt, ForStatement)
+    assert for_stmt.input_set.version == 1
+    assert for_stmt.input_set.content_types == _NODE
+    assert for_stmt.output_set.version == 1
+    assert for_stmt.output_set.content_types == _NODE
+    body_out = for_stmt.body[0]
+    assert isinstance(body_out, OutStatement)
+    assert body_out.input_set.version == 1
+    assert body_out.input_set.content_types == _NODE
+
+
+def test_resolve_types_union_for_if() -> None:
+    query = _transform_query(
+        "( node(1); node(2); node(3); ) -> .a;"
+        "for .a -> .b (id()==2) {"
+        "  if (b.count(nodes) > 1) {"
+        "    .b out ids;"
+        "    .b -> .c;"
+        "  } else {"
+        "    .b out;"
+        "    .b -> .c;"
+        "  }"
+        "}"
+        ".c out count;"
+    )
+    assert not query.warnings
+
+    # union members each write to ._ independently; union writes .a
+    union = query.statements[0]
+    assert isinstance(union, UnionStatement)
+    m0, m1, m2 = union.members
+    assert isinstance(m0.statement, QueryStatement)
+    assert isinstance(m1.statement, QueryStatement)
+    assert isinstance(m2.statement, QueryStatement)
+    assert m0.statement.output_set.version == 1
+    assert m1.statement.output_set.version == 2
+    assert m2.statement.output_set.version == 3
+    assert union.output_set.version == 1
+    assert union.output_set.content_types == _NODE
+
+    # for reads .a@1; iteration variable .b is stamped before body executes
+    for_stmt = query.statements[1]
+    assert isinstance(for_stmt, ForStatement)
+    assert for_stmt.input_set.version == 1
+    assert for_stmt.input_set.content_types == _NODE
+    assert for_stmt.output_set.version == 1
+    assert for_stmt.output_set.content_types == _NODE
+
+    if_stmt = for_stmt.body[0]
+    assert isinstance(if_stmt, IfStatement)
+    then_out, then_item = if_stmt.then_body
+    assert if_stmt.else_body is not None
+    else_out, else_item = if_stmt.else_body
+
+    # out statements in both branches read .b@1
+    assert isinstance(then_out, OutStatement)
+    assert isinstance(else_out, OutStatement)
+    assert then_out.input_set.version == 1
+    assert then_out.input_set.content_types == _NODE
+    assert else_out.input_set.version == 1
+    assert else_out.input_set.content_types == _NODE
+
+    # both branches write .b -> .c; each branch gets .c@1 independently,
+    # and the if merge also produces .c@1 (first write of .c)
+    assert isinstance(then_item, ItemStatement)
+    assert isinstance(else_item, ItemStatement)
+    assert then_item.input_set.version == 1
+    assert then_item.input_set.content_types == _NODE
+    assert then_item.output_set.version == 1
+    assert then_item.output_set.content_types == _NODE
+    assert else_item.input_set.version == 1
+    assert else_item.input_set.content_types == _NODE
+    assert else_item.output_set.version == 1
+    assert else_item.output_set.content_types == _NODE
+
+    # .c out count reads .c@1 produced by the if merge
+    c_out = query.statements[2]
+    assert isinstance(c_out, OutStatement)
+    assert c_out.input_set.version == 1
+    assert c_out.input_set.content_types == _NODE
+
+
+def test_resolve_types_complete() -> None:
+    query = _transform_query(
+        "way(689254681);"
+        "complete -> .ways {"
+        "  > -> .nodes;"
+        "  .nodes < -> .parents;"
+        '  way.parents["highway"="track"];'
+        "}"
+        ".ways out ids;"
+    )
+    assert not query.warnings
+
+    # way query writes ._@1 with _WAY
+    way_stmt = query.statements[0]
+    assert isinstance(way_stmt, QueryStatement)
+    assert way_stmt.output_set.version == 1
+    assert way_stmt.output_set.content_types == _WAY
+
+    # complete reads ._@1; recurse types fully resolve so output is _WAY
+    complete = query.statements[1]
+    assert isinstance(complete, CompleteStatement)
+    assert complete.input_set.version == 1
+    assert complete.input_set.content_types == _WAY
+    assert complete.output_set.version == 1
+    assert complete.output_set.content_types == _WAY
+
+    # body[0]: recurse > on _WAY produces _NODE (way members are nodes)
+    recurse_down, recurse_up, way_query = complete.body
+    assert isinstance(recurse_down, RecurseStatement)
+    assert recurse_down.input_set.version == 1
+    assert recurse_down.input_set.content_types == _WAY
+    assert recurse_down.output_set.version == 1
+    assert recurse_down.output_set.content_types == _NODE
+
+    # body[1]: recurse < on _NODE produces _WR (nodes are members of ways and relations)
+    assert isinstance(recurse_up, RecurseStatement)
+    assert recurse_up.input_set.version == 1
+    assert recurse_up.input_set.content_types == _NODE
+    assert recurse_up.output_set.version == 1
+    assert recurse_up.output_set.content_types == _WR
+
+    # body[2]: way query intersects _WAY stream with .parents@1 (_WR), writes ._@2
+    assert isinstance(way_query, QueryStatement)
+    set_filter = next(f for f in way_query.filters if isinstance(f, SetFilter))
+    assert set_filter.set_reference.version == 1
+    assert set_filter.set_reference.content_types == _WR
+    assert way_query.output_set.version == 2
+    assert way_query.output_set.content_types == _WAY
+
+    # .ways out ids reads .ways@1 with fully resolved _WAY
+    ways_out = query.statements[2]
+    assert isinstance(ways_out, OutStatement)
+    assert ways_out.input_set.version == 1
+    assert ways_out.input_set.content_types == _WAY
 
 
 # ---------------------------------------------------------------------------
@@ -795,9 +1021,9 @@ def test_uid_touched_filter_raises() -> None:
 def test_area_set_filter_default_set() -> None:
     filter = _first_filter("node(area);")
     assert isinstance(filter, AreaSetFilter)
-    assert filter.set_ref.name == "_"
-    assert filter.set_ref.token is None
-    assert filter.set_ref.required_types == frozenset({ElementType.AREA})
+    assert filter.set_reference.name == "_"
+    assert filter.set_reference.token is None
+    assert filter.set_reference.required_types == frozenset({ElementType.AREA})
     assert filter.token is None
     assert filter.output_types == _NWRA
 
@@ -805,8 +1031,8 @@ def test_area_set_filter_default_set() -> None:
 def test_area_set_filter_explicit_set() -> None:
     filter = _first_filter("node(area.foo);")
     assert isinstance(filter, AreaSetFilter)
-    assert filter.set_ref.name == "foo"
-    assert filter.set_ref.token is not None
+    assert filter.set_reference.name == "foo"
+    assert filter.set_reference.token is not None
     assert filter.token is not None
     assert filter.output_types == _NWRA
 
@@ -834,8 +1060,8 @@ def test_recurse_filter_w() -> None:
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.W
     assert filter.output_types == frozenset({ElementType.NODE})
-    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
-    assert filter.set_ref.name == "_"
+    assert filter.set_reference.required_types == frozenset({ElementType.WAY})
+    assert filter.set_reference.name == "_"
     assert filter.token is not None
     assert filter.role is None
 
@@ -847,8 +1073,8 @@ def test_recurse_filter_r() -> None:
     assert filter.output_types == frozenset(
         {ElementType.NODE, ElementType.WAY, ElementType.RELATION}
     )
-    assert filter.set_ref.required_types == frozenset({ElementType.RELATION})
-    assert filter.set_ref.name == "_"
+    assert filter.set_reference.required_types == frozenset({ElementType.RELATION})
+    assert filter.set_reference.name == "_"
     assert filter.token is not None
     assert filter.role is None
 
@@ -858,8 +1084,8 @@ def test_recurse_filter_bn() -> None:
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.BN
     assert filter.output_types == frozenset({ElementType.WAY, ElementType.RELATION})
-    assert filter.set_ref.required_types == frozenset({ElementType.NODE})
-    assert filter.set_ref.name == "_"
+    assert filter.set_reference.required_types == frozenset({ElementType.NODE})
+    assert filter.set_reference.name == "_"
     assert filter.token is not None
     assert filter.role is None
 
@@ -869,8 +1095,8 @@ def test_recurse_filter_bw() -> None:
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.BW
     assert filter.output_types == frozenset({ElementType.RELATION})
-    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
-    assert filter.set_ref.name == "_"
+    assert filter.set_reference.required_types == frozenset({ElementType.WAY})
+    assert filter.set_reference.name == "_"
     assert filter.token is not None
     assert filter.role is None
 
@@ -880,8 +1106,8 @@ def test_recurse_filter_br() -> None:
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.BR
     assert filter.output_types == frozenset({ElementType.RELATION})
-    assert filter.set_ref.required_types == frozenset({ElementType.RELATION})
-    assert filter.set_ref.name == "_"
+    assert filter.set_reference.required_types == frozenset({ElementType.RELATION})
+    assert filter.set_reference.name == "_"
     assert filter.token is not None
     assert filter.role is None
 
@@ -889,9 +1115,9 @@ def test_recurse_filter_br() -> None:
 def test_recurse_filter_explicit_set() -> None:
     filter = _first_filter("node(w.foo);")
     assert isinstance(filter, RecurseFilter)
-    assert filter.set_ref.name == "foo"
-    assert filter.set_ref.token is not None
-    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
+    assert filter.set_reference.name == "foo"
+    assert filter.set_reference.token is not None
+    assert filter.set_reference.required_types == frozenset({ElementType.WAY})
 
 
 def test_recurse_filter_role() -> None:
@@ -908,9 +1134,9 @@ def test_recurse_filter_role() -> None:
 def test_way_count_filter() -> None:
     filter = _first_filter("node(way_cnt:3);")
     assert isinstance(filter, WayCountFilter)
-    assert filter.set_ref.name == "_"
-    assert filter.set_ref.token is None
-    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
+    assert filter.set_reference.name == "_"
+    assert filter.set_reference.token is None
+    assert filter.set_reference.required_types == frozenset({ElementType.WAY})
     assert filter.min_count == 3
     assert filter.max_count == 3
     assert filter.exact is True
@@ -921,9 +1147,9 @@ def test_way_count_filter() -> None:
 def test_way_count_filter_named_set() -> None:
     filter = _first_filter("node(way_cnt.foo:3);")
     assert isinstance(filter, WayCountFilter)
-    assert filter.set_ref.name == "foo"
-    assert filter.set_ref.token is not None
-    assert filter.set_ref.required_types == frozenset({ElementType.WAY})
+    assert filter.set_reference.name == "foo"
+    assert filter.set_reference.token is not None
+    assert filter.set_reference.required_types == frozenset({ElementType.WAY})
 
 
 # ---------------------------------------------------------------------------
@@ -1125,10 +1351,26 @@ def test_query_stmt_output_filter_mismatch() -> None:
 
 def test_query_stmt_output_indefinite() -> None:
     stmt = _query_stmt("node.a;")
+    set_filter = next(f for f in stmt.filters if isinstance(f, SetFilter))
+    set_filter.set_reference.content_types = None
     warnings: list[Warning] = list()
     output_types = stmt.get_output_types(warnings)
     assert output_types is None
     assert not warnings
+
+
+def test_query_stmt_output_set_filter_unassigned() -> None:
+    query = _transform_query("node.a;")
+    assert query.warnings
+    stmt = query.statements[0]
+    assert isinstance(stmt, QueryStatement)
+    assert stmt.output_set.content_types == _NONE
+
+
+def test_query_stmt_output_set_filter_assigned() -> None:
+    stmts = _transform_query("node -> .a; node.a;").statements
+    assert isinstance(stmts[1], QueryStatement)
+    assert stmts[1].output_set.content_types == _NODE
 
 
 # ---------------------------------------------------------------------------
@@ -1148,33 +1390,20 @@ def _foreach_stmt(text: str) -> ForeachStatement:
     return stmt
 
 
-def test_foreach_default_input_set() -> None:
+def test_foreach_default_input_output() -> None:
     stmt = _foreach_stmt("foreach { node; }")
     assert stmt.input_set.name == "_"
     assert stmt.input_set.token is None
-
-
-def test_foreach_explicit_input_set() -> None:
-    stmt = _foreach_stmt("foreach .x { node; }")
-    assert stmt.input_set.name == "x"
-    assert isinstance(stmt.input_set.token, Token)
-
-
-def test_foreach_output_set() -> None:
-    stmt = _foreach_stmt("foreach .x -> .y { node; }")
-    assert stmt.output_set.name == "y"
-
-
-def test_foreach_no_output_set() -> None:
-    stmt = _foreach_stmt("foreach .x { node; }")
     assert stmt.output_set.name == "_"
     assert stmt.output_set.token is None
 
 
-def test_foreach_output_set_without_input() -> None:
-    stmt = _foreach_stmt("foreach -> .y { node; }")
-    assert stmt.input_set.name == "_"
+def test_foreach_explicit_input_output() -> None:
+    stmt = _foreach_stmt("foreach .x -> .y { node; }")
+    assert stmt.input_set.name == "x"
+    assert isinstance(stmt.input_set.token, Token)
     assert stmt.output_set.name == "y"
+    assert isinstance(stmt.output_set.token, Token)
 
 
 def test_foreach_body() -> None:
@@ -1184,9 +1413,27 @@ def test_foreach_body() -> None:
 
 def test_foreach_get_output_types_indefinite() -> None:
     stmt = _foreach_stmt("foreach .x -> .a { out; }")
+    stmt.input_set.content_types = None
     warnings: list[Warning] = []
     assert stmt.get_output_types(warnings) is None
     assert not warnings
+
+
+def test_foreach_get_output_types_unassigned() -> None:
+    query = _transform_query("foreach .x -> .a { out; }")
+    assert query.warnings
+    stmt = query.statements[0]
+    assert isinstance(stmt, ForeachStatement)
+    assert stmt.input_set.content_types == _NONE
+    assert stmt.output_set.content_types == _NONE
+
+
+def test_foreach_get_output_types_assigned() -> None:
+    stmts = _transform_query("node -> .x; foreach .x -> .a { out; }").statements
+    stmt = stmts[1]
+    assert isinstance(stmt, ForeachStatement)
+    assert stmt.input_set.content_types == _NODE
+    assert stmt.output_set.content_types == _NODE
 
 
 def test_foreach_get_output_types_concrete() -> None:
@@ -1208,38 +1455,25 @@ def _for_stmt(text: str) -> ForStatement:
     return stmt
 
 
-def test_for_default_input_set() -> None:
+def test_for_default_input_output() -> None:
     stmt = _for_stmt("for(1) { node; }")
     assert stmt.input_set.name == "_"
     assert stmt.input_set.token is None
-
-
-def test_for_explicit_input_set() -> None:
-    stmt = _for_stmt("for .x (1) { node; }")
-    assert stmt.input_set.name == "x"
-    assert isinstance(stmt.input_set.token, Token)
-
-
-def test_for_output_set() -> None:
-    stmt = _for_stmt("for .x -> .y (1) { node; }")
-    assert stmt.output_set.name == "y"
-
-
-def test_for_no_output_set() -> None:
-    stmt = _for_stmt("for .x (1) { node; }")
     assert stmt.output_set.name == "_"
     assert stmt.output_set.token is None
 
 
-def test_for_output_set_without_input() -> None:
-    stmt = _for_stmt("for -> .y (1) { node; }")
-    assert stmt.input_set.name == "_"
+def test_for_explicit_input_output() -> None:
+    stmt = _for_stmt("for .x -> .y (1) { node; }")
+    assert stmt.input_set.name == "x"
+    assert isinstance(stmt.input_set.token, Token)
     assert stmt.output_set.name == "y"
+    assert isinstance(stmt.output_set.token, Token)
 
 
 def test_for_evaluator() -> None:
     stmt = _for_stmt("for(1) { node; }")
-    assert stmt.evaluator is not None
+    assert isinstance(stmt.evaluator, Evaluator)
 
 
 def test_for_body() -> None:
@@ -1249,17 +1483,27 @@ def test_for_body() -> None:
 
 def test_for_get_output_types_indefinite() -> None:
     stmt = _for_stmt("for .x -> .a (1) { out; }")
+    stmt.input_set.content_types = None
     warnings: list[Warning] = []
     assert stmt.get_output_types(warnings) is None
     assert not warnings
 
 
-def test_for_get_output_types_concrete() -> None:
-    stmt = _for_stmt("for .x -> .a (1) { out; }")
-    stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
-    assert stmt.get_output_types(warnings) == _NODE
-    assert not warnings
+def test_for_get_output_types_unassigned() -> None:
+    query = _transform_query("for .x -> .a (1) { out; }")
+    assert query.warnings
+    stmt = query.statements[0]
+    assert isinstance(stmt, ForStatement)
+    assert stmt.input_set.content_types == _NONE
+    assert stmt.output_set.content_types == _NONE
+
+
+def test_for_get_output_types_assigned() -> None:
+    query = _transform_query("node -> .x; for .x -> .a (1) { .a out; }")
+    assert not query.warnings
+    stmt = query.statements[1]
+    assert stmt.input_set.content_types == _NODE
+    assert stmt.output_set.content_types == _NODE
 
 
 # ---------------------------------------------------------------------------
@@ -1273,33 +1517,20 @@ def _complete_stmt(text: str) -> CompleteStatement:
     return stmt
 
 
-def test_complete_default_input_set() -> None:
+def test_complete_default_input_output() -> None:
     stmt = _complete_stmt("complete { node; }")
     assert stmt.input_set.name == "_"
     assert stmt.input_set.token is None
-
-
-def test_complete_explicit_input_set() -> None:
-    stmt = _complete_stmt("complete .x { node; }")
-    assert stmt.input_set.name == "x"
-    assert isinstance(stmt.input_set.token, Token)
-
-
-def test_complete_output_set() -> None:
-    stmt = _complete_stmt("complete .x -> .y { node; }")
-    assert stmt.output_set.name == "y"
-
-
-def test_complete_no_output_set() -> None:
-    stmt = _complete_stmt("complete .x { node; }")
     assert stmt.output_set.name == "_"
     assert stmt.output_set.token is None
 
 
-def test_complete_output_set_without_input() -> None:
-    stmt = _complete_stmt("complete -> .y { node; }")
-    assert stmt.input_set.name == "_"
+def test_complete_explicit_input_output() -> None:
+    stmt = _complete_stmt("complete .x -> .y { node; }")
+    assert stmt.input_set.name == "x"
+    assert isinstance(stmt.input_set.token, Token)
     assert stmt.output_set.name == "y"
+    assert isinstance(stmt.output_set.token, Token)
 
 
 def test_complete_max_iterations() -> None:
@@ -1319,9 +1550,28 @@ def test_complete_body() -> None:
 
 def test_complete_get_output_types_indefinite_input() -> None:
     stmt = _complete_stmt("complete { node; }")
+    stmt.input_set.content_types = None
     warnings: list[Warning] = []
     assert stmt.get_output_types(warnings) is None
     assert not warnings
+
+
+def test_complete_get_output_types_input_unassigned() -> None:
+    query = _transform_query("complete { node; }")
+    assert query.warnings
+    stmt = query.statements[0]
+    assert isinstance(stmt, CompleteStatement)
+    assert stmt.input_set.content_types == _NONE
+    assert stmt.output_set.content_types == _NODE
+
+
+def test_complete_get_output_types_input_assigned() -> None:
+    query = _transform_query("way; complete { node; }")
+    assert not query.warnings
+    stmt = query.statements[1]
+    assert isinstance(stmt, CompleteStatement)
+    assert stmt.input_set.content_types == _WAY
+    assert stmt.output_set.content_types == _WAY | _NODE
 
 
 def test_complete_get_output_types_no_body_contribution() -> None:
@@ -1335,9 +1585,28 @@ def test_complete_get_output_types_no_body_contribution() -> None:
 def test_complete_get_output_types_indefinite_body() -> None:
     stmt = _complete_stmt("complete { .a; }")
     stmt.input_set.content_types = _NODE
+    item_stmt = stmt.body[0]
+    assert isinstance(item_stmt, ItemStatement)
+    item_stmt.input_set.content_types = None
     warnings: list[Warning] = []
     assert stmt.get_output_types(warnings) is None
     assert not warnings
+
+
+def test_complete_get_output_types_body_unassigned() -> None:
+    stmts = _transform_query("node; complete { .a; }").statements
+    stmt = stmts[1]
+    assert isinstance(stmt, CompleteStatement)
+    assert stmt.input_set.content_types == _NODE
+    assert stmt.output_set.content_types == _NODE
+
+
+def test_complete_get_output_types_body_assigned() -> None:
+    stmts = _transform_query("way -> .a; node; complete { .a; }").statements
+    stmt = stmts[2]
+    assert isinstance(stmt, CompleteStatement)
+    assert stmt.input_set.content_types == _NODE
+    assert stmt.output_set.content_types == _NODE | _WAY
 
 
 def test_complete_get_output_types_body_leaf() -> None:
@@ -1534,10 +1803,29 @@ def test_union_stmt_output_types_empty() -> None:
 
 def test_union_stmt_output_types_indefinite_member() -> None:
     stmt = _union_stmt("( node.a; );")
+    member_stmt = stmt.members[0].statement
+    assert isinstance(member_stmt, QueryStatement)
+    set_filter = next(f for f in member_stmt.filters if isinstance(f, SetFilter))
+    set_filter.set_reference.content_types = None
     warnings: list[Warning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types is None
     assert not warnings
+
+
+def test_union_stmt_output_types_member_unassigned() -> None:
+    query = _transform_query("( node.a; );")
+    assert query.warnings
+    stmt = query.statements[0]
+    assert isinstance(stmt, UnionStatement)
+    assert stmt.output_set.content_types == _NONE
+
+
+def test_union_stmt_output_types_member_assigned() -> None:
+    stmts = _transform_query("node -> .a; ( node.a; );").statements
+    stmt = stmts[1]
+    assert isinstance(stmt, UnionStatement)
+    assert stmt.output_set.content_types == _NODE
 
 
 def test_union_stmt_output_types_difference_excluded() -> None:
@@ -1550,10 +1838,29 @@ def test_union_stmt_output_types_difference_excluded() -> None:
 
 def test_union_stmt_output_types_difference_indefinite() -> None:
     stmt = _union_stmt("( node(1); - node.a; );")
+    diff_stmt = stmt.members[1].statement
+    assert isinstance(diff_stmt, QueryStatement)
+    set_filter = next(f for f in diff_stmt.filters if isinstance(f, SetFilter))
+    set_filter.set_reference.content_types = None
     warnings: list[Warning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NODE
     assert not warnings
+
+
+def test_union_stmt_output_types_difference_unassigned() -> None:
+    query = _transform_query("( node(1); - node.a; );")
+    assert query.warnings
+    stmt = query.statements[0]
+    assert isinstance(stmt, UnionStatement)
+    assert stmt.output_set.content_types == _NODE
+
+
+def test_union_stmt_output_types_difference_assigned() -> None:
+    stmts = _transform_query("node -> .a; ( node(1); - node.a; );").statements
+    stmt = stmts[1]
+    assert isinstance(stmt, UnionStatement)
+    assert stmt.output_set.content_types == _NODE
 
 
 def test_union_stmt_output_types_difference_warning() -> None:
@@ -2661,24 +2968,24 @@ def test_count_nodes() -> None:
     expr = _evaluator("count(nodes)")
     assert isinstance(expr, CountExpression)
     assert expr.count_type == CountType.NODES
-    assert expr.set_ref.name == "_"
-    assert expr.set_ref.token is None
+    assert expr.set_reference.name == "_"
+    assert expr.set_reference.token is None
 
 
 def test_count_ways() -> None:
     expr = _evaluator("count(ways)")
     assert isinstance(expr, CountExpression)
     assert expr.count_type == CountType.WAYS
-    assert expr.set_ref.name == "_"
-    assert expr.set_ref.token is None
+    assert expr.set_reference.name == "_"
+    assert expr.set_reference.token is None
 
 
 def test_count_relations() -> None:
     expr = _evaluator("count(relations)")
     assert isinstance(expr, CountExpression)
     assert expr.count_type == CountType.RELATIONS
-    assert expr.set_ref.name == "_"
-    assert expr.set_ref.token is None
+    assert expr.set_reference.name == "_"
+    assert expr.set_reference.token is None
 
 
 def test_count_nw() -> None:
@@ -2709,8 +3016,8 @@ def test_count_with_set() -> None:
     expr = _evaluator("a.count(nodes)")
     assert isinstance(expr, CountExpression)
     assert expr.count_type == CountType.NODES
-    assert isinstance(expr.set_ref, SetReference)
-    assert expr.set_ref.name == "a"
+    assert isinstance(expr.set_reference, SetReference)
+    assert expr.set_reference.name == "a"
 
 
 def test_count_deriveds_raises() -> None:
@@ -2781,8 +3088,8 @@ def test_lrs_max_expr_raises() -> None:
 def test_val_expr() -> None:
     result = _evaluator("a.val")
     assert isinstance(result, ValExpression)
-    assert result.set_ref.name == "a"
-    assert isinstance(result.set_ref.token, Token)
+    assert result.set_reference.name == "a"
+    assert isinstance(result.set_reference.token, Token)
 
 
 # ---------------------------------------------------------------------------

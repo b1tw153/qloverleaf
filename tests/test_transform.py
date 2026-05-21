@@ -694,6 +694,42 @@ def test_resolve_types_complete_named_input() -> None:
     assert ways_out.input_set.content_types == _WAY
 
 
+def test_resolve_types_required_types_match_no_warning() -> None:
+    # area_set_filter requires {area}; map_to_area produces {area} — no warning
+    query = _transform_query("way -> .a; .a map_to_area -> ._; node(area._);")
+    assert not query.warnings
+
+
+def test_resolve_types_required_types_mismatch_area_set_filter() -> None:
+    # area_set_filter requires {area}; node produces {node} — warning
+    query = _transform_query("node -> ._; node(area._);")
+    assert any("requires" in w.message for w in query.warnings)
+
+
+def test_resolve_types_required_types_mismatch_recurse_filter_w() -> None:
+    # recurse_filter(w) set_ref requires {way}; node -> .a produces {node} — warning
+    query = _transform_query("node -> .a; node(w.a);")
+    assert any("requires" in w.message for w in query.warnings)
+
+
+def test_resolve_types_required_types_mismatch_pivot_filter() -> None:
+    # pivot_filter requires {area}; node -> .a produces {node} — warning
+    query = _transform_query("node -> .a; way(pivot.a);")
+    assert any("requires" in w.message for w in query.warnings)
+
+
+def test_resolve_types_required_types_mismatch_uninitialized_set() -> None:
+    # area_set_filter requires {area};
+    # .foo is uninitialized (_NONE) — warning with "nothing"
+    query = _transform_query("node(area.foo);")
+    assert any("nothing" in w.message for w in query.warnings)
+
+
+def test_resolve_types_required_types_mismatch_out() -> None:
+    query = _transform_query("out;")
+    assert any("nothing" in w.message for w in query.warnings)
+
+
 # ---------------------------------------------------------------------------
 # OverpassTransformer.global_setting
 # ---------------------------------------------------------------------------

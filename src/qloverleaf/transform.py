@@ -735,11 +735,21 @@ class IsInStatement(Statement):
     lon: str | None
     output_set: SetReference
 
+    def get_output_types(
+        self, warnings: list[Warning]
+    ) -> frozenset[ElementType] | None:
+        return _AREA
+
 
 @dataclass
 class MapToAreaStatement(Statement):
     input_set: SetReference
     output_set: SetReference
+
+    def get_output_types(
+        self, warnings: list[Warning]
+    ) -> frozenset[ElementType] | None:
+        return _AREA
 
 
 # Helper Functions
@@ -786,6 +796,16 @@ def _stamp_read(ref: SetReference, state: _State, warnings: list[Warning]) -> No
     version, content_types = state[ref.name]
     ref.version = version
     ref.content_types = content_types
+    assert content_types is not None
+    if ref.required_types is not None and content_types & ref.required_types == _NONE:
+        have = [e.name for e in content_types] if content_types else ["nothing"]
+        need = [e.name for e in ref.required_types]
+        warnings.append(
+            Warning(
+                f"Set .{ref.name} contains {have} but requires {need}",
+                ref.token,
+            )
+        )
 
 
 def _stamp_write(
@@ -1358,6 +1378,7 @@ class OverpassTransformer(Transformer[Token, Any]):
                 output_set = child.set_reference
             elif isinstance(child, list):
                 body = child
+        input_set.required_types = _NWRA
         return ForeachStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1380,6 +1401,7 @@ class OverpassTransformer(Transformer[Token, Any]):
             elif isinstance(child, list):
                 body = child
         assert evaluator is not None
+        input_set.required_types = _NWRA
         return ForStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1402,6 +1424,7 @@ class OverpassTransformer(Transformer[Token, Any]):
                 max_iterations = int(child)
             else:
                 body.append(child)
+        input_set.required_types = _NWRA
         return CompleteStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1465,6 +1488,7 @@ class OverpassTransformer(Transformer[Token, Any]):
     def item_stmt(self, children: list[Any]) -> ItemStatement:
         input_set = children[0]
         assert isinstance(input_set, SetReference)
+        input_set.required_types = _NWRA
         output_set = SetReference(name="_", token=None)
         if len(children) == 2:
             assert isinstance(children[1], SetAssignment)
@@ -1557,6 +1581,8 @@ class OverpassTransformer(Transformer[Token, Any]):
                         f"out count cannot be combined with {name!r}", count_token
                     )
 
+        input_set.required_types = _NWRA
+
         return OutStatement(
             input_set=input_set,
             count=count_token is not None,
@@ -1595,13 +1621,10 @@ class OverpassTransformer(Transformer[Token, Any]):
         match recurse_dir:
             case RecurseDir.DOWN:
                 input_set.required_types = _NWR
-                output_set.required_types = _NW
             case RecurseDir.DOWN_RELATIONS:
                 input_set.required_types = _NWR
-                output_set.required_types = _NWR
             case RecurseDir.UP | RecurseDir.UP_RELATIONS:
                 input_set.required_types = _NWR
-                output_set.required_types = _WR
         return RecurseStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1629,7 +1652,6 @@ class OverpassTransformer(Transformer[Token, Any]):
                 output_set = child.set_reference
                 token = child.set_reference.token if token is None else token
         input_set.required_types = _NODE
-        output_set.required_types = _AREA
         return IsInStatement(
             input_set=input_set,
             lat=lat,
@@ -1669,7 +1691,6 @@ class OverpassTransformer(Transformer[Token, Any]):
                 token = child.token if token is None else token
             elif isinstance(child, SetAssignment):
                 output_set = child.set_reference
-                output_set.required_types = _AREA
                 token = child.set_reference.token if token is None else token
         return MapToAreaStatement(
             input_set=input_set,

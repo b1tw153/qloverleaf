@@ -1,3 +1,4 @@
+import dataclasses
 import re
 from dataclasses import dataclass, field, fields
 from datetime import datetime
@@ -929,12 +930,12 @@ def _resolve_types(query: Query) -> None:
 # Overpass Transformer
 
 
-class OverpassTransformer(Transformer[Token, Any]):
+class OverpassTransformer(Transformer[Token, Query]):
     def __init__(self) -> None:
         super().__init__()
         self.warnings: list[Warning] = []
 
-    def transform(self, tree: Tree[Token]) -> Any:
+    def transform(self, tree: Tree[Token]) -> Query:
         try:
             return super().transform(tree)
         except VisitError as e:
@@ -2005,9 +2006,56 @@ class OverpassTransformer(Transformer[Token, Any]):
         # set_reference must be the output set of an enclosing for_stmt (sets are
         # global, so any for loop on the stack is valid, not just the innermost). Only
         # that set is populated with per-iteration values.
-        # TODO: validate in a semantic pass — walk the IR with a stack of for loop
-        # output set names; raise if set_reference.name matches none of them.
+        # TODO: (deferred) validate in a semantic pass — walk the IR with a stack of
+        # for loop output set names; raise if set_reference.name matches none of them.
         set_reference = children[0]
         assert isinstance(set_reference, SetReference)
         assert set_reference.token is not None
         return ValExpression(set_reference=set_reference, token=set_reference.token)
+
+
+def _dump_ir_node(obj: Any, indent: int = 0) -> str:
+    prefix = "  " * indent
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        name = type(obj).__name__
+        lines = f"{prefix}{name}(\n"
+        for f in dataclasses.fields(obj):
+            val = getattr(obj, f.name)
+            lines += f"{prefix}  {f.name}="
+            if dataclasses.is_dataclass(val) and not isinstance(val, type):
+                lines += "\n" + _dump_ir_node(val, indent + 2)
+            elif isinstance(val, list):
+                if val:
+                    lines += "[\n"
+                    for item in val:
+                        lines += _dump_ir_node(item, indent + 2)
+                    lines += f"{prefix}  ]\n"
+                else:
+                    lines += "[]\n"
+            elif isinstance(val, frozenset):
+                lines += "{" + ", ".join(e.name for e in val) + "}\n"
+            elif isinstance(val, Enum):
+                lines += f"{val.value!r}\n"
+            else:
+                lines += f"{val!r}\n"
+        lines += f"{prefix})\n"
+        return lines
+    elif isinstance(obj, list):
+        if not obj:
+            return f"{prefix}[]\n"
+        lines = f"{prefix}[\n"
+        for item in obj:
+            lines += _dump_ir_node(item, indent + 1)
+        lines += f"{prefix}]\n"
+        return lines
+    else:
+        return f"{prefix}{obj!r}\n"
+
+
+def _dump_ir(ir: Query) -> str:
+    lines = ""
+    for warning in ir.warnings:
+        lines += f"Warning: {warning.message}\n"
+    for stmt in ir.statements:
+        lines += _dump_ir_node(stmt)
+    return lines

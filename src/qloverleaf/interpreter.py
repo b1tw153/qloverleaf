@@ -3,7 +3,9 @@ from collections.abc import AsyncGenerator
 from lark import Token, Tree
 
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
+from qloverleaf.parser import _dump_ast
 from qloverleaf.query import Bbox, OutputFormat, QueryContext
+from qloverleaf.transform import OverpassTransformer, _dump_ir
 
 MEDIA_TYPES = {
     OutputFormat.XML: "application/osm3s+xml",
@@ -16,41 +18,13 @@ MEDIA_TYPES = {
 
 async def initialize(query: QueryContext) -> tuple[AsyncGenerator[str, None], str]:
     _apply_global_settings(query)
-    # TODO: transform AST to IR
-    # TODO: walk IR and annotate with versioned set names
-    # TODO: walk IR and flag dead code (unused output)
-    # TODO: walk IR and flag element type mismatches
+    # TODO: (deferred) refactor global settings parsing to use the transformer
+    # and apply the settings from the ir instead of directly from the parse tree
+
+    query.ir = OverpassTransformer().transform(query.tree)
+    # TODO: (deferred) walk IR and flag dead code (unused output)
+
     return _execute(query), MEDIA_TYPES[query.out]
-
-
-def _dump_ast(node: Tree[Token] | Token, indent: int = 0) -> str:
-    prefix = "  " * indent
-    if isinstance(node, Token):
-        return (
-            f"{prefix}Token("
-            f"type={node.type!r}, "
-            f"value={node.value!r}, "
-            f"line={node.line}, "
-            f"column={node.column}, "
-            f"end_line={node.end_line}, "
-            f"end_column={node.end_column})\n"
-        )
-    data = node.data
-    if isinstance(data, Token):
-        lines = (
-            f"{prefix}Token("
-            f"type={data.type!r}, "
-            f"value={data.value!r}, "
-            f"line={data.line}, "
-            f"column={data.column}, "
-            f"end_line={data.end_line}, "
-            f"end_column={data.end_column})\n"
-        )
-    else:
-        lines = f"{prefix}Alias({node.data!r})\n"
-    for child in node.children:
-        lines += _dump_ast(child, indent + 1)
-    return lines
 
 
 def _apply_global_settings(query: QueryContext) -> None:
@@ -182,4 +156,5 @@ def _apply_global_settings(query: QueryContext) -> None:
 async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     yield query.tree.pretty()
     yield _dump_ast(query.tree)
-    # yield _dump_ir(query.ir)
+    assert query.ir is not None
+    yield _dump_ir(query.ir)

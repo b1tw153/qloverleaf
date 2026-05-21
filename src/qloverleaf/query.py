@@ -5,6 +5,8 @@ from typing import Optional
 
 from lark import Token, Tree
 
+from qloverleaf.transform import Query
+
 
 @dataclass
 class Stats:
@@ -44,3 +46,4 @@ class QueryContext:
     bbox: Optional[Bbox] = None
     out: OutputFormat = OutputFormat.XML
     out_params: Optional[Tree[Token]] = None
+    ir: Optional[Query] = None

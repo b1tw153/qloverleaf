@@ -28,9 +28,7 @@ class ElementType(Enum):
     WAY = "way"
     RELATION = "relation"
     AREA = "area"
-    # TODO: verify which filters accept derived elements as input or output;
-    # derived elements may have geometry but are not expected in the POC
-    DERIVED = "derived"
+    DERIVED = "derived"  # derived elements are not supported in the POC
 
 
 class TagFilterOp(Enum):
@@ -650,6 +648,11 @@ class UnionStatement(Statement):
     ) -> frozenset[ElementType] | None:
         result = _NONE
         for member in self.members:
+            if isinstance(
+                member.statement,
+                (OutStatement, ForeachStatement, ForStatement, IfStatement),
+            ):
+                continue
             member_output_types = member.statement.get_output_types(warnings)
             if member.difference:
                 continue
@@ -1332,8 +1335,6 @@ class OverpassTransformer(Transformer[Token, Any]):
                 filters.append(child)
             elif isinstance(child, SetAssignment):
                 output_set = child.set_reference
-        output_set.required_types = element_types
-        # TODO: walk filters to propagate input/output type constraints
         return QueryStatement(
             element_types=element_types,
             filters=filters,
@@ -1440,20 +1441,21 @@ class OverpassTransformer(Transformer[Token, Any]):
         return list(children)
 
     def union_stmt(self, children: list[Any]) -> UnionStatement:
-        # TODO: validate that disallowed statements don't appear as union members;
-        # research needed to confirm the full set of disallowed statements (known:
-        # foreach, for, out — possibly others); raise QueryError on any match;
-        # requires a full recursive walk of the member subtree, not just top level
+        # All statement types are permitted as union members. out and if are allowed
+        # because syntax and semantics permit them, unlike the legacy implementation.
+        # foreach and for are allowed, consistent with the legacy implementation; body
+        # assignments do not contribute to the union but modified sets may. complete is
+        # allowed, consistent with the legacy implementation, but we will not reproduce
+        # the input set bug. All other statements are allowed.
         members: list[UnionMember] = children[0]
         output_set = SetReference(name="_", token=None)
         if len(children) == 2:
             assert isinstance(children[1], SetAssignment)
             output_set = children[1].set_reference
-        # TODO: use members[0].statement.token once statement production is handled
-        # if members:
-        #     token = members[0].statement.token
-        # else:
-        token = output_set.token
+        if members:
+            token = members[0].statement.token
+        else:
+            token = output_set.token
         return UnionStatement(
             members=members,
             output_set=output_set,

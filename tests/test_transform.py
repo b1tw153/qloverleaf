@@ -1352,19 +1352,16 @@ def test_query_stmt_node() -> None:
     assert stmt.filters == []
     assert stmt.output_set.name == "_"
     assert stmt.output_set.token is None
-    assert stmt.output_set.required_types == frozenset({ElementType.NODE})
 
 
 def test_query_stmt_way() -> None:
     stmt = _query_stmt("way;")
     assert stmt.element_types == frozenset({ElementType.WAY})
-    assert stmt.output_set.required_types == frozenset({ElementType.WAY})
 
 
 def test_query_stmt_relation() -> None:
     stmt = _query_stmt("relation;")
     assert stmt.element_types == frozenset({ElementType.RELATION})
-    assert stmt.output_set.required_types == frozenset({ElementType.RELATION})
 
 
 def test_query_stmt_nwr() -> None:
@@ -1372,39 +1369,26 @@ def test_query_stmt_nwr() -> None:
     assert stmt.element_types == frozenset(
         {ElementType.NODE, ElementType.WAY, ElementType.RELATION}
     )
-    assert stmt.output_set.required_types == frozenset(
-        {ElementType.NODE, ElementType.WAY, ElementType.RELATION}
-    )
 
 
 def test_query_stmt_nw() -> None:
     stmt = _query_stmt("nw;")
     assert stmt.element_types == frozenset({ElementType.NODE, ElementType.WAY})
-    assert stmt.output_set.required_types == frozenset(
-        {ElementType.NODE, ElementType.WAY}
-    )
 
 
 def test_query_stmt_wr() -> None:
     stmt = _query_stmt("wr;")
     assert stmt.element_types == frozenset({ElementType.WAY, ElementType.RELATION})
-    assert stmt.output_set.required_types == frozenset(
-        {ElementType.WAY, ElementType.RELATION}
-    )
 
 
 def test_query_stmt_nr() -> None:
     stmt = _query_stmt("nr;")
     assert stmt.element_types == frozenset({ElementType.NODE, ElementType.RELATION})
-    assert stmt.output_set.required_types == frozenset(
-        {ElementType.NODE, ElementType.RELATION}
-    )
 
 
 def test_query_stmt_area() -> None:
     stmt = _query_stmt("area;")
     assert stmt.element_types == frozenset({ElementType.AREA})
-    assert stmt.output_set.required_types == frozenset({ElementType.AREA})
 
 
 def test_query_stmt_filters() -> None:
@@ -1417,14 +1401,12 @@ def test_query_stmt_filters() -> None:
 def test_query_stmt_output_set() -> None:
     stmt = _query_stmt("node[amenity=cafe] -> .x;")
     assert stmt.output_set.name == "x"
-    assert stmt.output_set.required_types == frozenset({ElementType.NODE})
 
 
 def test_query_stmt_no_output_set() -> None:
     stmt = _query_stmt("node[amenity=cafe];")
     assert stmt.output_set.name == "_"
     assert stmt.output_set.token is None
-    assert stmt.output_set.required_types == frozenset({ElementType.NODE})
 
 
 def test_query_stmt_output_types() -> None:
@@ -2406,7 +2388,6 @@ def test_map_to_area_default() -> None:
     )
     assert stmt.output_set.name == "_"
     assert stmt.output_set.token is None
-    assert stmt.output_set.required_types == frozenset({ElementType.AREA})
     assert stmt.token is None
 
 
@@ -2424,7 +2405,6 @@ def test_map_to_area_input_set() -> None:
 def test_map_to_area_output_set() -> None:
     stmt = _map_to_area_stmt("map_to_area -> .bar;")
     assert stmt.output_set.name == "bar"
-    assert stmt.output_set.required_types == frozenset({ElementType.AREA})
     assert isinstance(stmt.token, Token)
     assert stmt.token.value == "bar"
 

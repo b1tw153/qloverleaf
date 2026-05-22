@@ -320,3 +320,158 @@ def test_translate_id_filter_nwr() -> None:
         " UNION { ?_1 rdf:type osm:relation }",
         "VALUES ?_1 { osmnode:1 osmnode:2 osmway:1 osmway:2 osmrel:1 osmrel:2 }",
     ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_query — AroundPointFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_around_point_filter_node() -> None:
+    pattern = _translate("node[natural=peak](around:25000,32.73870,-115.99417);")
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        '?_1 osmkey:natural "peak" .',
+        "?_1 geo:hasGeometry ?_1·f1·geom .",
+        "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
+        "FILTER(geof:metricDistance(?_1·f1·wkt, "
+        '"POINT(-115.99417 32.73870)"^^geo:wktLiteral) <= 25000)',
+    ]
+    assert pattern.injections == []
+
+
+def test_translate_around_point_filter_way() -> None:
+    pattern = _translate("way(around:1000,51.5,-0.1);")
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        "?_1 geo:hasGeometry ?_1·f0·geom .",
+        "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
+        "FILTER(geof:metricDistance(?_1·f0·wkt, "
+        '"POINT(-0.1 51.5)"^^geo:wktLiteral) <= 1000)',
+    ]
+
+
+def test_translate_around_point_filter_nwr() -> None:
+    pattern = _translate("nwr(around:500,40.7,-74.0);")
+    assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "?_1 geo:hasGeometry ?_1·f0·geom .",
+        "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
+        "FILTER(geof:metricDistance(?_1·f0·wkt, "
+        '"POINT(-74.0 40.7)"^^geo:wktLiteral) <= 500)',
+    ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_query — AroundLineFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_around_line_filter_two_points() -> None:
+    pattern = _translate(
+        "node[natural=peak](around:3000,32.8253,-116.0153,32.7319,-116.0495);"
+    )
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        '?_1 osmkey:natural "peak" .',
+        "?_1 geo:hasGeometry ?_1·f1·geom .",
+        "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
+        'FILTER(geof:metricDistance(?_1·f1·wkt, "LINESTRING(-116.0153 32.8253, '
+        '-116.0495 32.7319)"^^geo:wktLiteral) <= 3000)',
+    ]
+
+
+def test_translate_around_line_filter_three_points() -> None:
+    pattern = _translate("way(around:500,51.5,-0.1,51.6,-0.2,51.7,-0.3);")
+    assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        "?_1 geo:hasGeometry ?_1·f0·geom .",
+        "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
+        'FILTER(geof:metricDistance(?_1·f0·wkt, "LINESTRING(-0.1 51.5, -0.2 '
+        '51.6, -0.3 51.7)"^^geo:wktLiteral) <= 500)',
+    ]
+
+
+def test_translate_around_line_filter_nwr() -> None:
+    pattern = _translate("nwr(around:1000,40.0,-73.0,41.0,-74.0);")
+    assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "?_1 geo:hasGeometry ?_1·f0·geom .",
+        "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
+        'FILTER(geof:metricDistance(?_1·f0·wkt, "LINESTRING(-73.0 40.0, '
+        '-74.0 41.0)"^^geo:wktLiteral) <= 1000)',
+    ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_query — PolygonFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_polygon_filter_node() -> None:
+    pattern = _translate(
+        'node[natural=peak](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90 32.70 -115.86 32.58 -115.95");'
+    )
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "?_1 osmkey:natural \"peak\" .",
+        "VALUES ?_1·f1·poly { \"POLYGON((-116.12 32.60, -116.10 32.78, -115.90 32.85, -115.86 32.70, -115.95 32.58, -116.12 32.60))\"^^geo:wktLiteral }",
+        "?_1 geo:hasGeometry ?_1·f1·geom .",
+        "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
+        "FILTER(geof:sfWithin(?_1·f1·wkt, ?_1·f1·poly))",
+    ]
+
+
+def test_translate_polygon_filter_way() -> None:
+    pattern = _translate('way[natural](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90");')
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        "?_1 osmkey:natural ?_1·f0·v .",
+        "VALUES ?_1·f1·poly { \"POLYGON((-116.12 32.60, -116.10 32.78, -115.90 32.85, -116.12 32.60))\"^^geo:wktLiteral }",
+        "?_1 geo:hasGeometry ?_1·f1·geom .",
+        "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
+        "FILTER(geof:sfIntersects(?_1·f1·wkt, ?_1·f1·poly))",
+    ]
+
+
+def test_translate_polygon_filter_relation() -> None:
+    pattern = _translate('relation[natural](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90");')
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:relation .",
+        "?_1 osmkey:natural ?_1·f0·v .",
+        "VALUES ?_1·f1·poly { \"POLYGON((-116.12 32.60, -116.10 32.78, -115.90 32.85, -116.12 32.60))\"^^geo:wktLiteral }",
+        "?_1 geo:hasGeometry ?_1·f1·geom .",
+        "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
+        "FILTER(geof:sfIntersects(?_1·f1·wkt, ?_1·f1·poly))",
+    ]
+
+
+def test_translate_polygon_filter_nwr() -> None:
+    pattern = _translate('nwr(poly:"40.0 -74.0 41.0 -73.0 42.0 -72.0");')
+    assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "VALUES ?_1·f0·poly { \"POLYGON((-74.0 40.0, -73.0 41.0, -72.0 42.0, -74.0 40.0))\"^^geo:wktLiteral }",
+        "?_1 geo:hasGeometry ?_1·f0·geom .",
+        "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
+        "FILTER(geof:sfIntersects(?_1·f0·wkt, ?_1·f0·poly))",
+    ]

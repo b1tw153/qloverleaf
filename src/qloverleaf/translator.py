@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 from qloverleaf.transform import (
+    AroundLineFilter,
+    AroundPointFilter,
     BboxFilter,
     CompleteStatement,
     ElementType,
@@ -13,6 +15,7 @@ from qloverleaf.transform import (
     ItemStatement,
     MapToAreaStatement,
     OutStatement,
+    PolygonFilter,
     QueryFilter,
     QueryStatement,
     RecurseStatement,
@@ -150,6 +153,17 @@ def _add_query_filter(
         _translate_bbox_filter(f, output_set, filter_index, result_variable, pattern)
     elif isinstance(f, IdFilter):
         _translate_id_filter(f, output_set, result_variable, pattern)
+    # elif isinstance(f, AroundSetFilter): ...
+    elif isinstance(f, AroundPointFilter):
+        _translate_around_point_filter(
+            f, output_set, filter_index, result_variable, pattern
+        )
+    elif isinstance(f, AroundLineFilter):
+        _translate_around_line_filter(
+            f, output_set, filter_index, result_variable, pattern
+        )
+    elif isinstance(f, PolygonFilter):
+        _translate_polygon_filter(f, output_set, filter_index, result_variable, pattern)
     else:
         raise UnimplementedFeatureError(
             "query filter translation is not yet implemented", f.token
@@ -257,9 +271,106 @@ def _translate_id_filter(
 
 
 # _translate_around_set_filter
-# _translate_around_point_filter
-# _translate_around_line_filter
-# _translate_polygon_filter
+
+
+def _translate_around_point_filter(
+    f: AroundPointFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes |= {"geo", "geof"}
+    geom_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="geom",
+    )
+    wkt_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="wkt",
+    )
+    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
+    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+    point_wkt = f'"POINT({f.lon} {f.lat})"^^geo:wktLiteral'
+    pattern.where_clauses.append(
+        f"FILTER(geof:metricDistance({wkt_var}, {point_wkt}) <= {f.radius})"
+    )
+
+
+def _translate_around_line_filter(
+    f: AroundLineFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes |= {"geo", "geof"}
+    geom_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="geom",
+    )
+    wkt_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="wkt",
+    )
+    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
+    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+    coords = ", ".join(f"{pt.lon} {pt.lat}" for pt in f.points)
+    linestring_wkt = f'"LINESTRING({coords})"^^geo:wktLiteral'
+    pattern.where_clauses.append(
+        f"FILTER(geof:metricDistance({wkt_var}, {linestring_wkt}) <= {f.radius})"
+    )
+
+
+def _translate_polygon_filter(
+    f: PolygonFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    assert f.output_types is not None
+    pattern.prefixes |= {"geo", "geof"}
+    poly_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="poly",
+    )
+    geom_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="geom",
+    )
+    wkt_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="wkt",
+    )
+    coords = ", ".join(f"{pt.lon} {pt.lat}" for pt in f.points)
+    first_pt = f.points[0]
+    closed_coords = f"{coords}, {first_pt.lon} {first_pt.lat}"
+    polygon_wkt = f'"POLYGON(({closed_coords}))"^^geo:wktLiteral'
+    pattern.where_clauses.append(f"VALUES {poly_var} {{ {polygon_wkt} }}")
+    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
+    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+    if f.output_types == {ElementType.NODE}:
+        spatial_fn = "geof:sfWithin"
+    else:
+        spatial_fn = "geof:sfIntersects"
+    pattern.where_clauses.append(f"FILTER({spatial_fn}({wkt_var}, {poly_var}))")
+
+
 # _translate_newer_filter
 # _translate_user_filter
 # _translate_uid_filter

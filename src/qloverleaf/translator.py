@@ -5,6 +5,7 @@ from qloverleaf.transform import (
     AreaIdFilter,
     AroundLineFilter,
     AroundPointFilter,
+    AroundSetFilter,
     BboxFilter,
     CompleteStatement,
     ElementType,
@@ -168,7 +169,10 @@ def _add_query_filter(
         _translate_bbox_filter(f, output_set, filter_index, result_variable, pattern)
     elif isinstance(f, IdFilter):
         _translate_id_filter(f, output_set, result_variable, pattern)
-    # elif isinstance(f, AroundSetFilter): ...
+    elif isinstance(f, AroundSetFilter):
+        _translate_around_set_filter(
+            f, output_set, filter_index, result_variable, pattern
+        )
     elif isinstance(f, AroundPointFilter):
         _translate_around_point_filter(
             f, output_set, filter_index, result_variable, pattern
@@ -287,7 +291,48 @@ def _translate_id_filter(
     pattern.where_clauses.append(f"VALUES {result_variable} {{ {' '.join(uris)} }}")
 
 
-# _translate_around_set_filter
+def _translate_around_set_filter(
+    f: AroundSetFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.distinct = True  # Cross-join may produce duplicates
+    pattern.prefixes |= {"geo", "geof"}
+
+    # Reference set geometry variables
+    ref_var = _variable_name(output_set, filter_index=filter_index, intermediate="ref")
+    ref_geom_var = _variable_name(
+        output_set, filter_index=filter_index, intermediate="refgeom"
+    )
+    ref_wkt_var = _variable_name(
+        output_set, filter_index=filter_index, intermediate="refwkt"
+    )
+
+    # Target geometry variables
+    geom_var = _variable_name(
+        output_set, filter_index=filter_index, intermediate="geom"
+    )
+    wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
+
+    # Inject reference set
+    pattern.injections.append(
+        ValuesInjection(sparql_var=ref_var, set_name=f.set_reference.identifier)
+    )
+
+    # Reference geometry
+    pattern.where_clauses.append(f"{ref_var} geo:hasGeometry {ref_geom_var} .")
+    pattern.where_clauses.append(f"{ref_geom_var} geo:asWKT {ref_wkt_var} .")
+
+    # Target geometry
+    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
+    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+
+    # Distance filter
+    pattern.where_clauses.append(
+        f"FILTER(geof:metricDistance({wkt_var}, {ref_wkt_var}) <= {f.radius})"
+    )
 
 
 def _translate_around_point_filter(

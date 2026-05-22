@@ -163,6 +163,11 @@ class SetReference:
     required_types: frozenset[ElementType] | None = field(default=None)
     content_types: frozenset[ElementType] | None = field(default=None)
 
+    @property
+    def identifier(self) -> str:
+        """Returns the versioned set name used as a key in set_state (e.g., 'a1')."""
+        return f"{self.name}{self.version}"
+
 
 # Set Assignment
 

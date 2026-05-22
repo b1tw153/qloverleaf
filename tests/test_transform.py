@@ -15,7 +15,6 @@ from qloverleaf.transform import (
     _NODE,
     _NONE,
     _NWR,
-    _NWRA,
     _RELATION,
     _WAY,
     _WR,

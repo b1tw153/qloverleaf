@@ -468,22 +468,16 @@ class QueryStatement(Statement):
         current_types: frozenset[ElementType] | None = self.element_types
         for filter in self.filters:
             filter_output = filter.output_types
-            if filter_output is None and isinstance(filter, SetFilter):
+            if isinstance(filter, SetFilter):
                 # SetFilter intersects the stream with the named set's types.
                 # Use Phase 2 content_types if available; otherwise indefinite.
-                set_types = filter.set_reference.content_types
-                filter_output = (
-                    None
-                    if set_types is None
-                    else current_types & set_types
-                    if current_types is not None
-                    else None
-                )
+                filter_output = filter.set_reference.content_types
             if filter_output is None:
                 current_types = None
                 break
             assert current_types is not None
             current_types = current_types & filter_output
+            filter.output_types = current_types
             if current_types == _NONE:
                 warnings.append(
                     Warning(

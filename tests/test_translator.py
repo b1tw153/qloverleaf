@@ -475,3 +475,116 @@ def test_translate_polygon_filter_nwr() -> None:
         "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
         "FILTER(geof:sfIntersects(?_1·f0·wkt, ?_1·f0·poly))",
     ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_query — NewerFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_newer_filter_node() -> None:
+    pattern = _translate('node[natural=peak](newer:"2025-01-01T00:00:00Z");')
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "osmeta", "xsd"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "?_1 osmkey:natural \"peak\" .",
+        "?_1 osmeta:timestamp ?_1·f1·ts .",
+        'FILTER(?_1·f1·ts > "2025-01-01T00:00:00"^^xsd:dateTime)',
+    ]
+
+
+def test_translate_newer_filter_way() -> None:
+    pattern = _translate('way(newer:"2024-06-15T12:30:45Z");')
+    assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        "?_1 osmeta:timestamp ?_1·f0·ts .",
+        'FILTER(?_1·f0·ts > "2024-06-15T12:30:45"^^xsd:dateTime)',
+    ]
+
+
+def test_translate_newer_filter_nwr() -> None:
+    pattern = _translate('nwr(newer:"2023-01-01T00:00:00Z");')
+    assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "?_1 osmeta:timestamp ?_1·f0·ts .",
+        'FILTER(?_1·f0·ts > "2023-01-01T00:00:00"^^xsd:dateTime)',
+    ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_query — UserFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_user_filter_single() -> None:
+    pattern = _translate('node[natural=peak](user:"Yushclay");')
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "osmeta"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "?_1 osmkey:natural \"peak\" .",
+        "?_1 osmeta:user \"Yushclay\" .",
+    ]
+
+
+def test_translate_user_filter_multiple() -> None:
+    pattern = _translate('way(user:"Alice","Bob");')
+    assert pattern.prefixes == {"rdf", "osm", "osmeta"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        "VALUES ?_1·f0·u { \"Alice\" \"Bob\" }",
+        "?_1 osmeta:user ?_1·f0·u .",
+    ]
+
+
+def test_translate_user_filter_nwr() -> None:
+    pattern = _translate('nwr(user:"TestUser");')
+    assert pattern.prefixes == {"rdf", "osm", "osmeta"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "?_1 osmeta:user \"TestUser\" .",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_query — UidFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_uid_filter_single() -> None:
+    pattern = _translate('node[natural=peak](uid:23131980);')
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "osmeta", "xsd"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "?_1 osmkey:natural \"peak\" .",
+        "?_1 osmeta:uid \"23131980\"^^xsd:int .",
+    ]
+
+
+def test_translate_uid_filter_multiple() -> None:
+    pattern = _translate('way(uid:101,202);')
+    assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        "VALUES ?_1·f0·uid { \"101\"^^xsd:int \"202\"^^xsd:int }",
+        "?_1 osmeta:uid ?_1·f0·uid .",
+    ]
+
+
+def test_translate_uid_filter_nwr() -> None:
+    pattern = _translate('nwr(uid:12345);')
+    assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "?_1 osmeta:uid \"12345\"^^xsd:int .",
+    ]

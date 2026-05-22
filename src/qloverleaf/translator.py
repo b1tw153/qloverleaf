@@ -14,6 +14,7 @@ from qloverleaf.transform import (
     IsInStatement,
     ItemStatement,
     MapToAreaStatement,
+    NewerFilter,
     OutStatement,
     PolygonFilter,
     QueryFilter,
@@ -24,7 +25,9 @@ from qloverleaf.transform import (
     TagFilterOp,
     TagKeyFilter,
     TagValueFilter,
+    UidFilter,
     UnionStatement,
+    UserFilter,
 )
 
 
@@ -164,6 +167,12 @@ def _add_query_filter(
         )
     elif isinstance(f, PolygonFilter):
         _translate_polygon_filter(f, output_set, filter_index, result_variable, pattern)
+    elif isinstance(f, NewerFilter):
+        _translate_newer_filter(f, output_set, filter_index, result_variable, pattern)
+    elif isinstance(f, UserFilter):
+        _translate_user_filter(f, output_set, filter_index, result_variable, pattern)
+    elif isinstance(f, UidFilter):
+        _translate_uid_filter(f, output_set, filter_index, result_variable, pattern)
     else:
         raise UnimplementedFeatureError(
             "query filter translation is not yet implemented", f.token
@@ -371,9 +380,76 @@ def _translate_polygon_filter(
     pattern.where_clauses.append(f"FILTER({spatial_fn}({wkt_var}, {poly_var}))")
 
 
-# _translate_newer_filter
-# _translate_user_filter
-# _translate_uid_filter
+def _translate_newer_filter(
+    f: NewerFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes |= {"osmeta", "xsd"}
+    timestamp_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="ts",
+    )
+    pattern.where_clauses.append(
+        f"{result_variable} osmeta:timestamp {timestamp_var} ."
+    )
+    datetime_str = f.timestamp.strftime("%Y-%m-%dT%H:%M:%S")
+    pattern.where_clauses.append(
+        f'FILTER({timestamp_var} > "{datetime_str}"^^xsd:dateTime)'
+    )
+
+
+def _translate_user_filter(
+    f: UserFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes.add("osmeta")
+    if len(f.users) == 1:
+        user_literal = _sparql_literal(f.users[0])
+        pattern.where_clauses.append(f"{result_variable} osmeta:user {user_literal} .")
+    else:
+        user_var = _variable_name(
+            output_set.name,
+            output_set.version,
+            filter_index=filter_index,
+            intermediate="u",
+        )
+        user_literals = " ".join(_sparql_literal(u) for u in f.users)
+        pattern.where_clauses.append(f"VALUES {user_var} {{ {user_literals} }}")
+        pattern.where_clauses.append(f"{result_variable} osmeta:user {user_var} .")
+
+
+def _translate_uid_filter(
+    f: UidFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes |= {"osmeta", "xsd"}
+    if len(f.uids) == 1:
+        pattern.where_clauses.append(
+            f'{result_variable} osmeta:uid "{f.uids[0]}"^^xsd:int .'
+        )
+    else:
+        uid_var = _variable_name(
+            output_set.name,
+            output_set.version,
+            filter_index=filter_index,
+            intermediate="uid",
+        )
+        uid_literals = " ".join(f'"{uid}"^^xsd:int' for uid in f.uids)
+        pattern.where_clauses.append(f"VALUES {uid_var} {{ {uid_literals} }}")
+        pattern.where_clauses.append(f"{result_variable} osmeta:uid {uid_var} .")
+
+
 # _translate_area_set_filter
 # _translate_area_id_filter
 # _translate_recurse_filter

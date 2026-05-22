@@ -41,12 +41,22 @@ class ValuesInjection:
 
 @dataclass
 class SparqlPattern:
-    result_variable: str  # e.g. "?a0"
+    output_set: SetReference
     distinct: bool = False
     materialize: bool = False
     prefixes: set[str] = field(default_factory=set)
     where_clauses: list[str] = field(default_factory=list)
     injections: list[ValuesInjection] = field(default_factory=list)
+
+    @property
+    def result_variable(self) -> str:
+        """SPARQL variable name with ? prefix (e.g., '?craters1')"""
+        return f"?{self.output_set.identifier}"
+
+    @property
+    def result_set_name(self) -> str:
+        """Set state key without ? prefix (e.g., 'craters1')"""
+        return self.output_set.identifier
 
 
 def _sparql_literal(value: str) -> str:
@@ -55,12 +65,11 @@ def _sparql_literal(value: str) -> str:
 
 
 def _variable_name(
-    set_name: str,
-    set_version: int,
+    set_ref: SetReference,
     filter_index: int | None = None,
     intermediate: str | None = None,
 ) -> str:
-    base = f"?{set_name}{set_version}"
+    base = f"?{set_ref.identifier}"
     if filter_index is not None:
         base += f"·f{filter_index}"
     if intermediate is not None:
@@ -112,8 +121,8 @@ def translate(statement: Statement) -> list[SparqlPattern]:
 
 def _translate_query(statement: QueryStatement) -> list[SparqlPattern]:
     output_set = statement.output_set
-    result_variable = _variable_name(output_set.name, output_set.version)
-    pattern = SparqlPattern(result_variable=result_variable)
+    pattern = SparqlPattern(output_set=output_set)
+    result_variable = pattern.result_variable
     _add_type_filter(statement.element_types, result_variable, pattern)
     for filter_index, f in enumerate(statement.filters):
         _add_query_filter(f, output_set, filter_index, result_variable, pattern)
@@ -199,9 +208,7 @@ def _translate_tag_key_filter(
     pattern: SparqlPattern,
 ) -> None:
     pattern.prefixes.add("osmkey")
-    value_var = _variable_name(
-        output_set.name, output_set.version, filter_index=filter_index, intermediate="v"
-    )
+    value_var = _variable_name(output_set, filter_index=filter_index, intermediate="v")
     if f.absent:
         pattern.where_clauses.append(
             f"FILTER NOT EXISTS {{ {result_variable} osmkey:{f.key} {value_var} }}"
@@ -228,10 +235,7 @@ def _translate_tag_value_filter(
         )
     else:
         value_var = _variable_name(
-            output_set.name,
-            output_set.version,
-            filter_index=filter_index,
-            intermediate="v",
+            output_set, filter_index=filter_index, intermediate="v"
         )
         pattern.where_clauses.append(f"{result_variable} {predicate} {value_var} .")
         flags = ', "i"' if f.case_insensitive else ""
@@ -254,17 +258,9 @@ def _translate_bbox_filter(
 ) -> None:
     pattern.prefixes |= {"geo", "geof"}
     geom_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="geom",
+        output_set, filter_index=filter_index, intermediate="geom"
     )
-    wkt_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="wkt",
-    )
+    wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
     pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
     pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
     # geof:minX/maxX/minY/maxY work for any geometry type, including POINT (nodes)
@@ -303,17 +299,9 @@ def _translate_around_point_filter(
 ) -> None:
     pattern.prefixes |= {"geo", "geof"}
     geom_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="geom",
+        output_set, filter_index=filter_index, intermediate="geom"
     )
-    wkt_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="wkt",
-    )
+    wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
     pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
     pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
     point_wkt = f'"POINT({f.lon} {f.lat})"^^geo:wktLiteral'
@@ -331,17 +319,9 @@ def _translate_around_line_filter(
 ) -> None:
     pattern.prefixes |= {"geo", "geof"}
     geom_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="geom",
+        output_set, filter_index=filter_index, intermediate="geom"
     )
-    wkt_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="wkt",
-    )
+    wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
     pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
     pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
     coords = ", ".join(f"{pt.lon} {pt.lat}" for pt in f.points)
@@ -361,23 +341,12 @@ def _translate_polygon_filter(
     assert f.output_types is not None
     pattern.prefixes |= {"geo", "geof"}
     poly_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="poly",
+        output_set, filter_index=filter_index, intermediate="poly"
     )
     geom_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="geom",
+        output_set, filter_index=filter_index, intermediate="geom"
     )
-    wkt_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="wkt",
-    )
+    wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
     coords = ", ".join(f"{pt.lon} {pt.lat}" for pt in f.points)
     first_pt = f.points[0]
     closed_coords = f"{coords}, {first_pt.lon} {first_pt.lat}"
@@ -401,10 +370,7 @@ def _translate_newer_filter(
 ) -> None:
     pattern.prefixes |= {"osmeta", "xsd"}
     timestamp_var = _variable_name(
-        output_set.name,
-        output_set.version,
-        filter_index=filter_index,
-        intermediate="ts",
+        output_set, filter_index=filter_index, intermediate="ts"
     )
     pattern.where_clauses.append(
         f"{result_variable} osmeta:timestamp {timestamp_var} ."
@@ -428,10 +394,7 @@ def _translate_user_filter(
         pattern.where_clauses.append(f"{result_variable} osmeta:user {user_literal} .")
     else:
         user_var = _variable_name(
-            output_set.name,
-            output_set.version,
-            filter_index=filter_index,
-            intermediate="u",
+            output_set, filter_index=filter_index, intermediate="u"
         )
         user_literals = " ".join(_sparql_literal(u) for u in f.users)
         pattern.where_clauses.append(f"VALUES {user_var} {{ {user_literals} }}")
@@ -452,10 +415,7 @@ def _translate_uid_filter(
         )
     else:
         uid_var = _variable_name(
-            output_set.name,
-            output_set.version,
-            filter_index=filter_index,
-            intermediate="uid",
+            output_set, filter_index=filter_index, intermediate="uid"
         )
         uid_literals = " ".join(f'"{uid}"^^xsd:int' for uid in f.uids)
         pattern.where_clauses.append(f"VALUES {uid_var} {{ {uid_literals} }}")
@@ -495,10 +455,8 @@ def _translate_set_filter(
     result_variable: str,
     pattern: SparqlPattern,
 ) -> None:
-    # TODO: normalize set naming - use _variable_name helper consistently
-    set_name = f"{f.set_reference.name}{f.set_reference.version}"
     pattern.injections.append(
-        ValuesInjection(sparql_var=result_variable, set_name=set_name)
+        ValuesInjection(sparql_var=result_variable, set_name=f.set_reference.identifier)
     )
 
 
@@ -508,6 +466,7 @@ def _translate_set_filter(
 
 def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
     lines = [
+        f"output_set: .{pattern.output_set.name} (v{pattern.output_set.version})",
         f"result_variable: {pattern.result_variable}",
         f"distinct: {pattern.distinct}",
         f"materialize: {pattern.materialize}",

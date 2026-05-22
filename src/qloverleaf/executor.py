@@ -58,9 +58,7 @@ def render_query(pattern: SparqlPattern, set_state: SetState) -> str:
     return "\n".join(lines)
 
 
-def parse_results(
-    data: dict[str, Any], var_name: str
-) -> list[tuple[ElementType, str]]:
+def parse_results(data: dict[str, Any], var_name: str) -> list[tuple[ElementType, str]]:
     results: list[tuple[ElementType, str]] = []
     for binding in data["results"]["bindings"]:
         if var_name in binding:

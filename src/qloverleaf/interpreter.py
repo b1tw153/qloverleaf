@@ -1,11 +1,14 @@
+import json
 from collections.abc import AsyncGenerator
 
+import httpx
 from lark import Token, Tree
 
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
+from qloverleaf.executor import SetState, parse_results, query_qlever, render_query
 from qloverleaf.parser import _dump_ast
 from qloverleaf.query import Bbox, OutputFormat, QueryContext
-from qloverleaf.transform import OverpassTransformer, _dump_ir
+from qloverleaf.transform import OutStatement, OverpassTransformer, _dump_ir
 from qloverleaf.translator import _dump_sparql_pattern, translate
 
 MEDIA_TYPES = {
@@ -160,5 +163,23 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     assert query.ir is not None
     yield _dump_ir(query.ir)
     for stmt in query.ir.statements:
-        pattern = translate(stmt)
-        yield _dump_sparql_pattern(pattern)
+        if not isinstance(stmt, OutStatement):
+            pattern = translate(stmt)
+            yield _dump_sparql_pattern(pattern)
+
+    set_state: SetState = {}
+    async with httpx.AsyncClient() as client:
+        for stmt in query.ir.statements:
+            if isinstance(stmt, OutStatement):
+                set_name = f"{stmt.input_set.name}{stmt.input_set.version}"
+                results = set_state.get(set_name, [])
+                yield json.dumps(
+                    [{"type": t.value, "uri": u} for t, u in results], indent=2
+                )
+            else:
+                pattern = translate(stmt)
+                sparql = render_query(pattern, set_state)
+                data = await query_qlever(sparql, client)
+                var_name = pattern.result_variable.lstrip("?")
+                set_state[var_name] = parse_results(data, var_name)
+                yield json.dumps(data, indent=2)

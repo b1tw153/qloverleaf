@@ -22,6 +22,8 @@ from qloverleaf.transform import (
     PolygonFilter,
     QueryFilter,
     QueryStatement,
+    RecurseFilter,
+    RecurseFilterType,
     RecurseStatement,
     SetFilter,
     SetReference,
@@ -196,7 +198,8 @@ def _add_query_filter(
         _translate_area_set_filter(
             f, output_set, filter_index, result_variable, pattern
         )
-    # elif isinstance(f, RecurseFilter): ...
+    elif isinstance(f, RecurseFilter):
+        _translate_recurse_filter(f, output_set, filter_index, result_variable, pattern)
     # elif isinstance(f, WayCountFilter): ...
     elif isinstance(f, SetFilter):
         _translate_set_filter(f, output_set, filter_index, result_variable, pattern)
@@ -509,7 +512,71 @@ def _translate_area_set_filter(
     pattern.where_clauses.append(f"{area_var} ogc:sfContains {result_variable} .")
 
 
-# _translate_recurse_filter
+def _translate_recurse_filter(
+    f: RecurseFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.distinct = True
+    input_var = _variable_name(
+        output_set, filter_index=filter_index, intermediate="input"
+    )
+    blank_var = _variable_name(output_set, filter_index=filter_index, intermediate="m")
+
+    pattern.injections.append(
+        ValuesInjection(sparql_var=input_var, set_name=f.set_reference.identifier)
+    )
+
+    match f.recurse_type:
+        case RecurseFilterType.W:
+            # way → nodes (downward)
+            pattern.prefixes.add("osmway")
+            pattern.where_clauses.append(f"{input_var} osmway:member {blank_var} .")
+            pattern.where_clauses.append(
+                f"{blank_var} osmway:member_id {result_variable} ."
+            )
+
+        case RecurseFilterType.R:
+            # relation → members (downward)
+            pattern.prefixes.add("osmrel")
+            pattern.where_clauses.append(f"{input_var} osmrel:member {blank_var} .")
+            pattern.where_clauses.append(
+                f"{blank_var} osmrel:member_id {result_variable} ."
+            )
+            if f.role is not None:
+                pattern.where_clauses.append(
+                    f'{blank_var} osmrel:member_role "{f.role}" .'
+                )
+
+        case RecurseFilterType.BN:
+            # node → parent ways/relations (upward)
+            pattern.prefixes.update({"osmway", "osmrel"})
+            # TODO: Need UNION for both URI schemes (http:// and https://) and both way
+            # and relation parents. This is complex - will need multi-branch UNION.
+            raise UnimplementedFeatureError(
+                "bn (node → parent) recurse filter requires complex UNION pattern",
+                f.token,
+            )
+
+        case RecurseFilterType.BW:
+            # way → parent relations (upward)
+            pattern.prefixes.add("osmrel")
+            pattern.where_clauses.append(f"{blank_var} osmrel:member_id {input_var} .")
+            pattern.where_clauses.append(
+                f"{result_variable} osmrel:member {blank_var} ."
+            )
+
+        case RecurseFilterType.BR:
+            # relation → parent relations (upward)
+            pattern.prefixes.add("osmrel")
+            pattern.where_clauses.append(f"{blank_var} osmrel:member_id {input_var} .")
+            pattern.where_clauses.append(
+                f"{result_variable} osmrel:member {blank_var} ."
+            )
+
+
 # _translate_way_count_filter
 
 

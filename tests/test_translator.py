@@ -857,3 +857,113 @@ def test_translate_area_set_filter_nwr() -> None:
     assert pattern.injections == [
         ValuesInjection(sparql_var="?_1·f1·area", set_name="parks1")
     ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_recurse_filter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_recurse_filter_w() -> None:
+    query = OverpassTransformer().transform(parse("way(100); node(w);"))
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_2"
+    assert pattern.distinct is True
+    assert pattern.prefixes == {"rdf", "osm", "osmway"}
+    assert pattern.where_clauses == [
+        "?_2 rdf:type osm:node .",
+        "?_2·f0·input osmway:member ?_2·f0·m .",
+        "?_2·f0·m osmway:member_id ?_2 .",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_2·f0·input", set_name="_1")
+    ]
+
+
+def test_translate_recurse_filter_w_named_set() -> None:
+    query = OverpassTransformer().transform(
+        parse("way[highway=cycleway] -> .ways; node(w.ways);")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.distinct is True
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "?_1·f0·input osmway:member ?_1·f0·m .",
+        "?_1·f0·m osmway:member_id ?_1 .",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1·f0·input", set_name="ways1")
+    ]
+
+
+def test_translate_recurse_filter_r() -> None:
+    query = OverpassTransformer().transform(parse("relation(10000); way(r);"))
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_2"
+    assert pattern.distinct is True
+    assert pattern.prefixes == {"rdf", "osm", "osmrel"}
+    assert pattern.where_clauses == [
+        "?_2 rdf:type osm:way .",
+        "?_2·f0·input osmrel:member ?_2·f0·m .",
+        "?_2·f0·m osmrel:member_id ?_2 .",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_2·f0·input", set_name="_1")
+    ]
+
+
+def test_translate_recurse_filter_r_with_role() -> None:
+    query = OverpassTransformer().transform(parse('relation(10000); way(r:"outer");'))
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_2"
+    assert pattern.distinct is True
+    assert pattern.where_clauses == [
+        "?_2 rdf:type osm:way .",
+        "?_2·f0·input osmrel:member ?_2·f0·m .",
+        "?_2·f0·m osmrel:member_id ?_2 .",
+        '?_2·f0·m osmrel:member_role "outer" .',
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_2·f0·input", set_name="_1")
+    ]
+
+
+def test_translate_recurse_filter_bw() -> None:
+    query = OverpassTransformer().transform(parse("way(100); relation(bw);"))
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_2"
+    assert pattern.distinct is True
+    assert pattern.prefixes == {"rdf", "osm", "osmrel"}
+    assert pattern.where_clauses == [
+        "?_2 rdf:type osm:relation .",
+        "?_2·f0·m osmrel:member_id ?_2·f0·input .",
+        "?_2 osmrel:member ?_2·f0·m .",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_2·f0·input", set_name="_1")
+    ]
+
+
+def test_translate_recurse_filter_br() -> None:
+    query = OverpassTransformer().transform(
+        parse("relation[type=route] -> .routes; relation(br.routes);")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.distinct is True
+    assert pattern.prefixes == {"rdf", "osm", "osmrel"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:relation .",
+        "?_1·f0·m osmrel:member_id ?_1·f0·input .",
+        "?_1 osmrel:member ?_1·f0·m .",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1·f0·input", set_name="routes1")
+    ]
+
+
+def test_translate_recurse_filter_bn_unimplemented() -> None:
+    query = OverpassTransformer().transform(parse("node(260904); way(bn);"))
+    with pytest.raises(UnimplementedFeatureError):
+        translate(query.statements[1])

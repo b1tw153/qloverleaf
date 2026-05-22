@@ -213,3 +213,110 @@ def test_translate_tag_value_escaping() -> None:
         "?_1 rdf:type osm:node .",
         r'?_1 osmkey:name "say \"hello\"" .',
     ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_query — BboxFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_bbox_filter_node() -> None:
+    pattern = _translate("node(32.58870,-116.14417,32.88870,-115.84417);")
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "?_1 geo:hasGeometry ?_1·f0·geom .",
+        "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
+        "FILTER(geof:minX(?_1·f0·wkt) <= -115.84417 && "
+        "geof:maxX(?_1·f0·wkt) >= -116.14417)",
+        "FILTER(geof:minY(?_1·f0·wkt) <= 32.88870 && "
+        "geof:maxY(?_1·f0·wkt) >= 32.58870)",
+    ]
+    assert pattern.injections == []
+
+
+def test_translate_bbox_filter_way() -> None:
+    pattern = _translate("way(32.58870,-116.14417,32.88870,-115.84417);")
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        "?_1 geo:hasGeometry ?_1·f0·geom .",
+        "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
+        "FILTER(geof:minX(?_1·f0·wkt) <= -115.84417 && "
+        "geof:maxX(?_1·f0·wkt) >= -116.14417)",
+        "FILTER(geof:minY(?_1·f0·wkt) <= 32.88870 && "
+        "geof:maxY(?_1·f0·wkt) >= 32.58870)",
+    ]
+
+
+def test_translate_bbox_filter_nwr() -> None:
+    pattern = _translate("nwr(32.58870,-116.14417,32.88870,-115.84417);")
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "?_1 geo:hasGeometry ?_1·f0·geom .",
+        "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
+        "FILTER(geof:minX(?_1·f0·wkt) <= -115.84417 && "
+        "geof:maxX(?_1·f0·wkt) >= -116.14417)",
+        "FILTER(geof:minY(?_1·f0·wkt) <= 32.88870 && "
+        "geof:maxY(?_1·f0·wkt) >= 32.58870)",
+    ]
+
+
+def test_translate_bbox_filter_with_tag() -> None:
+    pattern = _translate("node[natural=peak](32.58870,-116.14417,32.88870,-115.84417);")
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        '?_1 osmkey:natural "peak" .',
+        "?_1 geo:hasGeometry ?_1·f1·geom .",
+        "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
+        "FILTER(geof:minX(?_1·f1·wkt) <= -115.84417 && "
+        "geof:maxX(?_1·f1·wkt) >= -116.14417)",
+        "FILTER(geof:minY(?_1·f1·wkt) <= 32.88870 && "
+        "geof:maxY(?_1·f1·wkt) >= 32.58870)",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_query — IdFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_id_filter_single_node() -> None:
+    pattern = _translate("node(1);")
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmnode"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "VALUES ?_1 { osmnode:1 }",
+    ]
+    assert pattern.injections == []
+
+
+def test_translate_id_filter_multiple_ids() -> None:
+    pattern = _translate("node(id:1,2,3);")
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "VALUES ?_1 { osmnode:1 osmnode:2 osmnode:3 }",
+    ]
+
+
+def test_translate_id_filter_way() -> None:
+    pattern = _translate("way(100);")
+    assert pattern.prefixes == {"rdf", "osm", "osmway"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        "VALUES ?_1 { osmway:100 }",
+    ]
+
+
+def test_translate_id_filter_nwr() -> None:
+    pattern = _translate("nwr(id:1,2);")
+    assert pattern.prefixes == {"rdf", "osm", "osmnode", "osmway", "osmrel"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "VALUES ?_1 { osmnode:1 osmnode:2 osmway:1 osmway:2 osmrel:1 osmrel:2 }",
+    ]

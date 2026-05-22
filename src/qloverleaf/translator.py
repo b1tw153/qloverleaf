@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 from qloverleaf.transform import (
+    AreaIdFilter,
     AroundLineFilter,
     AroundPointFilter,
     BboxFilter,
@@ -173,6 +174,8 @@ def _add_query_filter(
         _translate_user_filter(f, output_set, filter_index, result_variable, pattern)
     elif isinstance(f, UidFilter):
         _translate_uid_filter(f, output_set, filter_index, result_variable, pattern)
+    elif isinstance(f, AreaIdFilter):
+        _translate_area_id_filter(f, result_variable, pattern)
     else:
         raise UnimplementedFeatureError(
             "query filter translation is not yet implemented", f.token
@@ -450,8 +453,28 @@ def _translate_uid_filter(
         pattern.where_clauses.append(f"{result_variable} osmeta:uid {uid_var} .")
 
 
+def _translate_area_id_filter(
+    f: AreaIdFilter,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes.add("ogc")
+    AREA_RELATION_OFFSET = 3_600_000_000
+    AREA_WAY_OFFSET = 2_400_000_000
+    if f.area_id >= AREA_RELATION_OFFSET:
+        relation_id = f.area_id - AREA_RELATION_OFFSET
+        pattern.prefixes.add("osmrel")
+        area_uri = f"osmrel:{relation_id}"
+    elif f.area_id >= AREA_WAY_OFFSET:
+        way_id = f.area_id - AREA_WAY_OFFSET
+        pattern.prefixes.add("osmway")
+        area_uri = f"osmway:{way_id}"
+    else:
+        raise ValueError(f"Invalid area_id {f.area_id}: must be >= {AREA_WAY_OFFSET}")
+    pattern.where_clauses.append(f"{area_uri} ogc:sfContains {result_variable} .")
+
+
 # _translate_area_set_filter
-# _translate_area_id_filter
 # _translate_recurse_filter
 # _translate_way_count_filter
 # _translate_set_filter

@@ -2,10 +2,12 @@ from dataclasses import dataclass, field
 
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 from qloverleaf.transform import (
+    BboxFilter,
     CompleteStatement,
     ElementType,
     ForeachStatement,
     ForStatement,
+    IdFilter,
     IfStatement,
     IsInStatement,
     ItemStatement,
@@ -62,7 +64,12 @@ _OSM_TYPE_NAMES: dict[ElementType, str] = {
     ElementType.WAY: "way",
     ElementType.RELATION: "relation",
 }
-# Canonical ordering for multi-type UNION clauses.
+_OSM_TYPE_PREFIXES: dict[ElementType, str] = {
+    ElementType.NODE: "osmnode",
+    ElementType.WAY: "osmway",
+    ElementType.RELATION: "osmrel",
+}
+# Canonical ordering for multi-type UNION clauses and VALUES expansions.
 _OSM_TYPE_ORDER = [ElementType.NODE, ElementType.WAY, ElementType.RELATION]
 
 
@@ -139,6 +146,10 @@ def _add_query_filter(
         _translate_tag_value_filter(
             f, output_set, filter_index, result_variable, pattern
         )
+    elif isinstance(f, BboxFilter):
+        _translate_bbox_filter(f, output_set, filter_index, result_variable, pattern)
+    elif isinstance(f, IdFilter):
+        _translate_id_filter(f, output_set, result_variable, pattern)
     else:
         raise UnimplementedFeatureError(
             "query filter translation is not yet implemented", f.token
@@ -199,8 +210,52 @@ def _translate_tag_value_filter(
             )
 
 
-# _translate_bbox_filter
-# _translate_id_filter
+def _translate_bbox_filter(
+    f: BboxFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes |= {"geo", "geof"}
+    geom_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="geom",
+    )
+    wkt_var = _variable_name(
+        output_set.name,
+        output_set.version,
+        filter_index=filter_index,
+        intermediate="wkt",
+    )
+    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
+    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+    # geof:minX/maxX/minY/maxY work for any geometry type, including POINT (nodes)
+    pattern.where_clauses.append(
+        f"FILTER(geof:minX({wkt_var}) <= {f.east} && geof:maxX({wkt_var}) >= {f.west})"
+    )
+    pattern.where_clauses.append(
+        f"FILTER(geof:minY({wkt_var}) <= {f.north}"
+        f" && geof:maxY({wkt_var}) >= {f.south})"
+    )
+
+
+def _translate_id_filter(
+    f: IdFilter,
+    output_set: SetReference,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    assert f.output_types is not None
+    osm_types = [t for t in _OSM_TYPE_ORDER if t in f.output_types]
+    for t in osm_types:
+        pattern.prefixes.add(_OSM_TYPE_PREFIXES[t])
+    uris = [f"{_OSM_TYPE_PREFIXES[t]}:{id_}" for t in osm_types for id_ in f.ids]
+    pattern.where_clauses.append(f"VALUES {result_variable} {{ {' '.join(uris)} }}")
+
+
 # _translate_around_set_filter
 # _translate_around_point_filter
 # _translate_around_line_filter

@@ -423,14 +423,16 @@ def test_translate_around_line_filter_nwr() -> None:
 
 def test_translate_polygon_filter_node() -> None:
     pattern = _translate(
-        'node[natural=peak](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90 32.70 -115.86 32.58 -115.95");'
+        'node[natural=peak](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90 32.70 '
+        '-115.86 32.58 -115.95");'
     )
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
-        "?_1 osmkey:natural \"peak\" .",
-        "VALUES ?_1·f1·poly { \"POLYGON((-116.12 32.60, -116.10 32.78, -115.90 32.85, -115.86 32.70, -115.95 32.58, -116.12 32.60))\"^^geo:wktLiteral }",
+        '?_1 osmkey:natural "peak" .',
+        'VALUES ?_1·f1·poly { "POLYGON((-116.12 32.60, -116.10 32.78, -115.90 32.85, '
+        '-115.86 32.70, -115.95 32.58, -116.12 32.60))"^^geo:wktLiteral }',
         "?_1 geo:hasGeometry ?_1·f1·geom .",
         "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
         "FILTER(geof:sfWithin(?_1·f1·wkt, ?_1·f1·poly))",
@@ -438,12 +440,15 @@ def test_translate_polygon_filter_node() -> None:
 
 
 def test_translate_polygon_filter_way() -> None:
-    pattern = _translate('way[natural](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90");')
+    pattern = _translate(
+        'way[natural](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90");'
+    )
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
         "?_1 osmkey:natural ?_1·f0·v .",
-        "VALUES ?_1·f1·poly { \"POLYGON((-116.12 32.60, -116.10 32.78, -115.90 32.85, -116.12 32.60))\"^^geo:wktLiteral }",
+        'VALUES ?_1·f1·poly { "POLYGON((-116.12 32.60, -116.10 32.78, -115.90 32.85, '
+        '-116.12 32.60))"^^geo:wktLiteral }',
         "?_1 geo:hasGeometry ?_1·f1·geom .",
         "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
         "FILTER(geof:sfIntersects(?_1·f1·wkt, ?_1·f1·poly))",
@@ -451,12 +456,15 @@ def test_translate_polygon_filter_way() -> None:
 
 
 def test_translate_polygon_filter_relation() -> None:
-    pattern = _translate('relation[natural](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90");')
+    pattern = _translate(
+        'relation[natural](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90");'
+    )
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:relation .",
         "?_1 osmkey:natural ?_1·f0·v .",
-        "VALUES ?_1·f1·poly { \"POLYGON((-116.12 32.60, -116.10 32.78, -115.90 32.85, -116.12 32.60))\"^^geo:wktLiteral }",
+        'VALUES ?_1·f1·poly { "POLYGON((-116.12 32.60, -116.10 32.78, -115.90 32.85, '
+        '-116.12 32.60))"^^geo:wktLiteral }',
         "?_1 geo:hasGeometry ?_1·f1·geom .",
         "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
         "FILTER(geof:sfIntersects(?_1·f1·wkt, ?_1·f1·poly))",
@@ -470,7 +478,8 @@ def test_translate_polygon_filter_nwr() -> None:
         "{ ?_1 rdf:type osm:node }"
         " UNION { ?_1 rdf:type osm:way }"
         " UNION { ?_1 rdf:type osm:relation }",
-        "VALUES ?_1·f0·poly { \"POLYGON((-74.0 40.0, -73.0 41.0, -72.0 42.0, -74.0 40.0))\"^^geo:wktLiteral }",
+        'VALUES ?_1·f0·poly { "POLYGON((-74.0 40.0, -73.0 41.0, -72.0 42.0, '
+        '-74.0 40.0))"^^geo:wktLiteral }',
         "?_1 geo:hasGeometry ?_1·f0·geom .",
         "?_1·f0·geom geo:asWKT ?_1·f0·wkt .",
         "FILTER(geof:sfIntersects(?_1·f0·wkt, ?_1·f0·poly))",
@@ -488,7 +497,7 @@ def test_translate_newer_filter_node() -> None:
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "osmeta", "xsd"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
-        "?_1 osmkey:natural \"peak\" .",
+        '?_1 osmkey:natural "peak" .',
         "?_1 osmeta:timestamp ?_1·f1·ts .",
         'FILTER(?_1·f1·ts > "2025-01-01T00:00:00"^^xsd:dateTime)',
     ]
@@ -527,8 +536,8 @@ def test_translate_user_filter_single() -> None:
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "osmeta"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
-        "?_1 osmkey:natural \"peak\" .",
-        "?_1 osmeta:user \"Yushclay\" .",
+        '?_1 osmkey:natural "peak" .',
+        '?_1 osmeta:user "Yushclay" .',
     ]
 
 
@@ -537,7 +546,7 @@ def test_translate_user_filter_multiple() -> None:
     assert pattern.prefixes == {"rdf", "osm", "osmeta"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
-        "VALUES ?_1·f0·u { \"Alice\" \"Bob\" }",
+        'VALUES ?_1·f0·u { "Alice" "Bob" }',
         "?_1 osmeta:user ?_1·f0·u .",
     ]
 
@@ -549,7 +558,7 @@ def test_translate_user_filter_nwr() -> None:
         "{ ?_1 rdf:type osm:node }"
         " UNION { ?_1 rdf:type osm:way }"
         " UNION { ?_1 rdf:type osm:relation }",
-        "?_1 osmeta:user \"TestUser\" .",
+        '?_1 osmeta:user "TestUser" .',
     ]
 
 
@@ -559,34 +568,34 @@ def test_translate_user_filter_nwr() -> None:
 
 
 def test_translate_uid_filter_single() -> None:
-    pattern = _translate('node[natural=peak](uid:23131980);')
+    pattern = _translate("node[natural=peak](uid:23131980);")
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "osmeta", "xsd"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
-        "?_1 osmkey:natural \"peak\" .",
-        "?_1 osmeta:uid \"23131980\"^^xsd:int .",
+        '?_1 osmkey:natural "peak" .',
+        '?_1 osmeta:uid "23131980"^^xsd:int .',
     ]
 
 
 def test_translate_uid_filter_multiple() -> None:
-    pattern = _translate('way(uid:101,202);')
+    pattern = _translate("way(uid:101,202);")
     assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
-        "VALUES ?_1·f0·uid { \"101\"^^xsd:int \"202\"^^xsd:int }",
+        'VALUES ?_1·f0·uid { "101"^^xsd:int "202"^^xsd:int }',
         "?_1 osmeta:uid ?_1·f0·uid .",
     ]
 
 
 def test_translate_uid_filter_nwr() -> None:
-    pattern = _translate('nwr(uid:12345);')
+    pattern = _translate("nwr(uid:12345);")
     assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"
         " UNION { ?_1 rdf:type osm:way }"
         " UNION { ?_1 rdf:type osm:relation }",
-        "?_1 osmeta:uid \"12345\"^^xsd:int .",
+        '?_1 osmeta:uid "12345"^^xsd:int .',
     ]
 
 
@@ -596,18 +605,18 @@ def test_translate_uid_filter_nwr() -> None:
 
 
 def test_translate_area_id_filter_relation() -> None:
-    pattern = _translate('node[geological=meteor_crater](area:3602978650);')
+    pattern = _translate("node[geological=meteor_crater](area:3602978650);")
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "ogc", "osmrel"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
-        "?_1 osmkey:geological \"meteor_crater\" .",
+        '?_1 osmkey:geological "meteor_crater" .',
         "osmrel:2978650 ogc:sfContains ?_1 .",
     ]
 
 
 def test_translate_area_id_filter_way() -> None:
-    pattern = _translate('node[place](area:2400000100);')
+    pattern = _translate("node[place](area:2400000100);")
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "ogc", "osmway"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
@@ -617,7 +626,7 @@ def test_translate_area_id_filter_way() -> None:
 
 
 def test_translate_area_id_filter_nwr() -> None:
-    pattern = _translate('nwr(area:3618375211);')
+    pattern = _translate("nwr(area:3618375211);")
     assert pattern.prefixes == {"rdf", "osm", "ogc", "osmrel"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"

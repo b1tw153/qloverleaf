@@ -6,6 +6,7 @@ from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.parser import _dump_ast
 from qloverleaf.query import Bbox, OutputFormat, QueryContext
 from qloverleaf.transform import OverpassTransformer, _dump_ir
+from qloverleaf.translator import _dump_sparql_pattern, translate
 
 MEDIA_TYPES = {
     OutputFormat.XML: "application/osm3s+xml",
@@ -158,3 +159,6 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     yield _dump_ast(query.tree)
     assert query.ir is not None
     yield _dump_ir(query.ir)
+    for stmt in query.ir.statements:
+        pattern = translate(stmt)
+        yield _dump_sparql_pattern(pattern)

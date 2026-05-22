@@ -21,6 +21,7 @@ from qloverleaf.transform import (
     QueryFilter,
     QueryStatement,
     RecurseStatement,
+    SetFilter,
     SetReference,
     Statement,
     TagFilterOp,
@@ -42,6 +43,7 @@ class ValuesInjection:
 class SparqlPattern:
     result_variable: str  # e.g. "?a0"
     distinct: bool = False
+    materialize: bool = False
     prefixes: set[str] = field(default_factory=set)
     where_clauses: list[str] = field(default_factory=list)
     injections: list[ValuesInjection] = field(default_factory=list)
@@ -80,7 +82,7 @@ _OSM_TYPE_PREFIXES: dict[ElementType, str] = {
 _OSM_TYPE_ORDER = [ElementType.NODE, ElementType.WAY, ElementType.RELATION]
 
 
-def translate(statement: Statement) -> SparqlPattern:
+def translate(statement: Statement) -> list[SparqlPattern]:
     if isinstance(statement, QueryStatement):
         return _translate_query(statement)
     if isinstance(statement, UnionStatement):
@@ -108,14 +110,14 @@ def translate(statement: Statement) -> SparqlPattern:
     )
 
 
-def _translate_query(statement: QueryStatement) -> SparqlPattern:
+def _translate_query(statement: QueryStatement) -> list[SparqlPattern]:
     output_set = statement.output_set
     result_variable = _variable_name(output_set.name, output_set.version)
     pattern = SparqlPattern(result_variable=result_variable)
     _add_type_filter(statement.element_types, result_variable, pattern)
     for filter_index, f in enumerate(statement.filters):
         _add_query_filter(f, output_set, filter_index, result_variable, pattern)
-    return pattern
+    return [pattern]
 
 
 def _add_type_filter(
@@ -176,6 +178,13 @@ def _add_query_filter(
         _translate_uid_filter(f, output_set, filter_index, result_variable, pattern)
     elif isinstance(f, AreaIdFilter):
         _translate_area_id_filter(f, result_variable, pattern)
+    # elif isinstance(f, AreaSetFilter): ...
+    # elif isinstance(f, RecurseFilter): ...
+    # elif isinstance(f, WayCountFilter): ...
+    elif isinstance(f, SetFilter):
+        _translate_set_filter(f, output_set, filter_index, result_variable, pattern)
+    # elif isinstance(f, PivotFilter): ...
+    # elif isinstance(f, IfFilter): ...
     else:
         raise UnimplementedFeatureError(
             "query filter translation is not yet implemented", f.token
@@ -477,7 +486,22 @@ def _translate_area_id_filter(
 # _translate_area_set_filter
 # _translate_recurse_filter
 # _translate_way_count_filter
-# _translate_set_filter
+
+
+def _translate_set_filter(
+    f: SetFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    # TODO: normalize set naming - use _variable_name helper consistently
+    set_name = f"{f.set_reference.name}{f.set_reference.version}"
+    pattern.injections.append(
+        ValuesInjection(sparql_var=result_variable, set_name=set_name)
+    )
+
+
 # _translate_pivot_filter
 # _translate_if_filter
 
@@ -486,6 +510,7 @@ def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
     lines = [
         f"result_variable: {pattern.result_variable}",
         f"distinct: {pattern.distinct}",
+        f"materialize: {pattern.materialize}",
         f"prefixes: {sorted(pattern.prefixes)}",
         "where_clauses:",
     ]
@@ -497,70 +522,70 @@ def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
     return "\n".join(lines)
 
 
-def _translate_union(stmt: UnionStatement) -> SparqlPattern:
+def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "UnionStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_item(stmt: ItemStatement) -> SparqlPattern:
+def _translate_item(stmt: ItemStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "ItemStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_recurse(stmt: RecurseStatement) -> SparqlPattern:
+def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "RecurseStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_map_to_area(stmt: MapToAreaStatement) -> SparqlPattern:
+def _translate_map_to_area(stmt: MapToAreaStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "MapToAreaStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_is_in(stmt: IsInStatement) -> SparqlPattern:
+def _translate_is_in(stmt: IsInStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "IsInStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_out(stmt: OutStatement) -> SparqlPattern:
+def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "OutStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_foreach(stmt: ForeachStatement) -> SparqlPattern:
+def _translate_foreach(stmt: ForeachStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "ForeachStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_for(stmt: ForStatement) -> SparqlPattern:
+def _translate_for(stmt: ForStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "ForStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_complete(stmt: CompleteStatement) -> SparqlPattern:
+def _translate_complete(stmt: CompleteStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "CompleteStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_if(stmt: IfStatement) -> SparqlPattern:
+def _translate_if(stmt: IfStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "IfStatement translation is not yet implemented",
         stmt.token,

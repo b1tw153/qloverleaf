@@ -164,8 +164,9 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     yield _dump_ir(query.ir)
     for stmt in query.ir.statements:
         if not isinstance(stmt, OutStatement):
-            pattern = translate(stmt)
-            yield _dump_sparql_pattern(pattern)
+            patterns = translate(stmt)
+            for pattern in patterns:
+                yield _dump_sparql_pattern(pattern)
 
     set_state: SetState = {}
     async with httpx.AsyncClient() as client:
@@ -177,9 +178,10 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                     [{"type": t.value, "uri": u} for t, u in results], indent=2
                 )
             else:
-                pattern = translate(stmt)
-                sparql = render_query(pattern, set_state)
-                data = await query_qlever(sparql, client)
-                var_name = pattern.result_variable.lstrip("?")
-                set_state[var_name] = parse_results(data, var_name)
-                yield json.dumps(data, indent=2)
+                patterns = translate(stmt)
+                for pattern in patterns:
+                    sparql = render_query(pattern, set_state)
+                    data = await query_qlever(sparql, client)
+                    var_name = pattern.result_variable.lstrip("?")
+                    set_state[var_name] = parse_results(data, var_name)
+                    yield json.dumps(data, indent=2)

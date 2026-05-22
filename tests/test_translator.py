@@ -783,3 +783,77 @@ def test_translate_around_set_filter_cross_type() -> None:
     assert pattern.injections == [
         ValuesInjection(sparql_var="?_1·f1·ref", set_name="craters1")
     ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_area_set_filter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_area_set_filter_basic() -> None:
+    query = OverpassTransformer().transform(
+        parse(
+            'way["boundary"="administrative"] -> .area; node[amenity=cafe](area.area);'
+        )
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "ogc"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        '?_1 osmkey:amenity "cafe" .',
+        "?_1·f1·area ogc:sfContains ?_1 .",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1·f1·area", set_name="area1")
+    ]
+
+
+def test_translate_area_set_filter_with_default_set() -> None:
+    query = OverpassTransformer().transform(
+        parse('relation["boundary"="administrative"]; node[amenity=hospital](area);')
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_2"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "ogc"}
+    assert pattern.where_clauses == [
+        "?_2 rdf:type osm:node .",
+        '?_2 osmkey:amenity "hospital" .',
+        "?_2·f1·area ogc:sfContains ?_2 .",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_2·f1·area", set_name="_1")
+    ]
+
+
+def test_translate_area_set_filter_way() -> None:
+    query = OverpassTransformer().transform(
+        parse('relation["boundary"="protected_area"] -> .pa; way[landuse](area.pa);')
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.where_clauses[0] == "?_1 rdf:type osm:way ."
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1·f1·area", set_name="pa1")
+    ]
+
+
+def test_translate_area_set_filter_nwr() -> None:
+    query = OverpassTransformer().transform(
+        parse(
+            'relation["boundary"="national_park"] -> .parks; nwr[tourism](area.parks);'
+        )
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "ogc"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "?_1 osmkey:tourism ?_1·f0·v .",
+        "?_1·f1·area ogc:sfContains ?_1 .",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1·f1·area", set_name="parks1")
+    ]

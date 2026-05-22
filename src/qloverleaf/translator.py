@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 from qloverleaf.transform import (
     AreaIdFilter,
+    AreaSetFilter,
     AroundLineFilter,
     AroundPointFilter,
     AroundSetFilter,
@@ -191,7 +192,10 @@ def _add_query_filter(
         _translate_uid_filter(f, output_set, filter_index, result_variable, pattern)
     elif isinstance(f, AreaIdFilter):
         _translate_area_id_filter(f, result_variable, pattern)
-    # elif isinstance(f, AreaSetFilter): ...
+    elif isinstance(f, AreaSetFilter):
+        _translate_area_set_filter(
+            f, output_set, filter_index, result_variable, pattern
+        )
     # elif isinstance(f, RecurseFilter): ...
     # elif isinstance(f, WayCountFilter): ...
     elif isinstance(f, SetFilter):
@@ -488,7 +492,23 @@ def _translate_area_id_filter(
     pattern.where_clauses.append(f"{area_uri} ogc:sfContains {result_variable} .")
 
 
-# _translate_area_set_filter
+def _translate_area_set_filter(
+    f: AreaSetFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes.add("ogc")
+    area_var = _variable_name(
+        output_set, filter_index=filter_index, intermediate="area"
+    )
+    pattern.injections.append(
+        ValuesInjection(sparql_var=area_var, set_name=f.set_reference.identifier)
+    )
+    pattern.where_clauses.append(f"{area_var} ogc:sfContains {result_variable} .")
+
+
 # _translate_recurse_filter
 # _translate_way_count_filter
 

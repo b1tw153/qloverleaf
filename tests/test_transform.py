@@ -11,6 +11,7 @@ from qloverleaf.exceptions import (
 )
 from qloverleaf.parser import parse
 from qloverleaf.transform import (
+    _AREA,
     _NODE,
     _NONE,
     _NWR,
@@ -840,21 +841,39 @@ def test_tag_value_regex_case_insensitive() -> None:
 
 
 def test_tag_filter_exists() -> None:
-    filter = _first_filter("node[amenity];")
+    filter = _first_filter("nwr[amenity];")
     assert isinstance(filter, TagKeyFilter)
     assert filter.key == "amenity"
     assert filter.absent is False
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_tag_filter_exists_area() -> None:
+    filter = _first_filter("area[amenity];")
+    assert isinstance(filter, TagKeyFilter)
+    assert filter.key == "amenity"
+    assert filter.absent is False
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 def test_tag_filter_absent() -> None:
-    filter = _first_filter("node[!amenity];")
+    filter = _first_filter("nwr[!amenity];")
     assert isinstance(filter, TagKeyFilter)
     assert filter.key == "amenity"
     assert filter.absent is True
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_tag_filter_absent_area() -> None:
+    filter = _first_filter("area[!amenity];")
+    assert isinstance(filter, TagKeyFilter)
+    assert filter.key == "amenity"
+    assert filter.absent is True
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 # ---------------------------------------------------------------------------
@@ -863,25 +882,47 @@ def test_tag_filter_absent() -> None:
 
 
 def test_tag_filter_eq() -> None:
-    filter = _first_filter("node[amenity=cafe];")
+    filter = _first_filter("nwr[amenity=cafe];")
     assert isinstance(filter, TagValueFilter)
     assert filter.key == "amenity"
     assert filter.op == TagFilterOp.EQ
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_tag_filter_eq_area() -> None:
+    filter = _first_filter("area[amenity=cafe];")
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "amenity"
+    assert filter.op == TagFilterOp.EQ
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 def test_tag_filter_neq() -> None:
-    filter = _first_filter("node[amenity!=cafe];")
+    filter = _first_filter("nwr[amenity!=cafe];")
     assert isinstance(filter, TagValueFilter)
     assert filter.key == "amenity"
     assert filter.op == TagFilterOp.NEQ
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_tag_filter_neq_area() -> None:
+    filter = _first_filter("area[amenity!=cafe];")
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "amenity"
+    assert filter.op == TagFilterOp.NEQ
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 # ---------------------------------------------------------------------------
@@ -890,43 +931,83 @@ def test_tag_filter_neq() -> None:
 
 
 def test_tag_filter_regex() -> None:
-    filter = _first_filter('node[name~"cafe"];')
+    filter = _first_filter('nwr[name~"cafe"];')
     assert isinstance(filter, TagValueFilter)
     assert filter.key == "name"
     assert filter.op == TagFilterOp.REGEX
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_tag_filter_regex_area() -> None:
+    filter = _first_filter('area[name~"cafe"];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "name"
+    assert filter.op == TagFilterOp.REGEX
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 def test_tag_filter_regex_case_insensitive() -> None:
-    filter = _first_filter('node[name~"cafe",i];')
+    filter = _first_filter('nwr[name~"cafe",i];')
     assert isinstance(filter, TagValueFilter)
     assert filter.op == TagFilterOp.REGEX
     assert filter.case_insensitive is True
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_tag_filter_regex_case_insensitive_area() -> None:
+    filter = _first_filter('area[name~"cafe",i];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.op == TagFilterOp.REGEX
+    assert filter.case_insensitive is True
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 def test_tag_filter_not_regex() -> None:
-    filter = _first_filter('node[name!~"cafe"];')
+    filter = _first_filter('nwr[name!~"cafe"];')
     assert isinstance(filter, TagValueFilter)
     assert filter.key == "name"
     assert filter.op == TagFilterOp.NOT_REGEX
     assert filter.value == "cafe"
     assert filter.case_insensitive is False
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_tag_filter_not_regex_area() -> None:
+    filter = _first_filter('area[name!~"cafe"];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "name"
+    assert filter.op == TagFilterOp.NOT_REGEX
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 def test_tag_filter_not_regex_case_insensitive() -> None:
-    filter = _first_filter('node[name!~"cafe",i];')
+    filter = _first_filter('nwr[name!~"cafe",i];')
     assert isinstance(filter, TagValueFilter)
     assert filter.op == TagFilterOp.NOT_REGEX
     assert filter.case_insensitive is True
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_tag_filter_not_regex_case_insensitive_area() -> None:
+    filter = _first_filter('area[name!~"cafe",i];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.op == TagFilterOp.NOT_REGEX
+    assert filter.case_insensitive is True
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 # ---------------------------------------------------------------------------
@@ -945,14 +1026,25 @@ def test_tag_filter_key_regex_raises() -> None:
 
 
 def test_bbox_filter_values() -> None:
-    filter = _first_filter("node(51.5,-0.2,51.6,-0.1);")
+    filter = _first_filter("nwr(51.5,-0.2,51.6,-0.1);")
     assert isinstance(filter, BboxFilter)
     assert filter.south == "51.5"
     assert filter.west == "-0.2"
     assert filter.north == "51.6"
     assert filter.east == "-0.1"
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_bbox_filter_values_area() -> None:
+    filter = _first_filter("area(51.5,-0.2,51.6,-0.1);")
+    assert isinstance(filter, BboxFilter)
+    assert filter.south == "51.5"
+    assert filter.west == "-0.2"
+    assert filter.north == "51.6"
+    assert filter.east == "-0.1"
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 def test_bbox_filter_inverted_warns() -> None:
@@ -968,19 +1060,35 @@ def test_bbox_filter_inverted_warns() -> None:
 
 
 def test_id_filter_single() -> None:
-    filter = _first_filter("node(123);")
+    filter = _first_filter("nwr(123);")
     assert isinstance(filter, IdFilter)
     assert filter.ids == [123]
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_id_filter_single_area() -> None:
+    filter = _first_filter("area(123);")
+    assert isinstance(filter, IdFilter)
+    assert filter.ids == [123]
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 def test_id_filter_list() -> None:
-    filter = _first_filter("node(id:1,2,3);")
+    filter = _first_filter("nwr(id:1,2,3);")
     assert isinstance(filter, IdFilter)
     assert filter.ids == [1, 2, 3]
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_id_filter_list_area() -> None:
+    filter = _first_filter("area(id:1,2,3);")
+    assert isinstance(filter, IdFilter)
+    assert filter.ids == [1, 2, 3]
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 # ---------------------------------------------------------------------------
@@ -1039,7 +1147,7 @@ def test_int_range_closed() -> None:
 
 
 def test_around_line_filter() -> None:
-    filter = _first_filter("node(around:100.0,51.5,-0.2,51.6,-0.1);")
+    filter = _first_filter("nwr(around:100.0,51.5,-0.2,51.6,-0.1);")
     assert isinstance(filter, AroundLineFilter)
     assert filter.radius == "100.0"
     assert [(p.lat, p.lon) for p in filter.points] == [
@@ -1047,7 +1155,19 @@ def test_around_line_filter() -> None:
         ("51.6", "-0.1"),
     ]
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_around_line_filter_area() -> None:
+    filter = _first_filter("area(around:100.0,51.5,-0.2,51.6,-0.1);")
+    assert isinstance(filter, AroundLineFilter)
+    assert filter.radius == "100.0"
+    assert [(p.lat, p.lon) for p in filter.points] == [
+        ("51.5", "-0.2"),
+        ("51.6", "-0.1"),
+    ]
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 # ---------------------------------------------------------------------------
@@ -1056,14 +1176,25 @@ def test_around_line_filter() -> None:
 
 
 def test_poly_lat_lon_values() -> None:
-    filter = _first_filter('node(poly:"51.5 -0.2 51.6 -0.1 51.5 -0.3");')
+    filter = _first_filter('nwr(poly:"51.5 -0.2 51.6 -0.1 51.5 -0.3");')
     assert isinstance(filter, PolygonFilter)
     assert [(p.lat, p.lon) for p in filter.points] == [
         ("51.5", "-0.2"),
         ("51.6", "-0.1"),
         ("51.5", "-0.3"),
     ]
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_poly_lat_lon_values_area() -> None:
+    filter = _first_filter('area(poly:"51.5 -0.2 51.6 -0.1 51.5 -0.3");')
+    assert isinstance(filter, PolygonFilter)
+    assert [(p.lat, p.lon) for p in filter.points] == [
+        ("51.5", "-0.2"),
+        ("51.6", "-0.1"),
+        ("51.5", "-0.3"),
+    ]
+    assert filter.output_types == _AREA
 
 
 # ---------------------------------------------------------------------------
@@ -1072,7 +1203,7 @@ def test_poly_lat_lon_values() -> None:
 
 
 def test_newer_filter() -> None:
-    filter = _first_filter('node(newer:"2024-03-12T11:03:25Z");')
+    filter = _first_filter('nwr(newer:"2024-03-12T11:03:25Z");')
     assert isinstance(filter, NewerFilter)
     assert filter.timestamp.year == 2024
     assert filter.timestamp.month == 3
@@ -1097,7 +1228,7 @@ def test_changed_filter_raises() -> None:
 
 
 def test_user_filter_single() -> None:
-    filter = _first_filter('node(user:"alice");')
+    filter = _first_filter('nwr(user:"alice");')
     assert isinstance(filter, UserFilter)
     assert filter.users == ["alice"]
     assert filter.token is not None
@@ -1105,7 +1236,7 @@ def test_user_filter_single() -> None:
 
 
 def test_user_filter_multiple() -> None:
-    filter = _first_filter('node(user:"alice","bob");')
+    filter = _first_filter('nwr(user:"alice","bob");')
     assert isinstance(filter, UserFilter)
     assert filter.users == ["alice", "bob"]
     assert filter.output_types == _NWR
@@ -1117,7 +1248,7 @@ def test_user_filter_multiple() -> None:
 
 
 def test_uid_filter_single() -> None:
-    filter = _first_filter("node(uid:42);")
+    filter = _first_filter("nwr(uid:42);")
     assert isinstance(filter, UidFilter)
     assert filter.uids == [42]
     assert filter.token is not None
@@ -1125,7 +1256,7 @@ def test_uid_filter_single() -> None:
 
 
 def test_uid_filter_multiple() -> None:
-    filter = _first_filter("node(uid:1,2,3);")
+    filter = _first_filter("nwr(uid:1,2,3);")
     assert isinstance(filter, UidFilter)
     assert filter.uids == [1, 2, 3]
     assert filter.output_types == _NWR
@@ -1157,22 +1288,41 @@ def test_uid_touched_filter_raises() -> None:
 
 
 def test_area_set_filter_default_set() -> None:
-    filter = _first_filter("node(area);")
+    filter = _first_filter("nwr(area);")
     assert isinstance(filter, AreaSetFilter)
     assert filter.set_reference.name == "_"
     assert filter.set_reference.token is None
     assert filter.set_reference.required_types == frozenset({ElementType.AREA})
     assert filter.token is None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_area_set_filter_default_set_area() -> None:
+    filter = _first_filter("area(area);")
+    assert isinstance(filter, AreaSetFilter)
+    assert filter.set_reference.name == "_"
+    assert filter.set_reference.token is None
+    assert filter.set_reference.required_types == frozenset({ElementType.AREA})
+    assert filter.token is None
+    assert filter.output_types == _AREA
 
 
 def test_area_set_filter_explicit_set() -> None:
-    filter = _first_filter("node(area.foo);")
+    filter = _first_filter("nwr(area.foo);")
     assert isinstance(filter, AreaSetFilter)
     assert filter.set_reference.name == "foo"
     assert filter.set_reference.token is not None
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_area_set_filter_explicit_set_area() -> None:
+    filter = _first_filter("area(area.foo);")
+    assert isinstance(filter, AreaSetFilter)
+    assert filter.set_reference.name == "foo"
+    assert filter.set_reference.token is not None
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 # ---------------------------------------------------------------------------
@@ -1181,11 +1331,19 @@ def test_area_set_filter_explicit_set() -> None:
 
 
 def test_area_id_filter() -> None:
-    filter = _first_filter("node(area:3600000001);")
+    filter = _first_filter("nwr(area:3600000001);")
     assert isinstance(filter, AreaIdFilter)
     assert filter.area_id == 3600000001
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_area_id_filter_area() -> None:
+    filter = _first_filter("area(area:3600000001);")
+    assert isinstance(filter, AreaIdFilter)
+    assert filter.area_id == 3600000001
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 # ---------------------------------------------------------------------------
@@ -1205,12 +1363,10 @@ def test_recurse_filter_w() -> None:
 
 
 def test_recurse_filter_r() -> None:
-    filter = _first_filter("node(r);")
+    filter = _first_filter("nwr(r);")
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.R
-    assert filter.output_types == frozenset(
-        {ElementType.NODE, ElementType.WAY, ElementType.RELATION}
-    )
+    assert filter.output_types == _NWR
     assert filter.set_reference.required_types == frozenset({ElementType.RELATION})
     assert filter.set_reference.name == "_"
     assert filter.token is not None
@@ -1218,10 +1374,10 @@ def test_recurse_filter_r() -> None:
 
 
 def test_recurse_filter_bn() -> None:
-    filter = _first_filter("way(bn);")
+    filter = _first_filter("wr(bn);")
     assert isinstance(filter, RecurseFilter)
     assert filter.recurse_type == RecurseFilterType.BN
-    assert filter.output_types == frozenset({ElementType.WAY, ElementType.RELATION})
+    assert filter.output_types == _WR
     assert filter.set_reference.required_types == frozenset({ElementType.NODE})
     assert filter.set_reference.name == "_"
     assert filter.token is not None
@@ -1310,7 +1466,7 @@ def test_set_filter() -> None:
     assert isinstance(filter, SetFilter)
     assert filter.set_reference.name == "foo"
     assert filter.token is not None
-    assert filter.output_types is None
+    assert filter.output_types == frozenset()
 
 
 # ---------------------------------------------------------------------------
@@ -1319,12 +1475,12 @@ def test_set_filter() -> None:
 
 
 def test_pivot_filter_default_set() -> None:
-    filter = _first_filter("way(pivot);")
+    filter = _first_filter("wr(pivot);")
     assert isinstance(filter, PivotFilter)
     assert filter.set_reference.name == "_"
     assert filter.set_reference.token is None
     assert filter.set_reference.required_types == frozenset({ElementType.AREA})
-    assert filter.output_types == frozenset({ElementType.WAY, ElementType.RELATION})
+    assert filter.output_types == _WR
     assert filter.token is None
 
 
@@ -1342,11 +1498,19 @@ def test_pivot_filter_explicit_set() -> None:
 
 
 def test_if_filter() -> None:
-    filter = _first_filter("node(if:1);")
+    filter = _first_filter("nwr(if:1);")
     assert isinstance(filter, IfFilter)
     assert isinstance(filter.evaluator, Evaluator)
     assert filter.token is not None
-    assert filter.output_types == _NWRA
+    assert filter.output_types == _NWR
+
+
+def test_if_filter_area() -> None:
+    filter = _first_filter("area(if:1);")
+    assert isinstance(filter, IfFilter)
+    assert isinstance(filter.evaluator, Evaluator)
+    assert filter.token is not None
+    assert filter.output_types == _AREA
 
 
 # ---------------------------------------------------------------------------

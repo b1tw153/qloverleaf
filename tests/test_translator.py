@@ -3,7 +3,7 @@ import pytest
 from qloverleaf.exceptions import UnimplementedFeatureError
 from qloverleaf.parser import parse
 from qloverleaf.transform import OverpassTransformer
-from qloverleaf.translator import SparqlPattern, translate
+from qloverleaf.translator import SparqlPattern, ValuesInjection, translate
 
 
 def _translate(text: str) -> list[SparqlPattern]:
@@ -635,4 +635,151 @@ def test_translate_area_id_filter_nwr() -> None:
         " UNION { ?_1 rdf:type osm:way }"
         " UNION { ?_1 rdf:type osm:relation }",
         "osmrel:18375211 ogc:sfContains ?_1 .",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_set_filter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_set_filter_basic() -> None:
+    query = OverpassTransformer().transform(
+        parse("node[geological=meteor_crater] -> .craters; node.craters;")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.distinct is False
+    assert pattern.prefixes == {"rdf", "osm"}
+    assert pattern.where_clauses == ["?_1 rdf:type osm:node ."]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1", set_name="craters1")
+    ]
+
+
+def test_translate_set_filter_with_tag() -> None:
+    query = OverpassTransformer().transform(
+        parse("node[geological=meteor_crater] -> .craters; node.craters[natural=peak];")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        '?_1 osmkey:natural "peak" .',
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1", set_name="craters1")
+    ]
+
+
+def test_translate_set_filter_multiple_intersection() -> None:
+    query = OverpassTransformer().transform(
+        parse("(node(1); node(2);) -> .foo; (node(2); node(3);) -> .bar; node.foo.bar;")
+    )
+    pattern = translate(query.statements[2])[0]
+    assert pattern.result_variable == "?_5"  # Version 5 of default set
+    assert pattern.where_clauses == ["?_5 rdf:type osm:node ."]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_5", set_name="foo1"),
+        ValuesInjection(sparql_var="?_5", set_name="bar1"),
+    ]
+
+
+def test_translate_set_filter_way() -> None:
+    query = OverpassTransformer().transform(
+        parse("way[highway] -> .roads; way.roads[surface=asphalt];")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        '?_1 osmkey:surface "asphalt" .',
+    ]
+    assert pattern.injections == [ValuesInjection(sparql_var="?_1", set_name="roads1")]
+
+
+# ---------------------------------------------------------------------------
+# _translate_around_set_filter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_around_set_filter_basic() -> None:
+    query = OverpassTransformer().transform(
+        parse("node(358781618) -> .ref; node[natural=peak](around.ref:15000);")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.distinct is True
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        '?_1 osmkey:natural "peak" .',
+        "?_1·f1·ref geo:hasGeometry ?_1·f1·refgeom .",
+        "?_1·f1·refgeom geo:asWKT ?_1·f1·refwkt .",
+        "?_1 geo:hasGeometry ?_1·f1·geom .",
+        "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
+        "FILTER(geof:metricDistance(?_1·f1·wkt, ?_1·f1·refwkt) <= 15000)",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1·f1·ref", set_name="ref1")
+    ]
+
+
+def test_translate_around_set_filter_with_default_set() -> None:
+    query = OverpassTransformer().transform(
+        parse("node(1); node[natural=peak](around:5000);")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_2"  # Version 2 of default set
+    assert pattern.distinct is True
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
+    assert pattern.where_clauses == [
+        "?_2 rdf:type osm:node .",
+        '?_2 osmkey:natural "peak" .',
+        "?_2·f1·ref geo:hasGeometry ?_2·f1·refgeom .",
+        "?_2·f1·refgeom geo:asWKT ?_2·f1·refwkt .",
+        "?_2 geo:hasGeometry ?_2·f1·geom .",
+        "?_2·f1·geom geo:asWKT ?_2·f1·wkt .",
+        "FILTER(geof:metricDistance(?_2·f1·wkt, ?_2·f1·refwkt) <= 5000)",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_2·f1·ref", set_name="_1")
+    ]
+
+
+def test_translate_around_set_filter_way() -> None:
+    query = OverpassTransformer().transform(
+        parse("node[amenity=cafe] -> .cafes; way[highway](around.cafes:100);")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.distinct is True
+    assert pattern.where_clauses[0] == "?_1 rdf:type osm:way ."
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1·f1·ref", set_name="cafes1")
+    ]
+
+
+def test_translate_around_set_filter_cross_type() -> None:
+    query = OverpassTransformer().transform(
+        parse(
+            "node[geological=meteor_crater] -> .craters;"
+            "node[natural=geyser](around.craters:100000);"
+        )
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.distinct is True
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        '?_1 osmkey:natural "geyser" .',
+        "?_1·f1·ref geo:hasGeometry ?_1·f1·refgeom .",
+        "?_1·f1·refgeom geo:asWKT ?_1·f1·refwkt .",
+        "?_1 geo:hasGeometry ?_1·f1·geom .",
+        "?_1·f1·geom geo:asWKT ?_1·f1·wkt .",
+        "FILTER(geof:metricDistance(?_1·f1·wkt, ?_1·f1·refwkt) <= 100000)",
+    ]
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1·f1·ref", set_name="craters1")
     ]

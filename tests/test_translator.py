@@ -967,3 +967,62 @@ def test_translate_recurse_filter_bn_unimplemented() -> None:
     query = OverpassTransformer().transform(parse("node(260904); way(bn);"))
     with pytest.raises(UnimplementedFeatureError):
         translate(query.statements[1])
+
+
+# ---------------------------------------------------------------------------
+# _translate_way_count_filter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_way_count_filter_exact() -> None:
+    query = OverpassTransformer().transform(parse("way[highway]; node(way_cnt:1);"))
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_2"
+    assert pattern.distinct is True
+    assert pattern.prefixes == {"rdf", "osm", "osmway"}
+    # Should have: type filter, way join, subquery, count filter
+    assert "?_2 rdf:type osm:node ." in pattern.where_clauses
+    assert "?_2·f0·way osmway:member ?_2·f0·m ." in pattern.where_clauses
+    assert "?_2·f0·m osmway:member_id ?_2 ." in pattern.where_clauses
+    # Check for subquery presence
+    assert any(
+        "SELECT ?_2 (COUNT(DISTINCT ?_2·f0·way)" in clause
+        for clause in pattern.where_clauses
+    )
+    assert any("FILTER(?_2·f0·cnt = 1)" in clause for clause in pattern.where_clauses)
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_2·f0·way", set_name="_1", must_materialize=True)
+    ]
+
+
+def test_translate_way_count_filter_min() -> None:
+    query = OverpassTransformer().transform(
+        parse("way[highway] -> .ways; node(way_cnt.ways:2-);")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.distinct is True
+    # Check for >= 2 filter
+    assert any("FILTER(?_1·f0·cnt >= 2)" in clause for clause in pattern.where_clauses)
+    assert pattern.injections == [
+        ValuesInjection(
+            sparql_var="?_1·f0·way", set_name="ways1", must_materialize=True
+        )
+    ]
+
+
+def test_translate_way_count_filter_range() -> None:
+    query = OverpassTransformer().transform(
+        parse("way[highway] -> .w; node(way_cnt.w:1-4);")
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.distinct is True
+    # Check for range filter
+    assert any(
+        "FILTER(?_1·f0·cnt >= 1 && ?_1·f0·cnt <= 4)" in clause
+        for clause in pattern.where_clauses
+    )
+    assert pattern.injections == [
+        ValuesInjection(sparql_var="?_1·f0·way", set_name="w1", must_materialize=True)
+    ]

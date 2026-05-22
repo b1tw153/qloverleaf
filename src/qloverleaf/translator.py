@@ -34,6 +34,7 @@ from qloverleaf.transform import (
     UidFilter,
     UnionStatement,
     UserFilter,
+    WayCountFilter,
 )
 
 
@@ -41,6 +42,9 @@ from qloverleaf.transform import (
 class ValuesInjection:
     sparql_var: str  # e.g. "?a0"
     set_name: str  # versioned set name to look up in set state, e.g. "a0"
+    must_materialize: bool = (
+        False  # True if this input must be materialized (cannot compose)
+    )
 
 
 @dataclass
@@ -200,7 +204,10 @@ def _add_query_filter(
         )
     elif isinstance(f, RecurseFilter):
         _translate_recurse_filter(f, output_set, filter_index, result_variable, pattern)
-    # elif isinstance(f, WayCountFilter): ...
+    elif isinstance(f, WayCountFilter):
+        _translate_way_count_filter(
+            f, output_set, filter_index, result_variable, pattern
+        )
     elif isinstance(f, SetFilter):
         _translate_set_filter(f, output_set, filter_index, result_variable, pattern)
     # elif isinstance(f, PivotFilter): ...
@@ -577,7 +584,58 @@ def _translate_recurse_filter(
             )
 
 
-# _translate_way_count_filter
+def _translate_way_count_filter(
+    f: WayCountFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.distinct = True
+    pattern.prefixes.add("osmway")
+
+    way_var = _variable_name(output_set, filter_index=filter_index, intermediate="way")
+    count_var = _variable_name(
+        output_set, filter_index=filter_index, intermediate="cnt"
+    )
+
+    # Inject the input way set - must be materialized due to subquery
+    pattern.injections.append(
+        ValuesInjection(
+            sparql_var=way_var,
+            set_name=f.set_reference.identifier,
+            must_materialize=True,  # Subquery requires VALUES in both locations
+        )
+    )
+
+    # Join ways to their member nodes (outer query) via blank node
+    blank_var = _variable_name(output_set, filter_index=filter_index, intermediate="m")
+    pattern.where_clauses.append(f"{way_var} osmway:member {blank_var} .")
+    pattern.where_clauses.append(f"{blank_var} osmway:member_id {result_variable} .")
+
+    # Subquery to count how many ways each node appears in
+    # Note: VALUES must appear in both outer and inner query due to QLever limitation
+    subquery = (
+        f"{{ SELECT {result_variable} (COUNT(DISTINCT {way_var}) AS {count_var})"
+        " WHERE {{"
+        f" VALUES {way_var} {{ }}"
+        f" {way_var} osmway:member {blank_var} ."
+        f" {blank_var} osmway:member_id {result_variable} ."
+        f" }} GROUP BY {result_variable} }}"
+    )
+    pattern.where_clauses.append(subquery)
+
+    # Add FILTER based on count constraints
+    if f.exact:
+        pattern.where_clauses.append(f"FILTER({count_var} = {f.min_count})")
+    elif f.max_count is None:
+        # Open upper bound (N-)
+        pattern.where_clauses.append(f"FILTER({count_var} >= {f.min_count})")
+    else:
+        # Range (min-max)
+        pattern.where_clauses.append(
+            f"FILTER({count_var} >= {f.min_count} && {count_var} <= {f.max_count})"
+        )
 
 
 def _translate_set_filter(

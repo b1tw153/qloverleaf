@@ -14,7 +14,11 @@ from qloverleaf.transform import (
     QueryFilter,
     QueryStatement,
     RecurseStatement,
+    SetReference,
     Statement,
+    TagFilterOp,
+    TagKeyFilter,
+    TagValueFilter,
     UnionStatement,
 )
 
@@ -34,6 +38,11 @@ class SparqlPattern:
     injections: list[ValuesInjection] = field(default_factory=list)
 
 
+def _sparql_literal(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def _variable_name(
     set_name: str,
     set_version: int,
@@ -42,7 +51,7 @@ def _variable_name(
 ) -> str:
     base = f"?{set_name}{set_version}"
     if filter_index is not None:
-        base += f"·{filter_index}"
+        base += f"·f{filter_index}"
     if intermediate is not None:
         base += f"·{intermediate}"
     return base
@@ -86,13 +95,12 @@ def translate(statement: Statement) -> SparqlPattern:
 
 
 def _translate_query(statement: QueryStatement) -> SparqlPattern:
-    result_variable = _variable_name(
-        statement.output_set.name, statement.output_set.version
-    )
+    output_set = statement.output_set
+    result_variable = _variable_name(output_set.name, output_set.version)
     pattern = SparqlPattern(result_variable=result_variable)
     _add_type_filter(statement.element_types, result_variable, pattern)
-    for f in statement.filters:
-        _add_query_filter(f, result_variable, pattern)
+    for filter_index, f in enumerate(statement.filters):
+        _add_query_filter(f, output_set, filter_index, result_variable, pattern)
     return pattern
 
 
@@ -120,12 +128,93 @@ def _add_type_filter(
 
 def _add_query_filter(
     f: QueryFilter,
+    output_set: SetReference,
+    filter_index: int,
     result_variable: str,
     pattern: SparqlPattern,
 ) -> None:
-    raise UnimplementedFeatureError(
-        "query filter translation is not yet implemented", f.token
+    if isinstance(f, TagKeyFilter):
+        _translate_tag_key_filter(f, output_set, filter_index, result_variable, pattern)
+    elif isinstance(f, TagValueFilter):
+        _translate_tag_value_filter(
+            f, output_set, filter_index, result_variable, pattern
+        )
+    else:
+        raise UnimplementedFeatureError(
+            "query filter translation is not yet implemented", f.token
+        )
+
+
+def _translate_tag_key_filter(
+    f: TagKeyFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes.add("osmkey")
+    value_var = _variable_name(
+        output_set.name, output_set.version, filter_index=filter_index, intermediate="v"
     )
+    if f.absent:
+        pattern.where_clauses.append(
+            f"FILTER NOT EXISTS {{ {result_variable} osmkey:{f.key} {value_var} }}"
+        )
+    else:
+        pattern.where_clauses.append(f"{result_variable} osmkey:{f.key} {value_var} .")
+
+
+def _translate_tag_value_filter(
+    f: TagValueFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    pattern.prefixes.add("osmkey")
+    predicate = f"osmkey:{f.key}"
+    literal = _sparql_literal(f.value)
+    if f.op == TagFilterOp.EQ:
+        pattern.where_clauses.append(f"{result_variable} {predicate} {literal} .")
+    elif f.op == TagFilterOp.NEQ:
+        pattern.where_clauses.append(
+            f"FILTER NOT EXISTS {{ {result_variable} {predicate} {literal} }}"
+        )
+    else:
+        value_var = _variable_name(
+            output_set.name,
+            output_set.version,
+            filter_index=filter_index,
+            intermediate="v",
+        )
+        pattern.where_clauses.append(f"{result_variable} {predicate} {value_var} .")
+        flags = ', "i"' if f.case_insensitive else ""
+        if f.op == TagFilterOp.REGEX:
+            pattern.where_clauses.append(
+                f"FILTER(REGEX({value_var}, {literal}{flags}))"
+            )
+        else:
+            pattern.where_clauses.append(
+                f"FILTER(!REGEX({value_var}, {literal}{flags}))"
+            )
+
+
+# _translate_bbox_filter
+# _translate_id_filter
+# _translate_around_set_filter
+# _translate_around_point_filter
+# _translate_around_line_filter
+# _translate_polygon_filter
+# _translate_newer_filter
+# _translate_user_filter
+# _translate_uid_filter
+# _translate_area_set_filter
+# _translate_area_id_filter
+# _translate_recurse_filter
+# _translate_way_count_filter
+# _translate_set_filter
+# _translate_pivot_filter
+# _translate_if_filter
 
 
 def _dump_sparql_pattern(pattern: SparqlPattern) -> str:

@@ -588,3 +588,40 @@ def test_translate_uid_filter_nwr() -> None:
         " UNION { ?_1 rdf:type osm:relation }",
         "?_1 osmeta:uid \"12345\"^^xsd:int .",
     ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_query — AreaIdFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_area_id_filter_relation() -> None:
+    pattern = _translate('node[geological=meteor_crater](area:3602978650);')
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "ogc", "osmrel"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "?_1 osmkey:geological \"meteor_crater\" .",
+        "osmrel:2978650 ogc:sfContains ?_1 .",
+    ]
+
+
+def test_translate_area_id_filter_way() -> None:
+    pattern = _translate('node[place](area:2400000100);')
+    assert pattern.prefixes == {"rdf", "osm", "osmkey", "ogc", "osmway"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:node .",
+        "?_1 osmkey:place ?_1·f0·v .",
+        "osmway:100 ogc:sfContains ?_1 .",
+    ]
+
+
+def test_translate_area_id_filter_nwr() -> None:
+    pattern = _translate('nwr(area:3618375211);')
+    assert pattern.prefixes == {"rdf", "osm", "ogc", "osmrel"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:node }"
+        " UNION { ?_1 rdf:type osm:way }"
+        " UNION { ?_1 rdf:type osm:relation }",
+        "osmrel:18375211 ogc:sfContains ?_1 .",
+    ]

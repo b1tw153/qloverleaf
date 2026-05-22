@@ -6,7 +6,7 @@ from qloverleaf.transform import OverpassTransformer
 from qloverleaf.translator import SparqlPattern, translate
 
 
-def _translate(text: str) -> SparqlPattern:
+def _translate(text: str) -> list[SparqlPattern]:
     query = OverpassTransformer().transform(parse(text))
     return translate(query.statements[0])
 
@@ -17,7 +17,7 @@ def _translate(text: str) -> SparqlPattern:
 
 
 def test_translate_query_node_no_filters() -> None:
-    pattern = _translate("node;")
+    pattern = _translate("node;")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.distinct is False
     assert pattern.prefixes == {"rdf", "osm"}
@@ -26,7 +26,7 @@ def test_translate_query_node_no_filters() -> None:
 
 
 def test_translate_query_way_no_filters() -> None:
-    pattern = _translate("way;")
+    pattern = _translate("way;")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.distinct is False
     assert pattern.prefixes == {"rdf", "osm"}
@@ -35,7 +35,7 @@ def test_translate_query_way_no_filters() -> None:
 
 
 def test_translate_query_relation_no_filters() -> None:
-    pattern = _translate("relation;")
+    pattern = _translate("relation;")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.distinct is False
     assert pattern.prefixes == {"rdf", "osm"}
@@ -44,7 +44,7 @@ def test_translate_query_relation_no_filters() -> None:
 
 
 def test_translate_query_nwr_no_filters() -> None:
-    pattern = _translate("nwr;")
+    pattern = _translate("nwr;")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.distinct is False
     assert pattern.prefixes == {"rdf", "osm"}
@@ -57,7 +57,7 @@ def test_translate_query_nwr_no_filters() -> None:
 
 
 def test_translate_query_nw_no_filters() -> None:
-    pattern = _translate("nw;")
+    pattern = _translate("nw;")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.distinct is False
     assert pattern.prefixes == {"rdf", "osm"}
@@ -68,7 +68,7 @@ def test_translate_query_nw_no_filters() -> None:
 
 
 def test_translate_query_nr_no_filters() -> None:
-    pattern = _translate("nr;")
+    pattern = _translate("nr;")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.distinct is False
     assert pattern.prefixes == {"rdf", "osm"}
@@ -79,7 +79,7 @@ def test_translate_query_nr_no_filters() -> None:
 
 
 def test_translate_query_wr_no_filters() -> None:
-    pattern = _translate("wr;")
+    pattern = _translate("wr;")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.distinct is False
     assert pattern.prefixes == {"rdf", "osm"}
@@ -90,7 +90,7 @@ def test_translate_query_wr_no_filters() -> None:
 
 
 def test_translate_query_named_output_set() -> None:
-    pattern = _translate("node -> .peaks;")
+    pattern = _translate("node -> .peaks;")[0]
     assert pattern.result_variable == "?peaks1"
     assert pattern.where_clauses == ["?peaks1 rdf:type osm:node ."]
 
@@ -106,7 +106,7 @@ def test_translate_query_area_raises() -> None:
 
 
 def test_translate_tag_key_exists() -> None:
-    pattern = _translate("node[natural];")
+    pattern = _translate("node[natural];")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey"}
     assert pattern.where_clauses == [
@@ -117,7 +117,7 @@ def test_translate_tag_key_exists() -> None:
 
 
 def test_translate_tag_key_absent() -> None:
-    pattern = _translate("node[!natural];")
+    pattern = _translate("node[!natural];")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey"}
     assert pattern.where_clauses == [
@@ -128,7 +128,7 @@ def test_translate_tag_key_absent() -> None:
 
 
 def test_translate_tag_key_with_colon() -> None:
-    pattern = _translate('node["geyser:type"];')
+    pattern = _translate('node["geyser:type"];')[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
         "?_1 osmkey:geyser:type ?_1·f0·v .",
@@ -136,7 +136,7 @@ def test_translate_tag_key_with_colon() -> None:
 
 
 def test_translate_tag_key_multiple_filters() -> None:
-    pattern = _translate("node[natural][name];")
+    pattern = _translate("node[natural][name];")[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
         "?_1 osmkey:natural ?_1·f0·v .",
@@ -150,7 +150,7 @@ def test_translate_tag_key_multiple_filters() -> None:
 
 
 def test_translate_tag_value_eq() -> None:
-    pattern = _translate("node[natural=peak];")
+    pattern = _translate("node[natural=peak];")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey"}
     assert pattern.where_clauses == [
@@ -161,7 +161,7 @@ def test_translate_tag_value_eq() -> None:
 
 
 def test_translate_tag_value_neq() -> None:
-    pattern = _translate("node[natural!=peak];")
+    pattern = _translate("node[natural!=peak];")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey"}
     assert pattern.where_clauses == [
@@ -172,7 +172,7 @@ def test_translate_tag_value_neq() -> None:
 
 
 def test_translate_tag_value_regex() -> None:
-    pattern = _translate('node[geological~"crater"];')
+    pattern = _translate('node[geological~"crater"];')[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
         "?_1 osmkey:geological ?_1·f0·v .",
@@ -181,7 +181,7 @@ def test_translate_tag_value_regex() -> None:
 
 
 def test_translate_tag_value_regex_case_insensitive() -> None:
-    pattern = _translate('node[geological~"CRATER",i];')
+    pattern = _translate('node[geological~"CRATER",i];')[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
         "?_1 osmkey:geological ?_1·f0·v .",
@@ -190,7 +190,7 @@ def test_translate_tag_value_regex_case_insensitive() -> None:
 
 
 def test_translate_tag_value_not_regex() -> None:
-    pattern = _translate('node[geological!~"crater"];')
+    pattern = _translate('node[geological!~"crater"];')[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
         "?_1 osmkey:geological ?_1·f0·v .",
@@ -199,7 +199,7 @@ def test_translate_tag_value_not_regex() -> None:
 
 
 def test_translate_tag_value_not_regex_case_insensitive() -> None:
-    pattern = _translate('node[geological!~"CRATER",i];')
+    pattern = _translate('node[geological!~"CRATER",i];')[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
         "?_1 osmkey:geological ?_1·f0·v .",
@@ -208,7 +208,7 @@ def test_translate_tag_value_not_regex_case_insensitive() -> None:
 
 
 def test_translate_tag_value_escaping() -> None:
-    pattern = _translate(r'node[name="say \"hello\""];')
+    pattern = _translate(r'node[name="say \"hello\""];')[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
         r'?_1 osmkey:name "say \"hello\"" .',
@@ -221,7 +221,7 @@ def test_translate_tag_value_escaping() -> None:
 
 
 def test_translate_bbox_filter_node() -> None:
-    pattern = _translate("node(32.58870,-116.14417,32.88870,-115.84417);")
+    pattern = _translate("node(32.58870,-116.14417,32.88870,-115.84417);")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
     assert pattern.where_clauses == [
@@ -237,7 +237,7 @@ def test_translate_bbox_filter_node() -> None:
 
 
 def test_translate_bbox_filter_way() -> None:
-    pattern = _translate("way(32.58870,-116.14417,32.88870,-115.84417);")
+    pattern = _translate("way(32.58870,-116.14417,32.88870,-115.84417);")[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
         "?_1 geo:hasGeometry ?_1·f0·geom .",
@@ -250,7 +250,7 @@ def test_translate_bbox_filter_way() -> None:
 
 
 def test_translate_bbox_filter_nwr() -> None:
-    pattern = _translate("nwr(32.58870,-116.14417,32.88870,-115.84417);")
+    pattern = _translate("nwr(32.58870,-116.14417,32.88870,-115.84417);")[0]
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"
         " UNION { ?_1 rdf:type osm:way }"
@@ -265,7 +265,9 @@ def test_translate_bbox_filter_nwr() -> None:
 
 
 def test_translate_bbox_filter_with_tag() -> None:
-    pattern = _translate("node[natural=peak](32.58870,-116.14417,32.88870,-115.84417);")
+    pattern = _translate(
+        "node[natural=peak](32.58870,-116.14417,32.88870,-115.84417);"
+    )[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
         '?_1 osmkey:natural "peak" .',
@@ -284,7 +286,7 @@ def test_translate_bbox_filter_with_tag() -> None:
 
 
 def test_translate_id_filter_single_node() -> None:
-    pattern = _translate("node(1);")
+    pattern = _translate("node(1);")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmnode"}
     assert pattern.where_clauses == [
@@ -295,7 +297,7 @@ def test_translate_id_filter_single_node() -> None:
 
 
 def test_translate_id_filter_multiple_ids() -> None:
-    pattern = _translate("node(id:1,2,3);")
+    pattern = _translate("node(id:1,2,3);")[0]
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
         "VALUES ?_1 { osmnode:1 osmnode:2 osmnode:3 }",
@@ -303,7 +305,7 @@ def test_translate_id_filter_multiple_ids() -> None:
 
 
 def test_translate_id_filter_way() -> None:
-    pattern = _translate("way(100);")
+    pattern = _translate("way(100);")[0]
     assert pattern.prefixes == {"rdf", "osm", "osmway"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
@@ -312,7 +314,7 @@ def test_translate_id_filter_way() -> None:
 
 
 def test_translate_id_filter_nwr() -> None:
-    pattern = _translate("nwr(id:1,2);")
+    pattern = _translate("nwr(id:1,2);")[0]
     assert pattern.prefixes == {"rdf", "osm", "osmnode", "osmway", "osmrel"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"
@@ -328,7 +330,7 @@ def test_translate_id_filter_nwr() -> None:
 
 
 def test_translate_around_point_filter_node() -> None:
-    pattern = _translate("node[natural=peak](around:25000,32.73870,-115.99417);")
+    pattern = _translate("node[natural=peak](around:25000,32.73870,-115.99417);")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
     assert pattern.where_clauses == [
@@ -343,7 +345,7 @@ def test_translate_around_point_filter_node() -> None:
 
 
 def test_translate_around_point_filter_way() -> None:
-    pattern = _translate("way(around:1000,51.5,-0.1);")
+    pattern = _translate("way(around:1000,51.5,-0.1);")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
     assert pattern.where_clauses == [
@@ -356,7 +358,7 @@ def test_translate_around_point_filter_way() -> None:
 
 
 def test_translate_around_point_filter_nwr() -> None:
-    pattern = _translate("nwr(around:500,40.7,-74.0);")
+    pattern = _translate("nwr(around:500,40.7,-74.0);")[0]
     assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"
@@ -377,7 +379,7 @@ def test_translate_around_point_filter_nwr() -> None:
 def test_translate_around_line_filter_two_points() -> None:
     pattern = _translate(
         "node[natural=peak](around:3000,32.8253,-116.0153,32.7319,-116.0495);"
-    )
+    )[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
     assert pattern.where_clauses == [
@@ -391,7 +393,7 @@ def test_translate_around_line_filter_two_points() -> None:
 
 
 def test_translate_around_line_filter_three_points() -> None:
-    pattern = _translate("way(around:500,51.5,-0.1,51.6,-0.2,51.7,-0.3);")
+    pattern = _translate("way(around:500,51.5,-0.1,51.6,-0.2,51.7,-0.3);")[0]
     assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
@@ -403,7 +405,7 @@ def test_translate_around_line_filter_three_points() -> None:
 
 
 def test_translate_around_line_filter_nwr() -> None:
-    pattern = _translate("nwr(around:1000,40.0,-73.0,41.0,-74.0);")
+    pattern = _translate("nwr(around:1000,40.0,-73.0,41.0,-74.0);")[0]
     assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"
@@ -425,7 +427,7 @@ def test_translate_polygon_filter_node() -> None:
     pattern = _translate(
         'node[natural=peak](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90 32.70 '
         '-115.86 32.58 -115.95");'
-    )
+    )[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
     assert pattern.where_clauses == [
@@ -442,7 +444,7 @@ def test_translate_polygon_filter_node() -> None:
 def test_translate_polygon_filter_way() -> None:
     pattern = _translate(
         'way[natural](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90");'
-    )
+    )[0]
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
@@ -458,7 +460,7 @@ def test_translate_polygon_filter_way() -> None:
 def test_translate_polygon_filter_relation() -> None:
     pattern = _translate(
         'relation[natural](poly:"32.60 -116.12 32.78 -116.10 32.85 -115.90");'
-    )
+    )[0]
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "geo", "geof"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:relation .",
@@ -472,7 +474,7 @@ def test_translate_polygon_filter_relation() -> None:
 
 
 def test_translate_polygon_filter_nwr() -> None:
-    pattern = _translate('nwr(poly:"40.0 -74.0 41.0 -73.0 42.0 -72.0");')
+    pattern = _translate('nwr(poly:"40.0 -74.0 41.0 -73.0 42.0 -72.0");')[0]
     assert pattern.prefixes == {"rdf", "osm", "geo", "geof"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"
@@ -492,7 +494,7 @@ def test_translate_polygon_filter_nwr() -> None:
 
 
 def test_translate_newer_filter_node() -> None:
-    pattern = _translate('node[natural=peak](newer:"2025-01-01T00:00:00Z");')
+    pattern = _translate('node[natural=peak](newer:"2025-01-01T00:00:00Z");')[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "osmeta", "xsd"}
     assert pattern.where_clauses == [
@@ -504,7 +506,7 @@ def test_translate_newer_filter_node() -> None:
 
 
 def test_translate_newer_filter_way() -> None:
-    pattern = _translate('way(newer:"2024-06-15T12:30:45Z");')
+    pattern = _translate('way(newer:"2024-06-15T12:30:45Z");')[0]
     assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
@@ -514,7 +516,7 @@ def test_translate_newer_filter_way() -> None:
 
 
 def test_translate_newer_filter_nwr() -> None:
-    pattern = _translate('nwr(newer:"2023-01-01T00:00:00Z");')
+    pattern = _translate('nwr(newer:"2023-01-01T00:00:00Z");')[0]
     assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"
@@ -531,7 +533,7 @@ def test_translate_newer_filter_nwr() -> None:
 
 
 def test_translate_user_filter_single() -> None:
-    pattern = _translate('node[natural=peak](user:"Yushclay");')
+    pattern = _translate('node[natural=peak](user:"Yushclay");')[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "osmeta"}
     assert pattern.where_clauses == [
@@ -542,7 +544,7 @@ def test_translate_user_filter_single() -> None:
 
 
 def test_translate_user_filter_multiple() -> None:
-    pattern = _translate('way(user:"Alice","Bob");')
+    pattern = _translate('way(user:"Alice","Bob");')[0]
     assert pattern.prefixes == {"rdf", "osm", "osmeta"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
@@ -552,7 +554,7 @@ def test_translate_user_filter_multiple() -> None:
 
 
 def test_translate_user_filter_nwr() -> None:
-    pattern = _translate('nwr(user:"TestUser");')
+    pattern = _translate('nwr(user:"TestUser");')[0]
     assert pattern.prefixes == {"rdf", "osm", "osmeta"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"
@@ -568,7 +570,7 @@ def test_translate_user_filter_nwr() -> None:
 
 
 def test_translate_uid_filter_single() -> None:
-    pattern = _translate("node[natural=peak](uid:23131980);")
+    pattern = _translate("node[natural=peak](uid:23131980);")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "osmeta", "xsd"}
     assert pattern.where_clauses == [
@@ -579,7 +581,7 @@ def test_translate_uid_filter_single() -> None:
 
 
 def test_translate_uid_filter_multiple() -> None:
-    pattern = _translate("way(uid:101,202);")
+    pattern = _translate("way(uid:101,202);")[0]
     assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:way .",
@@ -589,7 +591,7 @@ def test_translate_uid_filter_multiple() -> None:
 
 
 def test_translate_uid_filter_nwr() -> None:
-    pattern = _translate("nwr(uid:12345);")
+    pattern = _translate("nwr(uid:12345);")[0]
     assert pattern.prefixes == {"rdf", "osm", "osmeta", "xsd"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"
@@ -605,7 +607,7 @@ def test_translate_uid_filter_nwr() -> None:
 
 
 def test_translate_area_id_filter_relation() -> None:
-    pattern = _translate("node[geological=meteor_crater](area:3602978650);")
+    pattern = _translate("node[geological=meteor_crater](area:3602978650);")[0]
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "ogc", "osmrel"}
     assert pattern.where_clauses == [
@@ -616,7 +618,7 @@ def test_translate_area_id_filter_relation() -> None:
 
 
 def test_translate_area_id_filter_way() -> None:
-    pattern = _translate("node[place](area:2400000100);")
+    pattern = _translate("node[place](area:2400000100);")[0]
     assert pattern.prefixes == {"rdf", "osm", "osmkey", "ogc", "osmway"}
     assert pattern.where_clauses == [
         "?_1 rdf:type osm:node .",
@@ -626,7 +628,7 @@ def test_translate_area_id_filter_way() -> None:
 
 
 def test_translate_area_id_filter_nwr() -> None:
-    pattern = _translate("nwr(area:3618375211);")
+    pattern = _translate("nwr(area:3618375211);")[0]
     assert pattern.prefixes == {"rdf", "osm", "ogc", "osmrel"}
     assert pattern.where_clauses == [
         "{ ?_1 rdf:type osm:node }"

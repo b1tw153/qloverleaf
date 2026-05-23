@@ -14,9 +14,20 @@ from qloverleaf.transform import (
     OverpassTransformer,
     _dump_ir,
 )
-from qloverleaf.translator import _dump_sparql_pattern, render_query, translate
+from qloverleaf.translator import (
+    SparqlPattern,
+    _dump_sparql_pattern,
+    render_query,
+    translate,
+)
 
-SetState = dict[str, list[tuple[ElementType, str]]]
+
+class SetStateEntry:
+    pattern: SparqlPattern | None
+    results: list[tuple[ElementType, str]] | None
+
+
+SetState = dict[str, SetStateEntry]
 
 MEDIA_TYPES = {
     OutputFormat.XML: "application/osm3s+xml",
@@ -179,7 +190,8 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     async with httpx.AsyncClient() as client:
         for stmt in query.ir.statements:
             if isinstance(stmt, OutStatement):
-                results = set_state.get(stmt.input_set.identifier, [])
+                entry = set_state.get(stmt.input_set.identifier)
+                results = entry.results if entry and entry.results else []
                 yield json.dumps(
                     [{"type": t.value, "uri": u} for t, u in results], indent=2
                 )
@@ -188,7 +200,7 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                 for pattern in patterns:
                     sparql = render_query(pattern, set_state)
                     data = await query_qlever(sparql, client)
-                    set_state[pattern.result_set_name] = parse_results(
+                    set_state[pattern.result_set_name].results = parse_results(
                         data, pattern.result_set_name
                     )
                     yield json.dumps(data, indent=2)

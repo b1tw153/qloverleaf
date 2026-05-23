@@ -134,7 +134,8 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
 
     # VALUES injections
     for injection in pattern.injections:
-        uris = set_state.get(injection.set_name, [])
+        entry = set_state.get(injection.set_name)
+        uris = entry.results if entry and entry.results else []
         uri_list = " ".join(f"<{u}>" for _, u in uris)
         lines.append(f"  VALUES {injection.sparql_var} {{ {uri_list} }}")
 

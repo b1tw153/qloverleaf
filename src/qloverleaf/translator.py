@@ -68,6 +68,23 @@ class SparqlPattern:
         return self.output_set.identifier
 
 
+def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
+    lines = [
+        f"output_set: .{pattern.output_set.name} (v{pattern.output_set.version})",
+        f"result_variable: {pattern.result_variable}",
+        f"distinct: {pattern.distinct}",
+        f"materialize: {pattern.materialize}",
+        f"prefixes: {sorted(pattern.prefixes)}",
+        "where_clauses:",
+    ]
+    for clause in pattern.where_clauses:
+        lines.append(f"  {clause}")
+    lines.append("injections:")
+    for inj in pattern.injections:
+        lines.append(f"  {inj.sparql_var} <- {inj.set_name}")
+    return "\n".join(lines)
+
+
 def _sparql_literal(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
@@ -667,23 +684,6 @@ def _translate_pivot_filter(
 
 
 # _translate_if_filter
-
-
-def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
-    lines = [
-        f"output_set: .{pattern.output_set.name} (v{pattern.output_set.version})",
-        f"result_variable: {pattern.result_variable}",
-        f"distinct: {pattern.distinct}",
-        f"materialize: {pattern.materialize}",
-        f"prefixes: {sorted(pattern.prefixes)}",
-        "where_clauses:",
-    ]
-    for clause in pattern.where_clauses:
-        lines.append(f"  {clause}")
-    lines.append("injections:")
-    for inj in pattern.injections:
-        lines.append(f"  {inj.sparql_var} <- {inj.set_name}")
-    return "\n".join(lines)
 
 
 def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:

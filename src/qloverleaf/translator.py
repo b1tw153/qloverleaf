@@ -109,6 +109,7 @@ SPARQL_PREFIXES: dict[str, str] = {
     "osmeta": "https://www.openstreetmap.org/meta/",
     "geo": "http://www.opengis.net/ont/geosparql#",
     "geof": "http://www.opengis.net/def/function/geosparql/",
+    "ogc": "http://www.opengis.net/rdf#",
 }
 
 

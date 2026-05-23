@@ -44,7 +44,7 @@ from qloverleaf.transform import (
 
 
 @dataclass
-class ValuesInjection:
+class SetInjection:
     sparql_var: str  # e.g. "?a0"
     set_name: str  # versioned set name to look up in set state, e.g. "a0"
     must_materialize: bool = (
@@ -62,7 +62,7 @@ class SparqlPattern:
     group_by: str | None = None
     order_by: str | None = None
     where_clauses: list[str] = field(default_factory=list)
-    injections: list[ValuesInjection] = field(default_factory=list)
+    injections: list[SetInjection] = field(default_factory=list)
     limit: int | None = None
 
     @property
@@ -135,7 +135,7 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
     # VALUES injections
     for injection in pattern.injections:
         entry = set_state.get(injection.set_name)
-        uris = entry.results if entry and entry.results else []
+        uris = entry.nwr_results if entry and entry.nwr_results else []
         uri_list = " ".join(f"<{u}>" for _, u in uris)
         lines.append(f"  VALUES {injection.sparql_var} {{ {uri_list} }}")
 
@@ -421,7 +421,7 @@ def _translate_around_set_filter(
 
     # Inject reference set
     pattern.injections.append(
-        ValuesInjection(sparql_var=ref_var, set_name=f.set_reference.identifier)
+        SetInjection(sparql_var=ref_var, set_name=f.set_reference.identifier)
     )
 
     # Reference geometry
@@ -603,7 +603,7 @@ def _translate_area_set_filter(
         output_set, filter_index=filter_index, intermediate="area"
     )
     pattern.injections.append(
-        ValuesInjection(sparql_var=area_var, set_name=f.set_reference.identifier)
+        SetInjection(sparql_var=area_var, set_name=f.set_reference.identifier)
     )
     pattern.where_clauses.append(f"{area_var} ogc:sfContains {result_variable} .")
 
@@ -622,7 +622,7 @@ def _translate_recurse_filter(
     blank_var = _variable_name(output_set, filter_index=filter_index, intermediate="m")
 
     pattern.injections.append(
-        ValuesInjection(sparql_var=input_var, set_name=f.set_reference.identifier)
+        SetInjection(sparql_var=input_var, set_name=f.set_reference.identifier)
     )
 
     match f.recurse_type:
@@ -690,7 +690,7 @@ def _translate_way_count_filter(
 
     # Inject the input way set - must be materialized due to subquery
     pattern.injections.append(
-        ValuesInjection(
+        SetInjection(
             sparql_var=way_var,
             set_name=f.set_reference.identifier,
             must_materialize=True,  # Subquery requires VALUES in both locations
@@ -735,7 +735,7 @@ def _translate_set_filter(
     pattern: SparqlPattern,
 ) -> None:
     pattern.injections.append(
-        ValuesInjection(sparql_var=result_variable, set_name=f.set_reference.identifier)
+        SetInjection(sparql_var=result_variable, set_name=f.set_reference.identifier)
     )
 
 
@@ -749,7 +749,7 @@ def _translate_pivot_filter(
     # pivot is a no-op in QLever - areas are already the source ways/relations
     # This behaves identically to SetFilter: inject the input set as VALUES
     pattern.injections.append(
-        ValuesInjection(sparql_var=result_variable, set_name=f.set_reference.identifier)
+        SetInjection(sparql_var=result_variable, set_name=f.set_reference.identifier)
     )
 
 
@@ -777,7 +777,7 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
 
     # Inject input set (allow composition via must_materialize=False)
     pattern.injections.append(
-        ValuesInjection(sparql_var=result_variable, set_name=output_set.identifier)
+        SetInjection(sparql_var=result_variable, set_name=output_set.identifier)
     )
 
     if stmt.count:

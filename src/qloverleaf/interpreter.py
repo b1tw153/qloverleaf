@@ -1,30 +1,30 @@
 import json
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 
 import httpx
 from lark import Token, Tree
 
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.executor import parse_results, query_qlever
-from qloverleaf.parser import _dump_ast
 from qloverleaf.query import Bbox, OutputFormat, QueryContext
 from qloverleaf.transform import (
     ElementType,
     OutStatement,
     OverpassTransformer,
-    _dump_ir,
 )
 from qloverleaf.translator import (
     SparqlPattern,
-    _dump_sparql_pattern,
     render_query,
     translate,
 )
 
 
+@dataclass
 class SetStateEntry:
     pattern: SparqlPattern | None
-    results: list[tuple[ElementType, str]] | None
+    nwr_results: list[tuple[ElementType, str]] | None
+    area_results: list[tuple[ElementType, str]] | None
 
 
 SetState = dict[str, SetStateEntry]
@@ -176,22 +176,14 @@ def _apply_global_settings(query: QueryContext) -> None:
 
 
 async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
-    yield query.tree.pretty()
-    yield _dump_ast(query.tree)
     assert query.ir is not None
-    yield _dump_ir(query.ir)
-    for stmt in query.ir.statements:
-        if not isinstance(stmt, OutStatement):
-            patterns = translate(stmt)
-            for pattern in patterns:
-                yield _dump_sparql_pattern(pattern)
 
     set_state: SetState = {}
     async with httpx.AsyncClient() as client:
         for stmt in query.ir.statements:
             if isinstance(stmt, OutStatement):
                 entry = set_state.get(stmt.input_set.identifier)
-                results = entry.results if entry and entry.results else []
+                results = entry.nwr_results if entry and entry.nwr_results else []
                 yield json.dumps(
                     [{"type": t.value, "uri": u} for t, u in results], indent=2
                 )
@@ -200,7 +192,8 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                 for pattern in patterns:
                     sparql = render_query(pattern, set_state)
                     data = await query_qlever(sparql, client)
-                    set_state[pattern.result_set_name].results = parse_results(
+                    # TODO: confirm that the entry exists before assigning results
+                    set_state[pattern.result_set_name].nwr_results = parse_results(
                         data, pattern.result_set_name
                     )
                     yield json.dumps(data, indent=2)

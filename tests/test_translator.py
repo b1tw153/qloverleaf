@@ -1034,9 +1034,7 @@ def test_translate_way_count_filter_range() -> None:
 
 
 def test_translate_pivot_filter_default_set() -> None:
-    query = OverpassTransformer().transform(
-        parse('area["name"="Paris"]; way(pivot);')
-    )
+    query = OverpassTransformer().transform(parse('area["name"="Paris"]; way(pivot);'))
     pattern = translate(query.statements[1])[0]
     assert pattern.result_variable == "?_2"
     assert pattern.prefixes == {"rdf", "osm"}

@@ -107,14 +107,14 @@ def translate(statement: Statement) -> list[SparqlPattern]:
         return _translate_union(statement)
     if isinstance(statement, ItemStatement):
         return _translate_item(statement)
-    if isinstance(statement, RecurseStatement):
-        return _translate_recurse(statement)
-    if isinstance(statement, MapToAreaStatement):
-        return _translate_map_to_area(statement)
-    if isinstance(statement, IsInStatement):
-        return _translate_is_in(statement)
     if isinstance(statement, OutStatement):
         return _translate_out(statement)
+    if isinstance(statement, RecurseStatement):
+        return _translate_recurse(statement)
+    if isinstance(statement, IsInStatement):
+        return _translate_is_in(statement)
+    if isinstance(statement, MapToAreaStatement):
+        return _translate_map_to_area(statement)
     if isinstance(statement, ForeachStatement):
         return _translate_foreach(statement)
     if isinstance(statement, ForStatement):
@@ -700,16 +700,16 @@ def _translate_item(stmt: ItemStatement) -> list[SparqlPattern]:
     )
 
 
-def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
+def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
-        "RecurseStatement translation is not yet implemented",
+        "OutStatement translation is not yet implemented",
         stmt.token,
     )
 
 
-def _translate_map_to_area(stmt: MapToAreaStatement) -> list[SparqlPattern]:
+def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
-        "MapToAreaStatement translation is not yet implemented",
+        "RecurseStatement translation is not yet implemented",
         stmt.token,
     )
 
@@ -721,9 +721,9 @@ def _translate_is_in(stmt: IsInStatement) -> list[SparqlPattern]:
     )
 
 
-def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
+def _translate_map_to_area(stmt: MapToAreaStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
-        "OutStatement translation is not yet implemented",
+        "MapToAreaStatement translation is not yet implemented",
         stmt.token,
     )
 

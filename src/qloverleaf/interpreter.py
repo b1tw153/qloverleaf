@@ -1,20 +1,21 @@
 import json
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import httpx
 from lark import Token, Tree
 
+from qloverleaf.composer import compose
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.executor import parse_results, query_qlever
 from qloverleaf.query import Bbox, OutputFormat, QueryContext
 from qloverleaf.transform import (
     ElementType,
-    OutStatement,
     OverpassTransformer,
 )
 from qloverleaf.translator import (
     SparqlPattern,
+    _dump_sparql_pattern,
     render_query,
     translate,
 )
@@ -179,21 +180,80 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     assert query.ir is not None
 
     set_state: SetState = {}
+    execution_queue: list[SparqlPattern] = []
+
+    # Translate all statements and build initial execution queue
+    for statement in query.ir.statements:
+        patterns = translate(statement)
+        execution_queue.extend(patterns)
+
+    # Process execution queue
     async with httpx.AsyncClient() as client:
-        for stmt in query.ir.statements:
-            if isinstance(stmt, OutStatement):
-                entry = set_state.get(stmt.input_set.identifier)
-                results = entry.nwr_results if entry and entry.nwr_results else []
-                yield json.dumps(
-                    [{"type": t.value, "uri": u} for t, u in results], indent=2
+        while execution_queue:
+            pattern = execution_queue.pop(0)
+
+            # Create set state entry if it doesn't exist
+            if pattern.result_set_name not in set_state:
+                set_state[pattern.result_set_name] = SetStateEntry(
+                    pattern=pattern,
+                    nwr_results=None,
+                    area_results=None,
                 )
-            else:
-                patterns = translate(stmt)
-                for pattern in patterns:
-                    sparql = render_query(pattern, set_state)
-                    data = await query_qlever(sparql, client)
-                    # TODO: confirm that the entry exists before assigning results
-                    set_state[pattern.result_set_name].nwr_results = parse_results(
-                        data, pattern.result_set_name
-                    )
-                    yield json.dumps(data, indent=2)
+
+            # Try to compose the pattern
+            composed = compose(pattern, set_state)
+
+            # Case 1: Fully composed (cold pattern, no dependencies)
+            if composed is not None and not composed.injections:
+                # Store composed pattern, no execution needed yet
+                set_state[pattern.result_set_name].pattern = composed
+                continue
+
+            # Case 2 & 3: Has dependencies or not composable
+            # Determine which pattern to work with
+            working_pattern = composed if composed is not None else pattern
+
+            # If pattern has injections, materialize dependencies first
+            if working_pattern.injections:
+                # Collect dependency patterns that need materialization
+                dependencies_to_materialize = []
+                for injection in working_pattern.injections:
+                    dependency_entry = set_state.get(injection.set_name)
+                    # Only queue if not already materialized
+                    if dependency_entry and not dependency_entry.nwr_results:
+                        if dependency_entry.pattern:
+                            dependencies_to_materialize.append(dependency_entry.pattern)
+
+                # If we have unmaterialized dependencies, queue them first
+                if dependencies_to_materialize:
+                    # Force dependencies to execute by marking them hot
+                    hot_dependencies = [
+                        replace(dep_pattern, materialize=True)
+                        for dep_pattern in dependencies_to_materialize
+                    ]
+                    # Push hot dependencies to front of queue
+                    execution_queue = hot_dependencies + execution_queue
+                    # Re-queue current pattern to retry after deps are materialized
+                    execution_queue.insert(len(hot_dependencies), pattern)
+                    continue
+
+            # Execute the pattern (all dependencies are materialized, or pattern is hot)
+            sparql = render_query(working_pattern, set_state)
+            data = await query_qlever(sparql, client)
+            set_state[pattern.result_set_name].nwr_results = parse_results(
+                data, pattern.result_set_name
+            )
+            yield json.dumps(data, indent=2)
+
+    # Debug: dump set_state after queue is cleared
+    yield "\n=== SET STATE DEBUG ==="
+    for set_name, entry in set_state.items():
+        yield f"\n--- Set: {set_name} ---"
+        if entry.pattern:
+            yield _dump_sparql_pattern(entry.pattern)
+        if entry.nwr_results:
+            yield f"Results: {len(entry.nwr_results)} elements"
+            for elem_type, uri in entry.nwr_results:
+                yield f"  {elem_type.value}: {uri}"
+        if not entry.pattern and not entry.nwr_results:
+            yield "(empty entry)"

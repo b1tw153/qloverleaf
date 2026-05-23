@@ -5,11 +5,18 @@ import httpx
 from lark import Token, Tree
 
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
-from qloverleaf.executor import SetState, parse_results, query_qlever, render_query
+from qloverleaf.executor import parse_results, query_qlever
 from qloverleaf.parser import _dump_ast
 from qloverleaf.query import Bbox, OutputFormat, QueryContext
-from qloverleaf.transform import OutStatement, OverpassTransformer, _dump_ir
-from qloverleaf.translator import _dump_sparql_pattern, translate
+from qloverleaf.transform import (
+    ElementType,
+    OutStatement,
+    OverpassTransformer,
+    _dump_ir,
+)
+from qloverleaf.translator import _dump_sparql_pattern, render_query, translate
+
+SetState = dict[str, list[tuple[ElementType, str]]]
 
 MEDIA_TYPES = {
     OutputFormat.XML: "application/osm3s+xml",

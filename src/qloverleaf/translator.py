@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
+
+if TYPE_CHECKING:
+    from qloverleaf.interpreter import SetState
 from qloverleaf.transform import (
     AreaIdFilter,
     AreaSetFilter,
@@ -92,6 +96,42 @@ def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
 def _sparql_literal(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
+
+
+SPARQL_PREFIXES: dict[str, str] = {
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "osm": "https://www.openstreetmap.org/",
+    "osmkey": "https://www.openstreetmap.org/wiki/Key:",
+    "osmnode": "https://www.openstreetmap.org/node/",
+    "osmway": "https://www.openstreetmap.org/way/",
+    "osmrel": "https://www.openstreetmap.org/relation/",
+    "osmeta": "https://www.openstreetmap.org/meta/",
+    "geo": "http://www.opengis.net/ont/geosparql#",
+    "geof": "http://www.opengis.net/def/function/geosparql/",
+}
+
+
+def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
+    lines: list[str] = []
+
+    for prefix in sorted(pattern.prefixes):
+        uri = SPARQL_PREFIXES[prefix]
+        lines.append(f"PREFIX {prefix}: <{uri}>")
+
+    distinct = "DISTINCT " if pattern.distinct else ""
+    lines.append(f"SELECT {distinct}{pattern.result_variable} WHERE {{")
+
+    for inj in pattern.injections:
+        uris = set_state.get(inj.set_name, [])
+        uri_list = " ".join(f"<{u}>" for _, u in uris)
+        lines.append(f"  VALUES {inj.sparql_var} {{ {uri_list} }}")
+
+    for clause in pattern.where_clauses:
+        lines.append(f"  {clause}")
+
+    lines.append("}")
+    return "\n".join(lines)
 
 
 def _variable_name(
@@ -715,8 +755,10 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
     )
 
     if stmt.count:
-        # Add type triple for per-type breakdown (GROUP BY ?type)
+        # Per-type count breakdown with GROUP BY
         pattern.prefixes |= {"rdf", "osm"}
+        pattern.select_clause = f"?type (COUNT(DISTINCT {result_variable}) AS ?count)"
+        pattern.group_by = "?type"
         pattern.where_clauses.append(f"{result_variable} rdf:type ?type .")
     else:
         raise UnimplementedFeatureError(

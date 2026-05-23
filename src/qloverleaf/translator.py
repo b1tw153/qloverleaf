@@ -119,18 +119,42 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
         uri = SPARQL_PREFIXES[prefix]
         lines.append(f"PREFIX {prefix}: <{uri}>")
 
-    distinct = "DISTINCT " if pattern.distinct else ""
-    lines.append(f"SELECT {distinct}{pattern.result_variable} WHERE {{")
+    # SELECT clause
+    if pattern.select_clause:
+        clause = pattern.select_clause
+        if pattern.distinct and "DISTINCT" not in clause:
+            distinct = "DISTINCT "
+        else:
+            distinct = ""
+        lines.append(f"SELECT {distinct}{clause} WHERE {{")
+    else:
+        distinct = "DISTINCT " if pattern.distinct else ""
+        lines.append(f"SELECT {distinct}{pattern.result_variable} WHERE {{")
 
-    for inj in pattern.injections:
-        uris = set_state.get(inj.set_name, [])
+    # VALUES injections
+    for injection in pattern.injections:
+        uris = set_state.get(injection.set_name, [])
         uri_list = " ".join(f"<{u}>" for _, u in uris)
-        lines.append(f"  VALUES {inj.sparql_var} {{ {uri_list} }}")
+        lines.append(f"  VALUES {injection.sparql_var} {{ {uri_list} }}")
 
+    # WHERE clauses
     for clause in pattern.where_clauses:
         lines.append(f"  {clause}")
 
     lines.append("}")
+
+    # GROUP BY
+    if pattern.group_by:
+        lines.append(f"GROUP BY {pattern.group_by}")
+
+    # ORDER BY
+    if pattern.order_by:
+        lines.append(f"ORDER BY {pattern.order_by}")
+
+    # LIMIT
+    if pattern.limit:
+        lines.append(f"LIMIT {pattern.limit}")
+
     return "\n".join(lines)
 
 

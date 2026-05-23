@@ -239,21 +239,27 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
 
             # Execute the pattern (all dependencies are materialized, or pattern is hot)
             sparql = render_query(working_pattern, set_state)
+            yield "=== QUERY ===\n"
+            yield f"{sparql}\n"
+            yield "=============\n"
             data = await query_qlever(sparql, client)
             set_state[pattern.result_set_name].nwr_results = parse_results(
                 data, pattern.result_set_name
             )
             yield json.dumps(data, indent=2)
+            yield "\n"
 
     # Debug: dump set_state after queue is cleared
-    yield "\n=== SET STATE DEBUG ==="
+    yield "=== SET STATE DEBUG ===\n"
     for set_name, entry in set_state.items():
-        yield f"\n--- Set: {set_name} ---"
+        yield f"--- Set: {set_name} ---\n"
         if entry.pattern:
+            yield "----- Pattern:\n"
             yield _dump_sparql_pattern(entry.pattern)
         if entry.nwr_results:
-            yield f"Results: {len(entry.nwr_results)} elements"
+            yield f"----- Results: {len(entry.nwr_results)} elements\n"
             for elem_type, uri in entry.nwr_results:
-                yield f"  {elem_type.value}: {uri}"
+                yield f"  {elem_type.value}: {uri}\n"
         if not entry.pattern and not entry.nwr_results:
             yield "(empty entry)"
+    yield ""  # Final newline

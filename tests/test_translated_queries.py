@@ -188,7 +188,9 @@ def test_translated_newer() -> None:
 
 
 def test_translated_user() -> None:
-    statement = 'node[natural=peak](user:"Yushclay")(32.58870,-116.14417,32.88870,-115.84417);'
+    statement = (
+        'node[natural=peak](user:"Yushclay")(32.58870,-116.14417,32.88870,-115.84417);'
+    )
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}
@@ -203,7 +205,9 @@ def test_translated_user() -> None:
 
 
 def test_translated_uid() -> None:
-    statement = "node[natural=peak](uid:23131980)(32.58870,-116.14417,32.88870,-115.84417);"
+    statement = (
+        "node[natural=peak](uid:23131980)(32.58870,-116.14417,32.88870,-115.84417);"
+    )
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}

@@ -1026,3 +1026,44 @@ def test_translate_way_count_filter_range() -> None:
     assert pattern.injections == [
         ValuesInjection(sparql_var="?_1·f0·way", set_name="w1", must_materialize=True)
     ]
+
+
+# ---------------------------------------------------------------------------
+# _translate_pivot_filter
+# ---------------------------------------------------------------------------
+
+
+def test_translate_pivot_filter_default_set() -> None:
+    query = OverpassTransformer().transform(
+        parse('area["name"="Paris"]; way(pivot);')
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_2"
+    assert pattern.prefixes == {"rdf", "osm"}
+    assert pattern.where_clauses == ["?_2 rdf:type osm:way ."]
+    assert pattern.injections == [ValuesInjection(sparql_var="?_2", set_name="_1")]
+
+
+def test_translate_pivot_filter_named_set() -> None:
+    query = OverpassTransformer().transform(
+        parse('area["name"="Berlin"] -> .city; way(pivot.city);')
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm"}
+    assert pattern.where_clauses == ["?_1 rdf:type osm:way ."]
+    assert pattern.injections == [ValuesInjection(sparql_var="?_1", set_name="city1")]
+
+
+def test_translate_pivot_filter_with_tag() -> None:
+    query = OverpassTransformer().transform(
+        parse('area["name"="London"] -> .area; way[highway=primary](pivot.area);')
+    )
+    pattern = translate(query.statements[1])[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm", "osmkey"}
+    assert pattern.where_clauses == [
+        "?_1 rdf:type osm:way .",
+        '?_1 osmkey:highway "primary" .',
+    ]
+    assert pattern.injections == [ValuesInjection(sparql_var="?_1", set_name="area1")]

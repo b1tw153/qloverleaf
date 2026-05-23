@@ -90,6 +90,7 @@ def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
     lines.append("injections:")
     for inj in pattern.injections:
         lines.append(f"  {inj.sparql_var} <- {inj.set_name}")
+    lines.append("")
     return "\n".join(lines)
 
 

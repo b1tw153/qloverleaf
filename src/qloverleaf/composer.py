@@ -1,6 +1,11 @@
-import re
+from __future__ import annotations
 
-from qloverleaf.interpreter import SetState
+import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from qloverleaf.interpreter import SetState
+
 from qloverleaf.translator import SparqlPattern
 
 

@@ -1065,3 +1065,12 @@ def test_translate_pivot_filter_with_tag() -> None:
         '?_1 osmkey:highway "primary" .',
     ]
     assert pattern.injections == [ValuesInjection(sparql_var="?_1", set_name="area1")]
+
+
+# ---------------------------------------------------------------------------
+# _translate_out
+# ---------------------------------------------------------------------------
+
+
+def test_translate_out_count() -> None:
+    assert False, "TODO: Implement tests for out count translation"

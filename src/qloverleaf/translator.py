@@ -19,6 +19,7 @@ from qloverleaf.transform import (
     MapToAreaStatement,
     NewerFilter,
     OutStatement,
+    PivotFilter,
     PolygonFilter,
     QueryFilter,
     QueryStatement,
@@ -210,7 +211,8 @@ def _add_query_filter(
         )
     elif isinstance(f, SetFilter):
         _translate_set_filter(f, output_set, filter_index, result_variable, pattern)
-    # elif isinstance(f, PivotFilter): ...
+    elif isinstance(f, PivotFilter):
+        _translate_pivot_filter(f, output_set, filter_index, result_variable, pattern)
     # elif isinstance(f, IfFilter): ...
     else:
         raise UnimplementedFeatureError(
@@ -650,7 +652,20 @@ def _translate_set_filter(
     )
 
 
-# _translate_pivot_filter
+def _translate_pivot_filter(
+    f: PivotFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    # pivot is a no-op in QLever - areas are already the source ways/relations
+    # This behaves identically to SetFilter: inject the input set as VALUES
+    pattern.injections.append(
+        ValuesInjection(sparql_var=result_variable, set_name=f.set_reference.identifier)
+    )
+
+
 # _translate_if_filter
 
 

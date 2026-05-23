@@ -51,11 +51,15 @@ class ValuesInjection:
 @dataclass
 class SparqlPattern:
     output_set: SetReference
-    distinct: bool = False
     materialize: bool = False
     prefixes: set[str] = field(default_factory=set)
+    select_clause: str | None = None
+    distinct: bool = False
+    group_by: str | None = None
+    order_by: str | None = None
     where_clauses: list[str] = field(default_factory=list)
     injections: list[ValuesInjection] = field(default_factory=list)
+    limit: int | None = None
 
     @property
     def result_variable(self) -> str:
@@ -701,10 +705,26 @@ def _translate_item(stmt: ItemStatement) -> list[SparqlPattern]:
 
 
 def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
-    raise UnimplementedFeatureError(
-        "OutStatement translation is not yet implemented",
-        stmt.token,
+    output_set = stmt.input_set
+    pattern = SparqlPattern(output_set=output_set, materialize=True)
+    result_variable = pattern.result_variable
+
+    # Inject input set (allow composition via must_materialize=False)
+    pattern.injections.append(
+        ValuesInjection(sparql_var=result_variable, set_name=output_set.identifier)
     )
+
+    if stmt.count:
+        # Add type triple for per-type breakdown (GROUP BY ?type)
+        pattern.prefixes |= {"rdf", "osm"}
+        pattern.where_clauses.append(f"{result_variable} rdf:type ?type .")
+    else:
+        raise UnimplementedFeatureError(
+            "Non-count out statements not yet implemented",
+            stmt.token,
+        )
+
+    return [pattern]
 
 
 def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:

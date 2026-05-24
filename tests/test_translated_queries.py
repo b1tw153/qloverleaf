@@ -1,6 +1,7 @@
 import requests
 
-from qloverleaf.interpreter import SetState
+from qloverleaf.composer import compose
+from qloverleaf.interpreter import SetState, SetStateEntry
 from qloverleaf.parser import parse
 from qloverleaf.transform import OverpassTransformer
 from qloverleaf.translator import SparqlPattern, render_query, translate
@@ -12,6 +13,13 @@ QLEVER_URL = "https://qlever.dev/api/osm-planet"
 def _translate(text: str) -> list[SparqlPattern]:
     query = OverpassTransformer().transform(parse(text))
     return translate(query.statements[0])
+
+
+def _translate_query(text: str) -> list[SparqlPattern]:
+    query = OverpassTransformer().transform(parse(text))
+    return [
+        pattern for statement in query.statements for pattern in translate(statement)
+    ]
 
 
 def _execute_overpass(statement: str) -> list[str]:
@@ -113,7 +121,29 @@ def test_translated_id_filter() -> None:
 # AroundSetFilter
 # ---------------------------------------------------------------------------
 
-# TODO: Requires set composition - deferred
+
+def test_translated_around_set_filter() -> None:
+    # TODO: This filter and others like it cannot run without additional filters to
+    # reduce the scope of element scanning in Qlever. See query-validation.md for a
+    # plan to reject hazardous queries.
+    query = "node(1) -> .a; node[natural=tree](around.a:100);"
+    overpass_ids = _execute_overpass(query)
+    patterns = _translate_query(query)
+    set_state: SetState = {}
+    composed = compose(patterns[0], set_state)
+    assert composed is not None
+    assert composed.result_set_name is not None
+    set_state[composed.result_set_name] = SetStateEntry(
+        pattern=composed,
+        nwr_results=None,
+        area_results=None,
+    )
+    composed = compose(patterns[1], set_state)
+    assert composed is not None
+    qlever_query = render_query(composed, set_state)
+    print(qlever_query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
 # ---------------------------------------------------------------------------

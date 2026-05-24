@@ -99,10 +99,10 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
         assert not input_pattern.limit
 
         # Substitute: replace input_pattern.result_variable with injection.sparql_var
+        input_result_variable = input_pattern.result_variable
+        assert input_result_variable is not None
         substituted_clauses = [
-            _substitute_variable(
-                clause, input_pattern.result_variable, injection.sparql_var
-            )
+            _substitute_variable(clause, input_result_variable, injection.sparql_var)
             for clause in input_pattern.where_clauses
         ]
 

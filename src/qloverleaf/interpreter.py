@@ -192,22 +192,28 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
         while execution_queue:
             pattern = execution_queue.pop(0)
 
-            # Create set state entry if it doesn't exist
-            if pattern.result_set_name not in set_state:
-                set_state[pattern.result_set_name] = SetStateEntry(
-                    pattern=pattern,
-                    nwr_results=None,
-                    area_results=None,
-                )
+            # Create set state entry if pattern produces a set
+            if pattern.result_set_name:
+                if pattern.result_set_name not in set_state:
+                    set_state[pattern.result_set_name] = SetStateEntry(
+                        pattern=pattern,
+                        nwr_results=None,
+                        area_results=None,
+                    )
 
             # Try to compose the pattern
             composed = compose(pattern, set_state)
 
             # Case 1: Fully composed (cold pattern, no dependencies)
             if composed is not None and not composed.injections:
-                # Store composed pattern, no execution needed yet
-                set_state[pattern.result_set_name].pattern = composed
-                continue
+                if pattern.result_set_name:
+                    # Normal pattern - store and continue without execution
+                    set_state[pattern.result_set_name].pattern = composed
+                    continue
+                else:
+                    # OutStatement - must execute even if fully composed
+                    working_pattern = composed
+                    # Fall through to execution
 
             # Case 2 & 3: Has dependencies or not composable
             # Determine which pattern to work with
@@ -243,9 +249,13 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
             yield f"{sparql}\n"
             yield "=============\n"
             data = await query_qlever(sparql, client)
-            set_state[pattern.result_set_name].nwr_results = parse_results(
-                data, pattern.result_set_name
-            )
+
+            # Store results if pattern produces a set; otherwise just yield
+            if pattern.result_set_name:
+                set_state[pattern.result_set_name].nwr_results = parse_results(
+                    data, pattern.result_set_name
+                )
+
             yield json.dumps(data, indent=2)
             yield "\n"
 

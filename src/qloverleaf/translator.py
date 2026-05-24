@@ -54,7 +54,7 @@ class SetInjection:
 
 @dataclass
 class SparqlPattern:
-    output_set: SetReference
+    output_set: SetReference | None
     materialize: bool = False
     prefixes: set[str] = field(default_factory=set)
     select_clause: str | None = None
@@ -66,19 +66,24 @@ class SparqlPattern:
     limit: int | None = None
 
     @property
-    def result_variable(self) -> str:
+    def result_variable(self) -> str | None:
         """SPARQL variable name with ? prefix (e.g., '?craters1')"""
-        return f"?{self.output_set.identifier}"
+        return f"?{self.output_set.identifier}" if self.output_set else None
 
     @property
-    def result_set_name(self) -> str:
+    def result_set_name(self) -> str | None:
         """Set state key without ? prefix (e.g., 'craters1')"""
-        return self.output_set.identifier
+        return self.output_set.identifier if self.output_set else None
 
 
 def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
+    output_set_str = (
+        f".{pattern.output_set.name} (v{pattern.output_set.version})"
+        if pattern.output_set
+        else "None"
+    )
     lines = [
-        f"output_set: .{pattern.output_set.name} (v{pattern.output_set.version})",
+        f"output_set: {output_set_str}",
         f"result_variable: {pattern.result_variable}",
         f"distinct: {pattern.distinct}",
         f"materialize: {pattern.materialize}",
@@ -220,6 +225,7 @@ def _translate_query(statement: QueryStatement) -> list[SparqlPattern]:
     output_set = statement.output_set
     pattern = SparqlPattern(output_set=output_set)
     result_variable = pattern.result_variable
+    assert result_variable is not None
     _add_type_filter(statement.element_types, result_variable, pattern)
     for filter_index, f in enumerate(statement.filters):
         _add_query_filter(f, output_set, filter_index, result_variable, pattern)
@@ -772,13 +778,16 @@ def _translate_item(stmt: ItemStatement) -> list[SparqlPattern]:
 
 
 def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
-    output_set = stmt.input_set
-    pattern = SparqlPattern(output_set=output_set, materialize=True)
-    result_variable = pattern.result_variable
+    # OutStatement doesn't produce a set, only outputs an existing one
+    pattern = SparqlPattern(output_set=None, materialize=False)
 
-    # Inject input set (allow composition via must_materialize=False)
+    # Use the input set's variable for the query
+    input_set = stmt.input_set
+    result_variable = f"?{input_set.identifier}"
+
+    # Inject input set (allow composition)
     pattern.injections.append(
-        SetInjection(sparql_var=result_variable, set_name=output_set.identifier)
+        SetInjection(sparql_var=result_variable, set_name=input_set.identifier)
     )
 
     if stmt.count:

@@ -5,7 +5,7 @@ from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureE
 
 if TYPE_CHECKING:
     from qloverleaf.interpreter import SetState
-from qloverleaf.transform import (
+from qloverleaf.transformer import (
     AreaIdFilter,
     AreaSetFilter,
     AroundLineFilter,

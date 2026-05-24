@@ -2,7 +2,7 @@ import pytest
 
 from qloverleaf.exceptions import UnimplementedFeatureError
 from qloverleaf.parser import parse
-from qloverleaf.transform import OverpassTransformer
+from qloverleaf.transformer import OverpassTransformer
 from qloverleaf.translator import SetInjection, SparqlPattern, translate
 
 

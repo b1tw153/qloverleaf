@@ -9,7 +9,7 @@ from starlette.routing import Route
 
 from qloverleaf import interpreter
 from qloverleaf.parser import parse
-from qloverleaf.query import QueryContext
+from qloverleaf.query_context import QueryContext
 
 
 async def _safe_stream(

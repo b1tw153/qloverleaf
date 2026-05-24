@@ -5,7 +5,7 @@ from typing import Optional
 
 from lark import Token, Tree
 
-from qloverleaf.transform import Query
+from qloverleaf.transformer import Query
 
 
 @dataclass

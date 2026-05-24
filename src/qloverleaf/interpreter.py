@@ -8,8 +8,8 @@ from lark import Token, Tree
 from qloverleaf.composer import compose
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.executor import parse_results, query_qlever
-from qloverleaf.query import Bbox, OutputFormat, QueryContext
-from qloverleaf.transform import (
+from qloverleaf.query_context import Bbox, OutputFormat, QueryContext
+from qloverleaf.transformer import (
     ElementType,
     OverpassTransformer,
 )

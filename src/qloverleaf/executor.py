@@ -2,7 +2,7 @@ from typing import Any
 
 import httpx
 
-from qloverleaf.transform import ElementType
+from qloverleaf.transformer import ElementType
 
 QLEVER_ENDPOINT = "https://qlever.dev/api/osm-planet"
 

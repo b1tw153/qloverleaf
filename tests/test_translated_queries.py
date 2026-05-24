@@ -3,7 +3,7 @@ import requests
 from qloverleaf.composer import compose
 from qloverleaf.interpreter import SetState, SetStateEntry
 from qloverleaf.parser import parse
-from qloverleaf.transform import OverpassTransformer
+from qloverleaf.transformer import OverpassTransformer
 from qloverleaf.translator import SparqlPattern, render_query, translate
 
 OVERPASS_URL = "http://localhost/api/interpreter"

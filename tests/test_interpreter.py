@@ -3,7 +3,7 @@ import pytest
 from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.interpreter import _apply_global_settings
 from qloverleaf.parser import parse
-from qloverleaf.query import Bbox, OutputFormat, QueryContext
+from qloverleaf.query_context import Bbox, OutputFormat, QueryContext
 
 
 def make_query(text: str) -> QueryContext:

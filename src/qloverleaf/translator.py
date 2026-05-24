@@ -252,9 +252,8 @@ def _add_type_filter(
     pattern: SparqlPattern,
 ) -> None:
     if ElementType.AREA in element_types:
-        raise UnimplementedFeatureError(
-            "area query translation is not yet implemented", None
-        )
+        assert element_types == frozenset({ElementType.AREA})
+        element_types = frozenset({ElementType.WAY, ElementType.RELATION})
     if ElementType.DERIVED in element_types:
         raise UnsupportedFeatureError("derived element queries are not supported", None)
     osm_types = [_OSM_TYPE_NAMES[t] for t in _OSM_TYPE_ORDER if t in element_types]

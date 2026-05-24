@@ -6,6 +6,8 @@ from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureE
 if TYPE_CHECKING:
     from qloverleaf.interpreter import SetState
 from qloverleaf.transformer import (
+    _AREA,
+    _NWR,
     AreaIdFilter,
     AreaSetFilter,
     AroundLineFilter,
@@ -198,6 +200,14 @@ _OSM_TYPE_ORDER = [ElementType.NODE, ElementType.WAY, ElementType.RELATION]
 
 
 def translate(statement: Statement) -> list[SparqlPattern]:
+    output_set: SetReference | None = getattr(statement, "output_set", None)
+    if output_set is not None:
+        content_types = output_set.content_types
+        assert content_types is not None
+        assert not (content_types & _NWR and content_types & _AREA), (
+            "Cannot translate a statement with mixed output types to a Sparql pattern: "
+            f"{content_types}"
+        )  # see area-handling.md
     if isinstance(statement, QueryStatement):
         return _translate_query(statement)
     if isinstance(statement, UnionStatement):

@@ -2,7 +2,7 @@ import pytest
 
 from qloverleaf.exceptions import UnimplementedFeatureError
 from qloverleaf.parser import parse
-from qloverleaf.transformer import OverpassTransformer
+from qloverleaf.transformer import _AREA, _NWR, _RELATION, _WAY, OverpassTransformer
 from qloverleaf.translator import SetInjection, SparqlPattern, translate
 
 
@@ -95,9 +95,13 @@ def test_translate_query_named_output_set() -> None:
     assert pattern.where_clauses == ["?peaks1 rdf:type osm:node ."]
 
 
-def test_translate_query_area_raises() -> None:
-    with pytest.raises(UnimplementedFeatureError):
-        _translate("area;")
+def test_translate_query_area() -> None:
+    pattern = _translate("area;")[0]
+    assert pattern.result_variable == "?_1"
+    assert pattern.prefixes == {"rdf", "osm"}
+    assert pattern.where_clauses == [
+        "{ ?_1 rdf:type osm:way } UNION { ?_1 rdf:type osm:relation }"
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -652,7 +656,9 @@ def test_translate_set_filter_basic() -> None:
     assert pattern.distinct is False
     assert pattern.prefixes == {"rdf", "osm"}
     assert pattern.where_clauses == ["?_1 rdf:type osm:node ."]
-    assert pattern.injections == [SetInjection(sparql_var="?_1", set_name="craters1")]
+    assert pattern.injections == [
+        SetInjection(sparql_var="?_1", set_name="craters1", required_types=None)
+    ]
 
 
 def test_translate_set_filter_with_tag() -> None:
@@ -666,7 +672,9 @@ def test_translate_set_filter_with_tag() -> None:
         "?_1 rdf:type osm:node .",
         '?_1 osmkey:natural "peak" .',
     ]
-    assert pattern.injections == [SetInjection(sparql_var="?_1", set_name="craters1")]
+    assert pattern.injections == [
+        SetInjection(sparql_var="?_1", set_name="craters1", required_types=None)
+    ]
 
 
 def test_translate_set_filter_multiple_intersection() -> None:
@@ -677,8 +685,8 @@ def test_translate_set_filter_multiple_intersection() -> None:
     assert pattern.result_variable == "?_5"  # Version 5 of default set
     assert pattern.where_clauses == ["?_5 rdf:type osm:node ."]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_5", set_name="foo1"),
-        SetInjection(sparql_var="?_5", set_name="bar1"),
+        SetInjection(sparql_var="?_5", set_name="foo1", required_types=None),
+        SetInjection(sparql_var="?_5", set_name="bar1", required_types=None),
     ]
 
 
@@ -692,7 +700,9 @@ def test_translate_set_filter_way() -> None:
         "?_1 rdf:type osm:way .",
         '?_1 osmkey:surface "asphalt" .',
     ]
-    assert pattern.injections == [SetInjection(sparql_var="?_1", set_name="roads1")]
+    assert pattern.injections == [
+        SetInjection(sparql_var="?_1", set_name="roads1", required_types=None)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -718,7 +728,7 @@ def test_translate_around_set_filter_basic() -> None:
         "FILTER(geof:metricDistance(?_1·f1·wkt, ?_1·f1·refwkt) <= 15000)",
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f1·ref", set_name="ref1")
+        SetInjection(sparql_var="?_1·f1·ref", set_name="ref1", required_types=_NWR)
     ]
 
 
@@ -739,7 +749,9 @@ def test_translate_around_set_filter_with_default_set() -> None:
         "?_2·f1·geom geo:asWKT ?_2·f1·wkt .",
         "FILTER(geof:metricDistance(?_2·f1·wkt, ?_2·f1·refwkt) <= 5000)",
     ]
-    assert pattern.injections == [SetInjection(sparql_var="?_2·f1·ref", set_name="_1")]
+    assert pattern.injections == [
+        SetInjection(sparql_var="?_2·f1·ref", set_name="_1", required_types=_NWR)
+    ]
 
 
 def test_translate_around_set_filter_way() -> None:
@@ -751,7 +763,7 @@ def test_translate_around_set_filter_way() -> None:
     assert pattern.distinct is True
     assert pattern.where_clauses[0] == "?_1 rdf:type osm:way ."
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f1·ref", set_name="cafes1")
+        SetInjection(sparql_var="?_1·f1·ref", set_name="cafes1", required_types=_NWR)
     ]
 
 
@@ -775,7 +787,7 @@ def test_translate_around_set_filter_cross_type() -> None:
         "FILTER(geof:metricDistance(?_1·f1·wkt, ?_1·f1·refwkt) <= 100000)",
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f1·ref", set_name="craters1")
+        SetInjection(sparql_var="?_1·f1·ref", set_name="craters1", required_types=_NWR)
     ]
 
 
@@ -799,7 +811,7 @@ def test_translate_area_set_filter_basic() -> None:
         "?_1·f1·area ogc:sfContains ?_1 .",
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f1·area", set_name="area1")
+        SetInjection(sparql_var="?_1·f1·area", set_name="area1", required_types=_AREA)
     ]
 
 
@@ -815,7 +827,9 @@ def test_translate_area_set_filter_with_default_set() -> None:
         '?_2 osmkey:amenity "hospital" .',
         "?_2·f1·area ogc:sfContains ?_2 .",
     ]
-    assert pattern.injections == [SetInjection(sparql_var="?_2·f1·area", set_name="_1")]
+    assert pattern.injections == [
+        SetInjection(sparql_var="?_2·f1·area", set_name="_1", required_types=_AREA)
+    ]
 
 
 def test_translate_area_set_filter_way() -> None:
@@ -826,7 +840,7 @@ def test_translate_area_set_filter_way() -> None:
     assert pattern.result_variable == "?_1"
     assert pattern.where_clauses[0] == "?_1 rdf:type osm:way ."
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f1·area", set_name="pa1")
+        SetInjection(sparql_var="?_1·f1·area", set_name="pa1", required_types=_AREA)
     ]
 
 
@@ -847,7 +861,7 @@ def test_translate_area_set_filter_nwr() -> None:
         "?_1·f1·area ogc:sfContains ?_1 .",
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f1·area", set_name="parks1")
+        SetInjection(sparql_var="?_1·f1·area", set_name="parks1", required_types=_AREA)
     ]
 
 
@@ -868,7 +882,7 @@ def test_translate_recurse_filter_w() -> None:
         "?_2·f0·m osmway:member_id ?_2 .",
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_2·f0·input", set_name="_1")
+        SetInjection(sparql_var="?_2·f0·input", set_name="_1", required_types=_WAY)
     ]
 
 
@@ -885,7 +899,7 @@ def test_translate_recurse_filter_w_named_set() -> None:
         "?_1·f0·m osmway:member_id ?_1 .",
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f0·input", set_name="ways1")
+        SetInjection(sparql_var="?_1·f0·input", set_name="ways1", required_types=_WAY)
     ]
 
 
@@ -901,7 +915,7 @@ def test_translate_recurse_filter_r() -> None:
         "?_2·f0·m osmrel:member_id ?_2 .",
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_2·f0·input", set_name="_1")
+        SetInjection(sparql_var="?_2·f0·input", set_name="_1", required_types=_RELATION)
     ]
 
 
@@ -917,7 +931,7 @@ def test_translate_recurse_filter_r_with_role() -> None:
         '?_2·f0·m osmrel:member_role "outer" .',
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_2·f0·input", set_name="_1")
+        SetInjection(sparql_var="?_2·f0·input", set_name="_1", required_types=_RELATION)
     ]
 
 
@@ -933,7 +947,7 @@ def test_translate_recurse_filter_bw() -> None:
         "?_2 osmrel:member ?_2·f0·m .",
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_2·f0·input", set_name="_1")
+        SetInjection(sparql_var="?_2·f0·input", set_name="_1", required_types=_WAY)
     ]
 
 
@@ -951,7 +965,9 @@ def test_translate_recurse_filter_br() -> None:
         "?_1 osmrel:member ?_1·f0·m .",
     ]
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f0·input", set_name="routes1")
+        SetInjection(
+            sparql_var="?_1·f0·input", set_name="routes1", required_types=_RELATION
+        )
     ]
 
 
@@ -983,7 +999,12 @@ def test_translate_way_count_filter_exact() -> None:
     )
     assert any("FILTER(?_2·f0·cnt = 1)" in clause for clause in pattern.where_clauses)
     assert pattern.injections == [
-        SetInjection(sparql_var="?_2·f0·way", set_name="_1", must_materialize=True)
+        SetInjection(
+            sparql_var="?_2·f0·way",
+            set_name="_1",
+            required_types=_WAY,
+            must_materialize=True,
+        )
     ]
 
 
@@ -997,7 +1018,12 @@ def test_translate_way_count_filter_min() -> None:
     # Check for >= 2 filter
     assert any("FILTER(?_1·f0·cnt >= 2)" in clause for clause in pattern.where_clauses)
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f0·way", set_name="ways1", must_materialize=True)
+        SetInjection(
+            sparql_var="?_1·f0·way",
+            set_name="ways1",
+            required_types=_WAY,
+            must_materialize=True,
+        )
     ]
 
 
@@ -1014,7 +1040,12 @@ def test_translate_way_count_filter_range() -> None:
         for clause in pattern.where_clauses
     )
     assert pattern.injections == [
-        SetInjection(sparql_var="?_1·f0·way", set_name="w1", must_materialize=True)
+        SetInjection(
+            sparql_var="?_1·f0·way",
+            set_name="w1",
+            required_types=_WAY,
+            must_materialize=True,
+        )
     ]
 
 
@@ -1029,7 +1060,9 @@ def test_translate_pivot_filter_default_set() -> None:
     assert pattern.result_variable == "?_2"
     assert pattern.prefixes == {"rdf", "osm"}
     assert pattern.where_clauses == ["?_2 rdf:type osm:way ."]
-    assert pattern.injections == [SetInjection(sparql_var="?_2", set_name="_1")]
+    assert pattern.injections == [
+        SetInjection(sparql_var="?_2", set_name="_1", required_types=_AREA)
+    ]
 
 
 def test_translate_pivot_filter_named_set() -> None:
@@ -1040,7 +1073,9 @@ def test_translate_pivot_filter_named_set() -> None:
     assert pattern.result_variable == "?_1"
     assert pattern.prefixes == {"rdf", "osm"}
     assert pattern.where_clauses == ["?_1 rdf:type osm:way ."]
-    assert pattern.injections == [SetInjection(sparql_var="?_1", set_name="city1")]
+    assert pattern.injections == [
+        SetInjection(sparql_var="?_1", set_name="city1", required_types=_AREA)
+    ]
 
 
 def test_translate_pivot_filter_with_tag() -> None:
@@ -1054,7 +1089,9 @@ def test_translate_pivot_filter_with_tag() -> None:
         "?_1 rdf:type osm:way .",
         '?_1 osmkey:highway "primary" .',
     ]
-    assert pattern.injections == [SetInjection(sparql_var="?_1", set_name="area1")]
+    assert pattern.injections == [
+        SetInjection(sparql_var="?_1", set_name="area1", required_types=_AREA)
+    ]
 
 
 # ---------------------------------------------------------------------------

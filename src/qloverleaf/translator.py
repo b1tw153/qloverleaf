@@ -50,6 +50,9 @@ from qloverleaf.transformer import (
 class SetInjection:
     sparql_var: str  # e.g. "?a0"
     set_name: str  # versioned set name to look up in set state, e.g. "a0"
+    # required_types specifies what the injection consumes from the set;
+    # None means whatever the set contains
+    required_types: frozenset[ElementType] | None
     must_materialize: bool = (
         False  # True if this input must be materialized (cannot compose)
     )
@@ -147,7 +150,15 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
     # VALUES injections
     for injection in pattern.injections:
         entry = set_state.get(injection.set_name)
-        uris = entry.nwr_results if entry and entry.nwr_results else []
+        uris: list[tuple[ElementType, str]] = []
+        if entry:
+            assert (entry.nwr_results is not None) != (
+                entry.area_results is not None
+            ), "Expected exactly one of nwr_results or area_results to be present"
+            if injection.required_types is None or injection.required_types & _AREA:
+                uris += entry.area_results or []
+            if injection.required_types is None or injection.required_types & _NWR:
+                uris += entry.nwr_results or []
         uri_list = " ".join(f"<{u}>" for _, u in uris)
         lines.append(f"  VALUES {injection.sparql_var} {{ {uri_list} }}")
 
@@ -440,8 +451,13 @@ def _translate_around_set_filter(
     wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
 
     # Inject reference set
+    assert f.set_reference.required_types is not None
     pattern.injections.append(
-        SetInjection(sparql_var=ref_var, set_name=f.set_reference.identifier)
+        SetInjection(
+            sparql_var=ref_var,
+            set_name=f.set_reference.identifier,
+            required_types=f.set_reference.required_types,
+        )
     )
 
     # Reference geometry
@@ -622,8 +638,13 @@ def _translate_area_set_filter(
     area_var = _variable_name(
         output_set, filter_index=filter_index, intermediate="area"
     )
+    assert f.set_reference.required_types is not None
     pattern.injections.append(
-        SetInjection(sparql_var=area_var, set_name=f.set_reference.identifier)
+        SetInjection(
+            sparql_var=area_var,
+            set_name=f.set_reference.identifier,
+            required_types=f.set_reference.required_types,
+        )
     )
     pattern.where_clauses.append(f"{area_var} ogc:sfContains {result_variable} .")
 
@@ -641,8 +662,13 @@ def _translate_recurse_filter(
     )
     blank_var = _variable_name(output_set, filter_index=filter_index, intermediate="m")
 
+    assert f.set_reference.required_types is not None
     pattern.injections.append(
-        SetInjection(sparql_var=input_var, set_name=f.set_reference.identifier)
+        SetInjection(
+            sparql_var=input_var,
+            set_name=f.set_reference.identifier,
+            required_types=f.set_reference.required_types,
+        )
     )
 
     match f.recurse_type:
@@ -709,10 +735,12 @@ def _translate_way_count_filter(
     )
 
     # Inject the input way set - must be materialized due to subquery
+    assert f.set_reference.required_types is not None
     pattern.injections.append(
         SetInjection(
             sparql_var=way_var,
             set_name=f.set_reference.identifier,
+            required_types=f.set_reference.required_types,
             must_materialize=True,  # Subquery requires VALUES in both locations
         )
     )
@@ -755,7 +783,11 @@ def _translate_set_filter(
     pattern: SparqlPattern,
 ) -> None:
     pattern.injections.append(
-        SetInjection(sparql_var=result_variable, set_name=f.set_reference.identifier)
+        SetInjection(
+            sparql_var=result_variable,
+            set_name=f.set_reference.identifier,
+            required_types=f.set_reference.required_types,
+        )
     )
 
 
@@ -768,8 +800,13 @@ def _translate_pivot_filter(
 ) -> None:
     # pivot is a no-op in QLever - areas are already the source ways/relations
     # This behaves identically to SetFilter: inject the input set as VALUES
+    assert f.set_reference.required_types is not None
     pattern.injections.append(
-        SetInjection(sparql_var=result_variable, set_name=f.set_reference.identifier)
+        SetInjection(
+            sparql_var=result_variable,
+            set_name=f.set_reference.identifier,
+            required_types=f.set_reference.required_types,
+        )
     )
 
 
@@ -799,8 +836,13 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
     result_variable = f"?{input_set.identifier}"
 
     # Inject input set (allow composition)
+    assert input_set.required_types is not None
     pattern.injections.append(
-        SetInjection(sparql_var=result_variable, set_name=input_set.identifier)
+        SetInjection(
+            sparql_var=result_variable,
+            set_name=input_set.identifier,
+            required_types=input_set.required_types,
+        )
     )
 
     if stmt.count:

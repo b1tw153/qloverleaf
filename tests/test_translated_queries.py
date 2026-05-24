@@ -1,3 +1,4 @@
+import pytest
 import requests
 
 from qloverleaf.composer import compose
@@ -5,6 +6,8 @@ from qloverleaf.interpreter import SetState, SetStateEntry
 from qloverleaf.parser import parse
 from qloverleaf.transformer import OverpassTransformer
 from qloverleaf.translator import SparqlPattern, render_query, translate
+
+pytestmark = pytest.mark.live
 
 OVERPASS_URL = "http://localhost/api/interpreter"
 QLEVER_URL = "https://qlever.dev/api/osm-planet"

@@ -141,7 +141,6 @@ def test_translated_around_set_filter() -> None:
     composed = compose(patterns[1], set_state)
     assert composed is not None
     qlever_query = render_query(composed, set_state)
-    print(qlever_query)
     qlever_ids = _execute_qlever(qlever_query)
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
@@ -265,7 +264,25 @@ def test_translated_area_id() -> None:
 # AreaSetFilter
 # ---------------------------------------------------------------------------
 
-# TODO: Requires set composition - deferred
+
+def test_translated_area_set_filter() -> None:
+    query = "area[name=Ocotillo] -> .a; way[highway=track](area.a);"
+    overpass_ids = _execute_overpass(query)
+    patterns = _translate_query(query)
+    set_state: SetState = {}
+    composed = compose(patterns[0], set_state)
+    assert composed is not None
+    assert composed.result_set_name is not None
+    set_state[composed.result_set_name] = SetStateEntry(
+        pattern=composed,
+        nwr_results=None,
+        area_results=None,
+    )
+    composed = compose(patterns[1], set_state)
+    assert composed is not None
+    qlever_query = render_query(composed, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
 # ---------------------------------------------------------------------------

@@ -817,6 +817,10 @@ def _stamp_write(
     state[ref.name] = (version, types)
     ref.version = version
     ref.content_types = types
+    if types is not None and types & _NWR and types & _AREA:
+        raise UnimplementedFeatureError(
+            f"Set cannot contain both {types & _NWR} and {types & _AREA}", ref.token
+        )
 
 
 def _stamp_evaluator(

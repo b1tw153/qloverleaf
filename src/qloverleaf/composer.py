@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from qloverleaf.interpreter import SetState
 
+from qloverleaf.transformer import _AREA, _NWR
 from qloverleaf.translator import SparqlPattern
 
 
@@ -60,6 +61,14 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
     # Fast-path: if all injections must materialize, composition not possible
     if pattern.injections and all(inj.must_materialize for inj in pattern.injections):
         return None
+
+    # A single SPARQL query cannot produce both NWR and AREA results — the caller
+    # must handle this via local execution instead. See area-handling.md.
+    if pattern.output_set:
+        content_types = pattern.output_set.content_types
+        assert content_types is not None
+        if content_types & _NWR and content_types & _AREA:
+            return None
 
     # Start with current pattern's where clauses
     composed_where_clauses = list(pattern.where_clauses)

@@ -624,7 +624,12 @@ def _translate_area_id_filter(
         area_uri = f"osmway:{way_id}"
     else:
         raise ValueError(f"Invalid area_id {f.area_id}: must be >= {AREA_WAY_OFFSET}")
-    pattern.where_clauses.append(f"{area_uri} ogc:sfContains {result_variable} .")
+    # sfIntersects for ways (matches Overpass semantics); sfContains for nodes/relations
+    if f.output_types and ElementType.WAY in f.output_types:
+        predicate = "ogc:sfIntersects"
+    else:
+        predicate = "ogc:sfContains"
+    pattern.where_clauses.append(f"{area_uri} {predicate} {result_variable} .")
 
 
 def _translate_area_set_filter(
@@ -646,7 +651,12 @@ def _translate_area_set_filter(
             required_types=f.set_reference.required_types,
         )
     )
-    pattern.where_clauses.append(f"{area_var} ogc:sfContains {result_variable} .")
+    # sfIntersects for ways (matches Overpass semantics); sfContains for nodes/relations
+    if f.output_types and ElementType.WAY in f.output_types:
+        predicate = "ogc:sfIntersects"
+    else:
+        predicate = "ogc:sfContains"
+    pattern.where_clauses.append(f"{area_var} {predicate} {result_variable} .")
 
 
 def _translate_recurse_filter(

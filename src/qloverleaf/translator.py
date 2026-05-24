@@ -23,6 +23,7 @@ from qloverleaf.transform import (
     MapToAreaStatement,
     NewerFilter,
     OutStatement,
+    OutVerbosity,
     PivotFilter,
     PolygonFilter,
     QueryFilter,
@@ -135,6 +136,9 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
             distinct = ""
         lines.append(f"SELECT {distinct}{clause} WHERE {{")
     else:
+        assert pattern.result_variable is not None, (
+            "Pattern must have output_set or explicit select_clause"
+        )
         distinct = "DISTINCT " if pattern.distinct else ""
         lines.append(f"SELECT {distinct}{pattern.result_variable} WHERE {{")
 
@@ -796,9 +800,31 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         pattern.select_clause = f"?type (COUNT(DISTINCT {result_variable}) AS ?count)"
         pattern.group_by = "?type"
         pattern.where_clauses.append(f"{result_variable} rdf:type ?type .")
+    elif stmt.verbosity == OutVerbosity.IDS:
+        # Just output element URIs
+        pattern.select_clause = result_variable
+        pattern.distinct = True
+    elif stmt.verbosity == OutVerbosity.SKEL:
+        # Skeleton output: structure without tags
+        # For nodes: include geometry (lat/lon via WKT)
+        # For ways: include node members
+        # For relations: include members with roles
+        pattern.prefixes |= {"geo"}
+        pattern.select_clause = f"{result_variable} ?wkt"
+        pattern.where_clauses.append(f"{result_variable} geo:hasGeometry ?geom .")
+        pattern.where_clauses.append("?geom geo:asWKT ?wkt .")
+        # TODO: Handle way/relation members - needs type-specific queries
+    elif stmt.verbosity == OutVerbosity.TAGS:
+        # Output all tags (no geometry or members)
+        pattern.select_clause = f"{result_variable} ?p ?v"
+        pattern.where_clauses.append(f"{result_variable} ?p ?v .")
+        pattern.where_clauses.append(
+            'FILTER(STRSTARTS(STR(?p), "https://www.openstreetmap.org/wiki/Key:"))'
+        )
     else:
+        # Other verbosity levels not yet implemented
         raise UnimplementedFeatureError(
-            "Non-count out statements not yet implemented",
+            f"out {stmt.verbosity.value} not yet implemented",
             stmt.token,
         )
 

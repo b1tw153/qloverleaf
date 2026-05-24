@@ -10,6 +10,8 @@ from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.executor import parse_results, query_qlever
 from qloverleaf.query_context import Bbox, OutputFormat, QueryContext
 from qloverleaf.transformer import (
+    _AREA,
+    _NWR,
     ElementType,
     OverpassTransformer,
 )
@@ -226,7 +228,11 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                 for injection in working_pattern.injections:
                     dependency_entry = set_state.get(injection.set_name)
                     # Only queue if not already materialized
-                    if dependency_entry and not dependency_entry.nwr_results:
+                    if (
+                        dependency_entry
+                        and not dependency_entry.nwr_results
+                        and not dependency_entry.area_results
+                    ):
                         if dependency_entry.pattern:
                             dependencies_to_materialize.append(dependency_entry.pattern)
 
@@ -252,9 +258,17 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
 
             # Store results if pattern produces a set; otherwise just yield
             if pattern.result_set_name:
-                set_state[pattern.result_set_name].nwr_results = parse_results(
-                    data, pattern.result_set_name
-                )
+                assert pattern.output_set is not None
+                assert pattern.output_set.content_types is not None
+                assert not (
+                    pattern.output_set.content_types & _NWR
+                    and pattern.output_set.content_types & _AREA
+                )  # mixed set content is not yet supported
+                results = parse_results(data, pattern.result_set_name)
+                if ElementType.AREA in pattern.output_set.content_types:
+                    set_state[pattern.result_set_name].area_results = results
+                else:
+                    set_state[pattern.result_set_name].nwr_results = results
 
             yield json.dumps(data, indent=2)
             yield "\n"
@@ -267,9 +281,13 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
             yield "----- Pattern:\n"
             yield _dump_sparql_pattern(entry.pattern)
         if entry.nwr_results:
-            yield f"----- Results: {len(entry.nwr_results)} elements\n"
+            yield f"----- NWR results: {len(entry.nwr_results)} elements\n"
             for elem_type, uri in entry.nwr_results:
                 yield f"  {elem_type.value}: {uri}\n"
-        if not entry.pattern and not entry.nwr_results:
+        if entry.area_results:
+            yield f"----- Area results: {len(entry.area_results)} elements\n"
+            for elem_type, uri in entry.area_results:
+                yield f"  {elem_type.value}: {uri}\n"
+        if not entry.pattern and not entry.nwr_results and not entry.area_results:
             yield "(empty entry)"
     yield ""  # Final newline

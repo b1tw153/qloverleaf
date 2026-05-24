@@ -281,6 +281,7 @@ def test_translated_area_set_filter() -> None:
     composed = compose(patterns[1], set_state)
     assert composed is not None
     qlever_query = render_query(composed, set_state)
+    print(qlever_query)
     qlever_ids = _execute_qlever(qlever_query)
     assert sorted(overpass_ids) == sorted(qlever_ids)
 

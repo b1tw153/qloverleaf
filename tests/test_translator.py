@@ -638,7 +638,7 @@ def test_translate_area_id_filter_nwr() -> None:
         "{ ?_1 rdf:type osm:node }"
         " UNION { ?_1 rdf:type osm:way }"
         " UNION { ?_1 rdf:type osm:relation }",
-        "osmrel:18375211 ogc:sfContains ?_1 .",
+        "osmrel:18375211 ogc:sfIntersects ?_1 .",
     ]
 
 
@@ -839,6 +839,7 @@ def test_translate_area_set_filter_way() -> None:
     pattern = translate(query.statements[1])[0]
     assert pattern.result_variable == "?_1"
     assert pattern.where_clauses[0] == "?_1 rdf:type osm:way ."
+    assert "?_1·f1·area ogc:sfIntersects ?_1 ." in pattern.where_clauses
     assert pattern.injections == [
         SetInjection(sparql_var="?_1·f1·area", set_name="pa1", required_types=_AREA)
     ]
@@ -858,7 +859,7 @@ def test_translate_area_set_filter_nwr() -> None:
         " UNION { ?_1 rdf:type osm:way }"
         " UNION { ?_1 rdf:type osm:relation }",
         "?_1 osmkey:tourism ?_1·f0·v .",
-        "?_1·f1·area ogc:sfContains ?_1 .",
+        "?_1·f1·area ogc:sfIntersects ?_1 .",
     ]
     assert pattern.injections == [
         SetInjection(sparql_var="?_1·f1·area", set_name="parks1", required_types=_AREA)

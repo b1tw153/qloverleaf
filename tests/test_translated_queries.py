@@ -355,6 +355,38 @@ def test_translated_recurse_br_filter() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
+def test_translated_recurse_bn_way_untagged() -> None:
+    # parent ways of node 3843108154 (untagged → http:// URI; 4 ways)
+    query = "node(3843108154) -> .a; way(bn.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_bn_way_tagged() -> None:
+    # parent ways of node 296263439 (tagged → https:// URI; 4 ways)
+    query = "node(296263439) -> .a; way(bn.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_bn_relation_untagged() -> None:
+    # parent relations of node 3843108154 (untagged → http:// URI; 6 relations)
+    query = "node(3843108154) -> .a; relation(bn.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_bn_relation_tagged() -> None:
+    # parent relations of node 296263439 (tagged → https:// URI; 1 relation)
+    query = "node(296263439) -> .a; relation(bn.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
 # ---------------------------------------------------------------------------
 # WayCountFilter
 # ---------------------------------------------------------------------------

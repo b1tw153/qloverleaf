@@ -293,7 +293,66 @@ def test_translated_area_set_filter() -> None:
 # RecurseFilter
 # ---------------------------------------------------------------------------
 
-# TODO: Requires set composition - deferred
+
+def _compose_two(query: str) -> tuple[str, list[str]]:
+    """Translate a two-statement query and compose both patterns.
+
+    Returns (rendered_sparql_query, overpass_ids).
+    """
+    overpass_ids = _execute_overpass(query)
+    patterns = _translate_query(query)
+    set_state: SetState = {}
+    composed = compose(patterns[0], set_state)
+    assert composed is not None
+    assert composed.result_set_name is not None
+    set_state[composed.result_set_name] = SetStateEntry(
+        pattern=composed,
+        nwr_results=None,
+        area_results=None,
+    )
+    composed = compose(patterns[1], set_state)
+    assert composed is not None
+    return render_query(composed, set_state), overpass_ids
+
+
+def test_translated_recurse_w_filter() -> None:
+    # nodes that are members of way 100 (24 nodes)
+    query = "way(100) -> .a; node(w.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_r_filter() -> None:
+    # way members of relation 10000, no role restriction (9 ways)
+    query = "relation(10000) -> .a; way(r.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_r_filter_role() -> None:
+    # way members of relation 10000 with role "outer" (1 way)
+    query = 'relation(10000) -> .a; way(r.a:"outer");'
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_bw_filter() -> None:
+    # parent relations of way 100 (14 relations)
+    query = "way(100) -> .a; relation(bw.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_br_filter() -> None:
+    # parent relations of relation 1919618 (1 relation)
+    query = "relation(1919618) -> .a; relation(br.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
 # ---------------------------------------------------------------------------

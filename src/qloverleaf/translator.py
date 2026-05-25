@@ -703,13 +703,44 @@ def _translate_recurse_filter(
                 )
 
         case RecurseFilterType.BN:
-            # node → parent ways/relations (upward)
+            # node → parent ways and/or relations (upward).
+            # osmway:member_id and osmrel:member_id store node URIs using http://
+            # for untagged nodes and https:// for tagged nodes. Both schemes must
+            # be covered. The input variable carries the https:// form (osmnode:
+            # prefix), so we derive the http:// form with BIND before the UNION.
+            http_var = _variable_name(
+                output_set, filter_index=filter_index, intermediate="http"
+            )
+            way_blank_http = _variable_name(
+                output_set, filter_index=filter_index, intermediate="mwh"
+            )
+            rel_blank = _variable_name(
+                output_set, filter_index=filter_index, intermediate="mr"
+            )
+            rel_blank_http = _variable_name(
+                output_set, filter_index=filter_index, intermediate="mrh"
+            )
             pattern.prefixes.update({"osmway", "osmrel"})
-            # TODO: Need UNION for both URI schemes (http:// and https://) and both way
-            # and relation parents. This is complex - will need multi-branch UNION.
-            raise UnimplementedFeatureError(
-                "bn (node → parent) recurse filter requires complex UNION pattern",
-                f.token,
+            pattern.where_clauses.append(
+                f'BIND(IRI(REPLACE(STR({input_var}), "^https://", "http://"))'
+                f" AS {http_var})"
+            )
+            way_union = (
+                f"{{ {blank_var} osmway:member_id {input_var} ."
+                f" {result_variable} osmway:member {blank_var} . }}"
+                f" UNION"
+                f" {{ {way_blank_http} osmway:member_id {http_var} ."
+                f" {result_variable} osmway:member {way_blank_http} . }}"
+            )
+            rel_union = (
+                f"{{ {rel_blank} osmrel:member_id {input_var} ."
+                f" {result_variable} osmrel:member {rel_blank} . }}"
+                f" UNION"
+                f" {{ {rel_blank_http} osmrel:member_id {http_var} ."
+                f" {result_variable} osmrel:member {rel_blank_http} . }}"
+            )
+            pattern.where_clauses.append(
+                f"{{ {way_union} }} UNION {{ {rel_union} }}"
             )
 
         case RecurseFilterType.BW:

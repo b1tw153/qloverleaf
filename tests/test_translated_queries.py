@@ -284,7 +284,6 @@ def test_translated_area_set_filter() -> None:
     composed = compose(patterns[1], set_state)
     assert composed is not None
     qlever_query = render_query(composed, set_state)
-    print(qlever_query)
     qlever_ids = _execute_qlever(qlever_query)
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
@@ -398,11 +397,60 @@ def test_translated_recurse_bn_relation_tagged() -> None:
 # SetFilter
 # ---------------------------------------------------------------------------
 
-# TODO: Requires set composition - deferred
+
+def test_translated_set_filter_node() -> None:
+    # node 1 stored in .a; retrieve nodes from .a (should return node 1)
+    query = "node(1) -> .a; node.a[man_made=mast];"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_set_filter_way() -> None:
+    # way 100 stored in .a; retrieve ways from .a (should return way 100)
+    query = "way(100) -> .a; way.a[highway=secondary];"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_set_filter_relation() -> None:
+    # relation 10000 stored in .a; retrieve relations from .a
+    # (should return relation 10000)
+    query = "relation(10000) -> .a; relation.a[water=lake];"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_set_filter_nwr() -> None:
+    query = "nwr[natural=sinkhole] -> .a; nwr.a[sinkhole=bluehole];"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
 # ---------------------------------------------------------------------------
 # PivotFilter
 # ---------------------------------------------------------------------------
 
-# TODO: Requires set composition - deferred
+
+def test_translated_pivot_filter_way() -> None:
+    query = "area[name=Ocotillo] -> .a; way(pivot.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_pivot_filter_relation() -> None:
+    query = "area[name='El Centro'] -> .a; relation(pivot.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_pivot_filter_wr() -> None:
+    query = "area[name='El Centro'] -> .a; wr(pivot.a);"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)

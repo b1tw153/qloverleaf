@@ -739,9 +739,7 @@ def _translate_recurse_filter(
                 f" {{ {rel_blank_http} osmrel:member_id {http_var} ."
                 f" {result_variable} osmrel:member {rel_blank_http} . }}"
             )
-            pattern.where_clauses.append(
-                f"{{ {way_union} }} UNION {{ {rel_union} }}"
-            )
+            pattern.where_clauses.append(f"{{ {way_union} }} UNION {{ {rel_union} }}")
 
         case RecurseFilterType.BW:
             # way → parent relations (upward)

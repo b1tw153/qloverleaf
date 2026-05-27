@@ -279,6 +279,8 @@ def _translate_count_members(evaluator: CountMembersEvaluator) -> EvaluatorPatte
     raise UnimplementedFeatureError(
         "count_members evaluator is not implemented", evaluator.token
     )
+
+
 # count_by_role_expr
 # count_distinct_by_role_expr (CountByRoleEvaluator with distinct=True)
 def _translate_count_by_role(evaluator: CountByRoleEvaluator) -> EvaluatorPattern:

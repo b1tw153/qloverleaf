@@ -1021,9 +1021,7 @@ def _resolve_types(query: Query) -> None:
     _walk_stmts(query.statements, state, query.warnings)
 
 
-def _stamp_element_context(
-    evaluator: Evaluator, context: SetReference | None
-) -> None:
+def _stamp_element_context(evaluator: Evaluator, context: SetReference | None) -> None:
     for f in fields(evaluator):
         val = getattr(evaluator, f.name)
         if f.name == "target_set":

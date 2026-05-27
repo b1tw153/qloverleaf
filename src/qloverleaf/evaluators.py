@@ -560,13 +560,31 @@ def _translate_type_check(
     evaluator: TypeCheckEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
     inner_pattern = translate_evaluator(evaluator.operand, element_var, variable_base)
+    operand_type = evaluator.operand.output_type
     if evaluator.function == TypeCheckFunction.IS_NUMBER:
+        if operand_type in _NUMERIC_TYPES:
+            # Statically known to be numeric — always true.
+            return EvaluatorPattern(
+                expression="true",
+                prefixes=inner_pattern.prefixes,
+                clauses=inner_pattern.clauses,
+                subqueries=inner_pattern.subqueries,
+            )
         # Approximation: Overpass uses strtod() semantics, which also accepts
-        # scientific notation, leading whitespace, leading +, trailing decimal,
-        # and leading decimal. The \\\\. produces \\. in SPARQL text (literal dot).
-        regex = '"^-?[0-9]+(\\\\.[0-9]+)?$"'
+        # leading whitespace and leading +. This regex covers the same forms
+        # that _infer_literal_type classifies as numeric: integers, decimals
+        # (trailing and leading dot), and scientific notation.
+        regex = '"^-?([0-9]+[.]?[0-9]*|[0-9]*[.][0-9]+)([eE][+-]?[0-9]+)?$"'
     else:
         # TypeCheckFunction.IS_DATE
+        if operand_type == ScalarType.DATETIME:
+            # Statically known to be a datetime — always true.
+            return EvaluatorPattern(
+                expression="true",
+                prefixes=inner_pattern.prefixes,
+                clauses=inner_pattern.clauses,
+                subqueries=inner_pattern.subqueries,
+            )
         # Approximation: only accepts the Z timezone suffix; offset forms (+01:00
         # etc.) return false negatives. Month range validation is not replicated.
         regex = (

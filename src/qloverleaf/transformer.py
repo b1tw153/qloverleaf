@@ -361,6 +361,11 @@ class LengthEvaluator(Evaluator):
 
 
 @dataclass
+class SumEvaluator(Evaluator):
+    input_set: SetReference
+
+
+@dataclass
 class CountEvaluator(Evaluator):
     count_type: CountType
     input_set: SetReference
@@ -2415,9 +2420,39 @@ class OverpassTransformer(Transformer[Token, Query]):
         # Does static typing resolve the ambiguity between lexical and numeric ordering?
         raise UnsupportedFeatureError("max() is not supported", children[0].token)
 
-    def sum_expr(self, children: list[Any]) -> None:
-        # TODO: Implement sum_expr transform
-        raise UnimplementedFeatureError("sum() is not supported", children[0].token)
+    def sum_expr(self, children: list[Any]) -> SumEvaluator:
+        evaluator = children[-1]
+        assert isinstance(evaluator, Evaluator)
+        evaluator_type = evaluator.output_type
+
+        if evaluator_type is None:
+            output_type = None
+            self.warnings.append(
+                Warning(
+                    "Expression type is indeterminate and may cause SPARQL errors",
+                    evaluator.token,
+                )
+            )
+        elif evaluator_type not in _NUMERIC_TYPES:
+            output_type = None
+            self.warnings.append(
+                Warning(
+                    "Expression type is non-numeric and may cause SPARQL errors: "
+                    f"( {evaluator_type.value} )",
+                    evaluator.token,
+                )
+            )
+        else:
+            output_type = ScalarType.DOUBLE
+
+        if len(children) == 2:
+            set_reference = children[0]
+        else:
+            set_reference = SetReference(name="_", token=None)
+
+        return SumEvaluator(
+            input_set=set_reference, output_type=output_type, token=evaluator.token
+        )
 
     def set_expr(self, children: list[Any]) -> None:
         # Returns a semicolon separated list of values; no Sparql translation

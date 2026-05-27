@@ -356,6 +356,22 @@ class TypeCheckEvaluator(Evaluator):
 
 
 @dataclass
+class CountTagsEvaluator(Evaluator):
+    pass
+
+
+@dataclass
+class CountMembersEvaluator(Evaluator):
+    distinct: bool = False
+
+
+@dataclass
+class CountByRoleEvaluator(Evaluator):
+    role: Evaluator
+    distinct: bool = False
+
+
+@dataclass
 class IsClosedEvaluator(Evaluator):
     target_set: SetReference | None = None
 
@@ -2178,35 +2194,32 @@ class OverpassTransformer(Transformer[Token, Query]):
             token=token,
         )
 
-    def count_tags_expr(self, children: list[Any]) -> None:
-        # TODO: implement count_tags_expr transform
+    def count_tags_expr(self, children: list[Any]) -> CountTagsEvaluator:
         assert isinstance(children[0], Token)
-        raise UnimplementedFeatureError("count_tags() is not implemented", children[0])
+        return CountTagsEvaluator(output_type=ScalarType.INT, token=children[0])
 
-    def count_members_expr(self, children: list[Any]) -> None:
-        # TODO: implement count_members_expr transform
+    def count_members_expr(self, children: list[Any]) -> CountMembersEvaluator:
         assert isinstance(children[0], Token)
-        raise UnimplementedFeatureError(
-            "count_members() is not implemented", children[0]
+        return CountMembersEvaluator(output_type=ScalarType.INT, token=children[0])
+
+    def count_distinct_members_expr(self, children: list[Any]) -> CountMembersEvaluator:
+        assert isinstance(children[0], Token)
+        return CountMembersEvaluator(
+            distinct=True, output_type=ScalarType.INT, token=children[0]
         )
 
-    def count_distinct_members_expr(self, children: list[Any]) -> None:
-        # TODO: implement count_distinct_members_expr transform
-        assert isinstance(children[0], Token)
-        raise UnimplementedFeatureError(
-            "count_distinct_members() is not implemented", children[0]
+    def count_by_role_expr(self, children: list[Any]) -> CountByRoleEvaluator:
+        role = children[0]
+        assert isinstance(role, Evaluator)
+        return CountByRoleEvaluator(
+            role=role, output_type=ScalarType.INT, token=role.token
         )
 
-    def count_by_role_expr(self, children: list[Any]) -> None:
-        # TODO: implement count_by_role_expr transform
-        raise UnimplementedFeatureError(
-            "count_by_role() is not implemented", children[0].token
-        )
-
-    def count_distinct_by_role_expr(self, children: list[Any]) -> None:
-        # TODO: implement count_distinct_by_role_expr transform
-        raise UnimplementedFeatureError(
-            "count_distinct_by_role() is not implemented", children[0].token
+    def count_distinct_by_role_expr(self, children: list[Any]) -> CountByRoleEvaluator:
+        role = children[0]
+        assert isinstance(role, Evaluator)
+        return CountByRoleEvaluator(
+            role=role, distinct=True, output_type=ScalarType.INT, token=role.token
         )
 
     def is_closed_expr(self, children: list[Any]) -> IsClosedEvaluator:

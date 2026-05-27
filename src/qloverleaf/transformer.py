@@ -228,13 +228,32 @@ def _promote_numeric_type(a: ScalarType, b: ScalarType) -> ScalarType:
     return a if _NUMERIC_RANK[a] >= _NUMERIC_RANK[b] else b
 
 
+_INT_LITERAL = re.compile(r"^-?\d+$")
+_DECIMAL_LITERAL = re.compile(r"^-?(\d+\.\d*|\d*\.\d+)$")
+_DOUBLE_LITERAL = re.compile(r"^-?(\d+\.?\d*|\d*\.\d+)[eE][+-]?\d+$")
+
+
+def _infer_literal_type(value: str) -> ScalarType:
+    if _INT_LITERAL.fullmatch(value):
+        return ScalarType.INT
+    if _DECIMAL_LITERAL.fullmatch(value):
+        return ScalarType.DECIMAL
+    if _DOUBLE_LITERAL.fullmatch(value):
+        return ScalarType.DOUBLE
+    try:
+        datetime.fromisoformat(value)
+        return ScalarType.DATETIME
+    except ValueError:
+        return ScalarType.LITERAL
+
+
 # Evaluator Classes
 
 
 @dataclass(kw_only=True)
 class Evaluator:
     token: Token
-    output_type: ScalarType | None = None
+    output_type: ScalarType | None
 
 
 @dataclass
@@ -2004,26 +2023,60 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def unary_expr(self, children: list[Any]) -> UnaryEvaluator:
+        operand = children[1]
+        assert isinstance(operand, Evaluator)
+        operand_type = operand.output_type
+
+        if operand_type is None:
+            output_type = None
+            self.warnings.append(
+                Warning(
+                    "Operand type is indeterminate and may cause SPARQL errors",
+                    operand.token,
+                )
+            )
+        elif operand_type not in _NUMERIC_TYPES:
+            output_type = None
+            self.warnings.append(
+                Warning(
+                    "Operand type is incompatible with negation: "
+                    f"( {operand_type.value} )",
+                    operand.token,
+                )
+            )
+        else:
+            output_type = operand_type
         return UnaryEvaluator(
             operator=UnaryOperator.NEGATE,
             operand=children[1],
+            output_type=output_type,
             token=children[0],
         )
 
     def literal_expr(self, children: list[Any]) -> LiteralEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return LiteralEvaluator(value=_unquote(token), token=token)
+        value = _unquote(token)
+        output_type = _infer_literal_type(value)
+        return LiteralEvaluator(value=value, output_type=output_type, token=token)
 
     def id_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(
+            attribute=MetadataAttribute(token.value),
+            output_type=ScalarType.INT,
+            token=token,
+        )
 
     def type_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(
+            attribute=MetadataAttribute(token.value),
+            output_type=ScalarType.LITERAL,
+            token=token,
+        )
 
     def tag_value_expr(self, children: list[Any]) -> TagValueEvaluator:
         token = children[0].token
@@ -2035,13 +2088,15 @@ class OverpassTransformer(Transformer[Token, Query]):
             raise UnsupportedFeatureError(
                 "t[...] with a dynamic key expression is not supported", token
             )
-        return TagValueEvaluator(evaluator=evaluator, token=token)
+        return TagValueEvaluator(
+            evaluator=evaluator, output_type=ScalarType.LITERAL, token=token
+        )
 
     def is_tag_expr(self, children: list[Any]) -> IsTagEvaluator:
         token = children[0]
         key = _unquote(children[0])
         assert isinstance(token, Token)
-        return IsTagEvaluator(key=key, token=token)
+        return IsTagEvaluator(key=key, output_type=ScalarType.BOOLEAN, token=token)
 
     def keys_expr(self, children: list[Any]) -> None:
         # Returns all tag key names as semicolon-separated string; no SPARQL equivalent
@@ -2057,27 +2112,47 @@ class OverpassTransformer(Transformer[Token, Query]):
     def version_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(
+            attribute=MetadataAttribute(token.value),
+            output_type=ScalarType.INT,
+            token=token,
+        )
 
     def timestamp_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(
+            attribute=MetadataAttribute(token.value),
+            output_type=ScalarType.DATETIME,
+            token=token,
+        )
 
     def changeset_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(
+            attribute=MetadataAttribute(token.value),
+            output_type=ScalarType.INT,
+            token=token,
+        )
 
     def uid_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(
+            attribute=MetadataAttribute(token.value),
+            output_type=ScalarType.INT,
+            token=token,
+        )
 
     def user_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(
+            attribute=MetadataAttribute(token.value),
+            output_type=ScalarType.LITERAL,
+            token=token,
+        )
 
     def count_tags_expr(self, children: list[Any]) -> None:
         # TODO: implement count_tags_expr transform
@@ -2112,15 +2187,19 @@ class OverpassTransformer(Transformer[Token, Query]):
 
     def is_closed_expr(self, children: list[Any]) -> IsClosedEvaluator:
         assert isinstance(children[0], Token)
-        return IsClosedEvaluator(token=children[0])
+        return IsClosedEvaluator(output_type=ScalarType.BOOLEAN, token=children[0])
 
     def lat_expr(self, children: list[Any]) -> CoordinateEvaluator:
         assert isinstance(children[0], Token)
-        return CoordinateEvaluator(axis=CoordinateAxis.LAT, token=children[0])
+        return CoordinateEvaluator(
+            axis=CoordinateAxis.LAT, output_type=ScalarType.DECIMAL, token=children[0]
+        )
 
     def lon_expr(self, children: list[Any]) -> CoordinateEvaluator:
         assert isinstance(children[0], Token)
-        return CoordinateEvaluator(axis=CoordinateAxis.LON, token=children[0])
+        return CoordinateEvaluator(
+            axis=CoordinateAxis.LON, output_type=ScalarType.DECIMAL, token=children[0]
+        )
 
     def geom_expr(self, children: list[Any]) -> None:
         # geometry can only be assigned to ::geom in convert/make which are unsupported
@@ -2129,7 +2208,7 @@ class OverpassTransformer(Transformer[Token, Query]):
 
     def length_expr(self, children: list[Any]) -> LengthEvaluator:
         assert isinstance(children[0], Token)
-        return LengthEvaluator(token=children[0])
+        return LengthEvaluator(output_type=ScalarType.DECIMAL, token=children[0])
 
     def center_expr(self, children: list[Any]) -> None:
         # geometry can only be assigned to ::geom in convert/make which are unsupported
@@ -2194,29 +2273,122 @@ class OverpassTransformer(Transformer[Token, Query]):
         raise UnsupportedFeatureError("angle() is not supported", children[0])
 
     def number_expr(self, children: list[Any]) -> ConversionEvaluator:
+        operand = children[0]
+        assert isinstance(operand, Evaluator)
+        operand_type = operand.output_type
+
+        if operand_type is None:
+            self.warnings.append(
+                Warning(
+                    "Operand type is indeterminate and may not be convertable to a "
+                    "number",
+                    operand.token,
+                )
+            )
+        elif operand_type != ScalarType.LITERAL and operand_type not in _NUMERIC_TYPES:
+            self.warnings.append(
+                Warning(
+                    "Operand may type may not be convertable to a number: "
+                    f"( {operand_type.value} )",
+                    operand.token,
+                )
+            )
+
         return ConversionEvaluator(
             function=ConversionFunction.NUMBER,
-            operand=children[0],
+            operand=operand,
+            output_type=ScalarType.DOUBLE,
             token=children[0].token,
         )
 
     def date_expr(self, children: list[Any]) -> ConversionEvaluator:
+        operand = children[0]
+        assert isinstance(operand, Evaluator)
+        operand_type = operand.output_type
+
+        if operand_type is None:
+            self.warnings.append(
+                Warning(
+                    "Operand type is indeterminate and may not be convertable to a "
+                    "date",
+                    operand.token,
+                )
+            )
+        elif operand_type != ScalarType.LITERAL:
+            self.warnings.append(
+                Warning(
+                    "Operand may type may not be convertable to a number: "
+                    f"( {operand_type.value} )",
+                    operand.token,
+                )
+            )
+
         return ConversionEvaluator(
             function=ConversionFunction.DATE,
-            operand=children[0],
+            operand=operand,
+            output_type=ScalarType.DATETIME,
             token=children[0].token,
         )
 
     def suffix_expr(self, children: list[Any]) -> SuffixEvaluator:
-        return SuffixEvaluator(operand=children[0], token=children[0].token)
+        operand = children[0]
+        assert isinstance(operand, Evaluator)
+        operand_type = operand.output_type
+
+        if operand_type is None:
+            self.warnings.append(
+                Warning(
+                    "Operand type is indeterminate and may cause SPARQL errors",
+                    operand.token,
+                )
+            )
+        elif operand_type != ScalarType.LITERAL:
+            self.warnings.append(
+                Warning(
+                    "Operand may type may cause SPARQL errors: "
+                    f"( {operand_type.value} )",
+                    operand.token,
+                )
+            )
+
+        return SuffixEvaluator(
+            operand=operand, output_type=ScalarType.LITERAL, token=children[0].token
+        )
 
     def abs_expr(self, children: list[Any]) -> AbsEvaluator:
-        return AbsEvaluator(operand=children[0], token=children[0].token)
+        operand = children[0]
+        assert isinstance(operand, Evaluator)
+        operand_type = operand.output_type
+
+        if operand_type is None:
+            output_type = None
+            self.warnings.append(
+                Warning(
+                    "Operand type is indeterminate and may cause SPARQL errors",
+                    operand.token,
+                )
+            )
+        elif operand_type not in _NUMERIC_TYPES:
+            output_type = None
+            self.warnings.append(
+                Warning(
+                    "Operand may type is non-numeric and may cause SPARQL errors: "
+                    f"( {operand_type.value} )",
+                    operand.token,
+                )
+            )
+        else:
+            output_type = operand_type
+
+        return AbsEvaluator(
+            operand=operand, output_type=output_type, token=children[0].token
+        )
 
     def is_number_expr(self, children: list[Any]) -> TypeCheckEvaluator:
         return TypeCheckEvaluator(
             function=TypeCheckFunction.IS_NUMBER,
             operand=children[0],
+            output_type=ScalarType.BOOLEAN,
             token=children[0].token,
         )
 
@@ -2224,6 +2396,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return TypeCheckEvaluator(
             function=TypeCheckFunction.IS_DATE,
             operand=children[0],
+            output_type=ScalarType.BOOLEAN,
             token=children[0].token,
         )
 
@@ -2269,6 +2442,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return CountEvaluator(
             count_type=count_type,
             input_set=set_reference,
+            output_type=ScalarType.INT,
             token=count_type_token,
         )
 
@@ -2298,10 +2472,14 @@ class OverpassTransformer(Transformer[Token, Query]):
         # that set is populated with per-iteration values.
         # TODO: (deferred) validate in a semantic pass — walk the IR with a stack of
         # for loop output set names; raise if set_reference.name matches none of them.
+        # TODO: carry the output type of the for loop evaluator down to this
+        # evaluator's output type
         set_reference = children[0]
         assert isinstance(set_reference, SetReference)
         assert set_reference.token is not None
-        return ValEvaluator(set_reference=set_reference, token=set_reference.token)
+        return ValEvaluator(
+            set_reference=set_reference, output_type=None, token=set_reference.token
+        )
 
 
 def _dump_ir_node(obj: Any, indent: int = 0) -> str:

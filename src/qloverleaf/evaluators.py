@@ -10,6 +10,7 @@ from qloverleaf.transformer import (
     CompareEvaluator,
     CompareOperator,
     ConversionEvaluator,
+    ConversionFunction,
     CoordinateEvaluator,
     CountByRoleEvaluator,
     CountEvaluator,
@@ -29,6 +30,7 @@ from qloverleaf.transformer import (
     TagValueEvaluator,
     TernaryEvaluator,
     TypeCheckEvaluator,
+    TypeCheckFunction,
     UnaryEvaluator,
     UnaryOperator,
     UniqueEvaluator,
@@ -448,25 +450,51 @@ def _translate_length(evaluator: LengthEvaluator, element_var: str) -> Evaluator
 def _translate_conversion(
     evaluator: ConversionEvaluator, element_var: str
 ) -> EvaluatorPattern:
-    # TODO: translate conversion evaluator (number(), date())
-    # Note: dispatch on evaluator.function
-    raise UnimplementedFeatureError(
-        "conversion evaluator is not implemented", evaluator.token
+    inner_pattern = translate_evaluator(evaluator.operand, element_var)
+    if evaluator.function == ConversionFunction.NUMBER:
+        expression = f"xsd:double(str({inner_pattern.expression}))"
+    else:
+        # ConversionFunction.DATE: construct a typed xsd:dateTime literal
+        expression = f"STRDT(str({inner_pattern.expression}), xsd:dateTime)"
+    return EvaluatorPattern(
+        expression=expression,
+        prefixes=inner_pattern.prefixes | {"xsd"},
+        clauses=inner_pattern.clauses,
+        subqueries=inner_pattern.subqueries,
     )
 
 
 # suffix_expr
 def _translate_suffix(evaluator: SuffixEvaluator, element_var: str) -> EvaluatorPattern:
-    # TODO: translate suffix evaluator
-    raise UnimplementedFeatureError(
-        "suffix evaluator is not implemented", evaluator.token
+    # Approximation: strips the leading numeric prefix and returns the remainder.
+    # Diverges from Overpass in two ways: Overpass strips whitespace between the
+    # numeric prefix and the suffix ("734 m" -> "m", not " m"), and returns "" for
+    # strings with no numeric prefix rather than returning the string unchanged.
+    # The \\\\. in Python source produces \\. in the SPARQL text, which SPARQL
+    # parses as the regex escape \. (literal dot).
+    inner_pattern = translate_evaluator(evaluator.operand, element_var)
+    expression = (
+        f"REPLACE({inner_pattern.expression},"
+        f' "^-?[0-9]+(\\\\.[0-9]+)?([eE][+-]?[0-9]+)?", "")'
+    )
+    return EvaluatorPattern(
+        expression=expression,
+        prefixes=inner_pattern.prefixes,
+        clauses=inner_pattern.clauses,
+        subqueries=inner_pattern.subqueries,
     )
 
 
 # abs_expr
 def _translate_abs(evaluator: AbsEvaluator, element_var: str) -> EvaluatorPattern:
-    # TODO: translate abs evaluator
-    raise UnimplementedFeatureError("abs evaluator is not implemented", evaluator.token)
+    inner_pattern = translate_evaluator(evaluator.operand, element_var)
+    expression = f"ABS({inner_pattern.expression})"
+    return EvaluatorPattern(
+        expression=expression,
+        prefixes=inner_pattern.prefixes,
+        clauses=inner_pattern.clauses,
+        subqueries=inner_pattern.subqueries,
+    )
 
 
 # is_number_expr
@@ -474,10 +502,25 @@ def _translate_abs(evaluator: AbsEvaluator, element_var: str) -> EvaluatorPatter
 def _translate_type_check(
     evaluator: TypeCheckEvaluator, element_var: str
 ) -> EvaluatorPattern:
-    # TODO: translate type check evaluator (is_number(), is_date())
-    # Note: dispatch on evaluator.function
-    raise UnimplementedFeatureError(
-        "type check evaluator is not implemented", evaluator.token
+    inner_pattern = translate_evaluator(evaluator.operand, element_var)
+    if evaluator.function == TypeCheckFunction.IS_NUMBER:
+        # Approximation: Overpass uses strtod() semantics, which also accepts
+        # scientific notation, leading whitespace, leading +, trailing decimal,
+        # and leading decimal. The \\\\. produces \\. in SPARQL text (literal dot).
+        regex = '"^-?[0-9]+(\\\\.[0-9]+)?$"'
+    else:
+        # TypeCheckFunction.IS_DATE
+        # Approximation: only accepts the Z timezone suffix; offset forms (+01:00
+        # etc.) return false negatives. Month range validation is not replicated.
+        regex = (
+            '"^[0-9]{4}(-[0-9]{2}(-[0-9]{2}([T ][0-9]{2}:[0-9]{2}:[0-9]{2}Z?)?)?)?$"'
+        )
+    expression = f"REGEX(str({inner_pattern.expression}), {regex})"
+    return EvaluatorPattern(
+        expression=expression,
+        prefixes=inner_pattern.prefixes,
+        clauses=inner_pattern.clauses,
+        subqueries=inner_pattern.subqueries,
     )
 
 
@@ -489,8 +532,8 @@ def _translate_unique(evaluator: UniqueEvaluator, element_var: str) -> Evaluator
     )
 
 
-# min_expr: unsupported
-# max_expr: unsupported
+# min_expr
+# max_expr
 def _translate_minmax(evaluator: MinMaxEvaluator, element_var: str) -> EvaluatorPattern:
     # TODO: translate min max evaluator (min(), max())
     # Note: dispatch on evaluator.operator

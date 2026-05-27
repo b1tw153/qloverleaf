@@ -444,8 +444,8 @@ def test_resolve_types_evaluator_ref_stamped() -> None:
     assert isinstance(if_filter.evaluator, CompareExpression)
     count_expr = if_filter.evaluator.left_operand
     assert isinstance(count_expr, CountExpression)
-    assert count_expr.set_reference.version == 1
-    assert count_expr.set_reference.content_types == _NODE
+    assert count_expr.input_set.version == 1
+    assert count_expr.input_set.content_types == _NODE
 
 
 def test_resolve_types_for_block() -> None:
@@ -3270,24 +3270,24 @@ def test_count_nodes() -> None:
     expr = _evaluator("count(nodes)")
     assert isinstance(expr, CountExpression)
     assert expr.count_type == CountType.NODES
-    assert expr.set_reference.name == "_"
-    assert expr.set_reference.token is None
+    assert expr.input_set.name == "_"
+    assert expr.input_set.token is None
 
 
 def test_count_ways() -> None:
     expr = _evaluator("count(ways)")
     assert isinstance(expr, CountExpression)
     assert expr.count_type == CountType.WAYS
-    assert expr.set_reference.name == "_"
-    assert expr.set_reference.token is None
+    assert expr.input_set.name == "_"
+    assert expr.input_set.token is None
 
 
 def test_count_relations() -> None:
     expr = _evaluator("count(relations)")
     assert isinstance(expr, CountExpression)
     assert expr.count_type == CountType.RELATIONS
-    assert expr.set_reference.name == "_"
-    assert expr.set_reference.token is None
+    assert expr.input_set.name == "_"
+    assert expr.input_set.token is None
 
 
 def test_count_nw() -> None:
@@ -3318,8 +3318,8 @@ def test_count_with_set() -> None:
     expr = _evaluator("a.count(nodes)")
     assert isinstance(expr, CountExpression)
     assert expr.count_type == CountType.NODES
-    assert isinstance(expr.set_reference, SetReference)
-    assert expr.set_reference.name == "a"
+    assert isinstance(expr.input_set, SetReference)
+    assert expr.input_set.name == "a"
 
 
 def test_count_deriveds_raises() -> None:

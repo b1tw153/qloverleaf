@@ -203,12 +203,28 @@ _ELEMENT_TYPE_MAP: dict[str, frozenset[ElementType]] = {
 }
 
 
+class ScalarType(Enum):
+    BOOLEAN = "xsd:boolean"
+    CHANGESET = "changeset_uri"
+    DATETIME = "xsd:dateTime"
+    DECIMAL = "xsd:decimal"
+    DOUBLE = "xsd:double"
+    INT = "xsd:int"
+    KEY = "osmkey:"
+    LITERAL = "plain_literal"
+    NULL = "null"  # no scalar input
+    TYPE = "element_type_uri"
+    # None = indeterminate type
+
+
 # Evaluator Classes
 
 
 @dataclass(kw_only=True)
 class Evaluator:
     token: Token
+    input_type: ScalarType | None = None
+    output_type: ScalarType | None = None
 
 
 @dataclass
@@ -262,21 +278,25 @@ class LiteralExpression(Evaluator):
 @dataclass
 class MetadataExpression(Evaluator):
     attribute: MetadataAttribute
+    target_set: SetReference | None = None
 
 
 @dataclass
 class TagValueExpression(Evaluator):
     evaluator: LiteralExpression
+    target_set: SetReference | None = None
 
 
 @dataclass
 class IsTagExpression(Evaluator):
     key: str
+    target_set: SetReference | None = None
 
 
 @dataclass
 class CoordinateExpression(Evaluator):
     axis: CoordinateAxis
+    target_set: SetReference | None = None
 
 
 @dataclass
@@ -303,18 +323,18 @@ class TypeCheckExpression(Evaluator):
 
 @dataclass
 class IsClosedExpression(Evaluator):
-    pass
+    target_set: SetReference | None = None
 
 
 @dataclass
 class LengthExpression(Evaluator):
-    pass
+    target_set: SetReference | None = None
 
 
 @dataclass
 class CountExpression(Evaluator):
     count_type: CountType
-    set_reference: SetReference
+    input_set: SetReference
 
 
 @dataclass
@@ -1085,6 +1105,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def tag_filter_key_regex(self, children: list[Any]) -> None:
+        # best known translation forces a full scan over all triples and times out
         raise UnsupportedFeatureError(
             "Key regex filter [~key~value] is not supported", children[0]
         )
@@ -1192,6 +1213,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def changed_filter(self, children: list[Any]) -> None:
+        # QLever does not have attic data
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("changed filter is not supported", children[0])
 
@@ -1212,12 +1234,14 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def user_touched_filter(self, children: list[Any]) -> None:
+        # QLever does not have attic data
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError(
             "user_touched filter is not supported", children[0]
         )
 
     def uid_touched_filter(self, children: list[Any]) -> None:
+        # QLever does not have attic data
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError(
             "uid_touched filter is not supported", children[0]
@@ -1297,6 +1321,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def way_link_filter(self, children: list[Any]) -> None:
+        # no known translation to Sparql (see way-count-filters.md)
         raise UnsupportedFeatureError(
             "way_link filter is not supported", children[0].token
         )
@@ -1450,6 +1475,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def retro_stmt(self, children: list[Any]) -> None:
+        # QLever does not have attic data
         evaluator = children[0]
         assert isinstance(evaluator, Evaluator)
         raise UnsupportedFeatureError(
@@ -1525,7 +1551,9 @@ class OverpassTransformer(Transformer[Token, Query]):
                     token = child.token
             elif isinstance(child, BboxFilter):
                 raise UnsupportedFeatureError(
-                    "bbox_filter in out statement is not supported", child.token
+                    # Overpass support for this feature is idiosyncratic
+                    "bbox_filter in out statement is not supported",
+                    child.token,
                 )
             elif isinstance(child, Token):
                 if child.type == "OUT_VERB":
@@ -1536,6 +1564,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                     if token is None:
                         token = child
                     if verb == "noids":
+                        # Overpass support for this feature is broken
                         raise UnsupportedFeatureError("noids is not supported", child)
                     elif verb in ("ids", "skel", "tags", "body", "meta"):
                         if verbosity_token is not None:
@@ -1665,21 +1694,28 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def timeline_stmt(self, children: list[Any]) -> None:
+        # QLever does not have attic data
         raise UnsupportedFeatureError(
             "timeline statement is not supported", children[0]
         )
 
     def local_stmt(self, children: list[Any]) -> None:
+        # The local statement exposes the interal data format within Overpass
+        # TODO: Consider adding an output format type for raw QLever JSON
         raise UnsupportedFeatureError(
             "local statement is not supported", children[0] if children else None
         )
 
     def convert_stmt(self, children: list[Any]) -> None:
+        # Sparql has no notion of synthetic data types but this could be supported
+        # with a purely local implementation
         raise UnimplementedFeatureError(
             "convert statement is not implemented", children[0]
         )
 
     def make_stmt(self, children: list[Any]) -> None:
+        # Sparql has no notion of synthetic data types but this could be supported
+        # with a purely local implementation
         raise UnimplementedFeatureError(
             "make statement is not implemented", children[0]
         )
@@ -1703,6 +1739,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def compare_stmt(self, children: list[Any]) -> None:
+        # QLever does not have attic data
         raise UnsupportedFeatureError(
             "compare statement is not supported",
             children[0] if children else None,
@@ -1784,6 +1821,8 @@ class OverpassTransformer(Transformer[Token, Query]):
         assert isinstance(token, Token)
         evaluator = children[0]
         if not isinstance(evaluator, LiteralExpression):
+            # the best known translation forces a complete scan over all triples and
+            # times out (see tag-filters.md)
             raise UnsupportedFeatureError(
                 "t[...] with a dynamic key expression is not supported", token
             )
@@ -1796,10 +1835,15 @@ class OverpassTransformer(Transformer[Token, Query]):
         return IsTagExpression(key=key, token=token)
 
     def keys_expr(self, children: list[Any]) -> None:
+        # Returns all tag key names as semicolon-separated string; no SPARQL equivalent
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("keys() evaluator is not supported", children[0])
 
-    # generic_tag_expr - implemented only in the context of convert/make
+    def generic_tag_expr(self, children: list[Any]) -> None:
+        # implemented only in the context of convert/make which are unsupported
+        raise UnsupportedFeatureError(
+            "the generic tag evaluator is not supported", children[0]
+        )
 
     def version_expr(self, children: list[Any]) -> MetadataExpression:
         token = children[0]
@@ -1827,27 +1871,32 @@ class OverpassTransformer(Transformer[Token, Query]):
         return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
 
     def count_tags_expr(self, children: list[Any]) -> None:
+        # TODO: implement count_tags_expr transform
         assert isinstance(children[0], Token)
         raise UnimplementedFeatureError("count_tags() is not implemented", children[0])
 
     def count_members_expr(self, children: list[Any]) -> None:
+        # TODO: implement count_members_expr transform
         assert isinstance(children[0], Token)
         raise UnimplementedFeatureError(
             "count_members() is not implemented", children[0]
         )
 
     def count_distinct_members_expr(self, children: list[Any]) -> None:
+        # TODO: implement count_distinct_members_expr transform
         assert isinstance(children[0], Token)
         raise UnimplementedFeatureError(
             "count_distinct_members() is not implemented", children[0]
         )
 
     def count_by_role_expr(self, children: list[Any]) -> None:
+        # TODO: implement count_by_role_expr transform
         raise UnimplementedFeatureError(
             "count_by_role() is not implemented", children[0].token
         )
 
     def count_distinct_by_role_expr(self, children: list[Any]) -> None:
+        # TODO: implement count_distinct_by_role_expr transform
         raise UnimplementedFeatureError(
             "count_distinct_by_role() is not implemented", children[0].token
         )
@@ -1865,6 +1914,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return CoordinateExpression(axis=CoordinateAxis.LON, token=children[0])
 
     def geom_expr(self, children: list[Any]) -> None:
+        # geometry can only be assigned to ::geom in convert/make which are unsupported
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("geom() is not supported", children[0])
 
@@ -1873,50 +1923,64 @@ class OverpassTransformer(Transformer[Token, Query]):
         return LengthExpression(token=children[0])
 
     def center_expr(self, children: list[Any]) -> None:
+        # geometry can only be assigned to ::geom in convert/make which are unsupported
         raise UnsupportedFeatureError("center() is not supported", children[0].token)
 
     def trace_expr(self, children: list[Any]) -> None:
+        # geometry can only be assigned to ::geom in convert/make which are unsupported
         raise UnsupportedFeatureError("trace() is not supported", children[0].token)
 
     def hull_expr(self, children: list[Any]) -> None:
+        # geometry can only be assigned to ::geom in convert/make which are unsupported
         raise UnsupportedFeatureError("hull() is not supported", children[0].token)
 
     def pt_expr(self, children: list[Any]) -> None:
+        # geometry can only be assigned to ::geom in convert/make which are unsupported
         raise UnsupportedFeatureError("pt() is not supported", children[0].token)
 
     def lstr_expr(self, children: list[Any]) -> None:
+        # geometry can only be assigned to ::geom in convert/make which are unsupported
         raise UnsupportedFeatureError("lstr() is not supported", children[0].token)
 
     def poly_expr(self, children: list[Any]) -> None:
+        # geometry can only be assigned to ::geom in convert/make which are unsupported
         raise UnsupportedFeatureError("poly() is not supported", children[0].token)
 
     def per_member_expr(self, children: list[Any]) -> None:
+        # Returns a semicolon-separated list; requires lrs operators to process, which
+        # are unsupported
         raise UnsupportedFeatureError(
             "per_member() is not supported", children[0].token
         )
 
     def per_vertex_expr(self, children: list[Any]) -> None:
+        # individual vertices are not addressable in Sparql
         raise UnsupportedFeatureError(
             "per_vertex() is not supported", children[0].token
         )
 
     def pos_expr(self, children: list[Any]) -> None:
+        # valid only in the context of per_member()/per_vertex() which are unsupported
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("pos() is not supported", children[0])
 
     def mtype_expr(self, children: list[Any]) -> None:
+        # valid only in the context of per_member()/per_vertex() which are unsupported
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("mtype() is not supported", children[0])
 
     def ref_expr(self, children: list[Any]) -> None:
+        # valid only in the context of per_member()/per_vertex() which are unsupported
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("ref() is not supported", children[0])
 
     def role_expr(self, children: list[Any]) -> None:
+        # valid only in the context of per_member()/per_vertex() which are unsupported
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("role() is not supported", children[0])
 
     def angle_expr(self, children: list[Any]) -> None:
+        # valid only in the context of per_member()/per_vertex() which are unsupported
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("angle() is not supported", children[0])
 
@@ -1955,21 +2019,30 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def unique_expr(self, children: list[Any]) -> None:
+        # TODO: Revisit the decision to support the u evaluator
+        # There may be a translation for this feature (see evaluator-filters.md)
         raise UnsupportedFeatureError("u() is not supported", children[0].token)
 
     def min_expr(self, children: list[Any]) -> None:
+        # TODO: Revisit the decision to support the min evaluator
+        # Does static typing resolve the ambiguity between lexical and numeric ordering?
         raise UnsupportedFeatureError("min() is not supported", children[0].token)
 
     def max_expr(self, children: list[Any]) -> None:
+        # TODO: Revisit the decision to support the max evaluator
+        # Does static typing resolve the ambiguity between lexical and numeric ordering?
         raise UnsupportedFeatureError("max() is not supported", children[0].token)
 
     def sum_expr(self, children: list[Any]) -> None:
-        raise UnsupportedFeatureError("sum() is not supported", children[0].token)
+        # TODO: Implement sum_expr transform
+        raise UnimplementedFeatureError("sum() is not supported", children[0].token)
 
     def set_expr(self, children: list[Any]) -> None:
+        # Returns a semicolon separated list of values; no Sparql translation
         raise UnsupportedFeatureError("set() is not supported", children[0].token)
 
     def gcat_expr(self, children: list[Any]) -> None:
+        # geometry can only be assigned to ::geom in convert/make which are unsupported
         raise UnsupportedFeatureError("gcat() is not supported", children[0].token)
 
     def count_expr(self, children: list[Any]) -> CountExpression:
@@ -1986,23 +2059,28 @@ class OverpassTransformer(Transformer[Token, Query]):
             )
         return CountExpression(
             count_type=count_type,
-            set_reference=set_reference,
+            input_set=set_reference,
             token=count_type_token,
         )
 
     def lrs_in_expr(self, children: list[Any]) -> None:
+        # operates on a semicolon separated list of values; no Sparql translation
         raise UnsupportedFeatureError("lrs_in() is not supported", children[0].token)
 
     def lrs_isect_expr(self, children: list[Any]) -> None:
+        # operates on a semicolon separated list of values; no Sparql translation
         raise UnsupportedFeatureError("lrs_isect() is not supported", children[0].token)
 
     def lrs_union_expr(self, children: list[Any]) -> None:
+        # operates on a semicolon separated list of values; no Sparql translation
         raise UnsupportedFeatureError("lrs_union() is not supported", children[0].token)
 
     def lrs_min_expr(self, children: list[Any]) -> None:
+        # operates on a semicolon separated list of values; no Sparql translation
         raise UnsupportedFeatureError("lrs_min() is not supported", children[0].token)
 
     def lrs_max_expr(self, children: list[Any]) -> None:
+        # operates on a semicolon separated list of values; no Sparql translation
         raise UnsupportedFeatureError("lrs_max() is not supported", children[0].token)
 
     def val_expr(self, children: list[Any]) -> ValExpression:

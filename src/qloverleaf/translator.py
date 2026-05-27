@@ -19,6 +19,7 @@ from qloverleaf.transformer import (
     ForeachStatement,
     ForStatement,
     IdFilter,
+    IfFilter,
     IfStatement,
     IsInStatement,
     ItemStatement,
@@ -331,7 +332,8 @@ def _add_query_filter(
         _translate_set_filter(f, output_set, filter_index, result_variable, pattern)
     elif isinstance(f, PivotFilter):
         _translate_pivot_filter(f, output_set, filter_index, result_variable, pattern)
-    # elif isinstance(f, IfFilter): ...
+    elif isinstance(f, IfFilter):
+        _translate_if_filter(f, output_set, filter_index, result_variable, pattern)
     else:
         raise UnimplementedFeatureError(
             "query filter translation is not yet implemented", f.token
@@ -849,7 +851,26 @@ def _translate_pivot_filter(
     )
 
 
-# _translate_if_filter
+def _translate_if_filter(
+    f: IfFilter,
+    output_set: SetReference,
+    filter_index: int,
+    result_variable: str,
+    pattern: SparqlPattern,
+) -> None:
+    # Deferred import: evaluators.py imports translator.py (SetInjection), so
+    # importing evaluators at module level would create a circular dependency.
+    from qloverleaf.evaluators import translate_evaluator
+
+    variable_base = _variable_name(output_set, filter_index=filter_index)
+    evaluator_pattern = translate_evaluator(f.evaluator, result_variable, variable_base)
+    if evaluator_pattern.subqueries:
+        raise UnimplementedFeatureError(
+            "evaluator subqueries in if filters are not yet implemented", f.token
+        )
+    pattern.prefixes |= evaluator_pattern.prefixes
+    pattern.where_clauses.extend(evaluator_pattern.clauses)
+    pattern.where_clauses.append(f"FILTER({evaluator_pattern.expression})")
 
 
 def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:

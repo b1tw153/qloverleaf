@@ -357,18 +357,20 @@ class TypeCheckEvaluator(Evaluator):
 
 @dataclass
 class CountTagsEvaluator(Evaluator):
-    pass
+    target_set: SetReference | None = None
 
 
 @dataclass
 class CountMembersEvaluator(Evaluator):
     distinct: bool = False
+    target_set: SetReference | None = None
 
 
 @dataclass
 class CountByRoleEvaluator(Evaluator):
     role: Evaluator
     distinct: bool = False
+    target_set: SetReference | None = None
 
 
 @dataclass

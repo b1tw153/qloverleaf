@@ -21,6 +21,7 @@ from qloverleaf.transformer import (
     AbsEvaluator,
     AddEvaluator,
     AddOperator,
+    AggregateOperator,
     AreaIdFilter,
     AreaSetFilter,
     AroundLineFilter,
@@ -35,7 +36,10 @@ from qloverleaf.transformer import (
     ConversionFunction,
     CoordinateAxis,
     CoordinateEvaluator,
+    CountByRoleEvaluator,
     CountEvaluator,
+    CountMembersEvaluator,
+    CountTagsEvaluator,
     CountType,
     ElementType,
     Evaluator,
@@ -53,6 +57,7 @@ from qloverleaf.transformer import (
     MapToAreaStatement,
     MetadataAttribute,
     MetadataEvaluator,
+    MinMaxEvaluator,
     MultiplyEvaluator,
     MultiplyOperator,
     NewerFilter,
@@ -72,6 +77,7 @@ from qloverleaf.transformer import (
     SetReference,
     Statement,
     SuffixEvaluator,
+    SumEvaluator,
     TagFilterOp,
     TagKeyFilter,
     TagValueEvaluator,
@@ -82,6 +88,7 @@ from qloverleaf.transformer import (
     UidFilter,
     UnaryEvaluator,
     UnaryOperator,
+    UniqueEvaluator,
     UnionStatement,
     UserFilter,
     ValEvaluator,
@@ -2944,9 +2951,10 @@ def test_user_expr() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_count_tags_expr_raises() -> None:
-    with pytest.raises(UnimplementedFeatureError):
-        _evaluator("count_tags()")
+def test_count_tags_expr() -> None:
+    expr = _evaluator("count_tags()")
+    assert isinstance(expr, CountTagsEvaluator)
+    assert expr.token is not None
 
 
 # ---------------------------------------------------------------------------
@@ -2954,9 +2962,11 @@ def test_count_tags_expr_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_count_members_expr_raises() -> None:
-    with pytest.raises(UnimplementedFeatureError):
-        _evaluator("count_members()")
+def test_count_members_expr() -> None:
+    expr = _evaluator("count_members()")
+    assert isinstance(expr, CountMembersEvaluator)
+    assert expr.distinct is False
+    assert expr.token is not None
 
 
 # ---------------------------------------------------------------------------
@@ -2964,9 +2974,11 @@ def test_count_members_expr_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_count_distinct_members_expr_raises() -> None:
-    with pytest.raises(UnimplementedFeatureError):
-        _evaluator("count_distinct_members()")
+def test_count_distinct_members_expr() -> None:
+    expr = _evaluator("count_distinct_members()")
+    assert isinstance(expr, CountMembersEvaluator)
+    assert expr.distinct is True
+    assert expr.token is not None
 
 
 # ---------------------------------------------------------------------------
@@ -2974,9 +2986,12 @@ def test_count_distinct_members_expr_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_count_by_role_expr_raises() -> None:
-    with pytest.raises(UnimplementedFeatureError):
-        _evaluator('count_by_role("outer")')
+def test_count_by_role_expr() -> None:
+    expr = _evaluator('count_by_role("outer")')
+    assert isinstance(expr, CountByRoleEvaluator)
+    assert isinstance(expr.role, LiteralEvaluator)
+    assert expr.distinct is False
+    assert expr.token is not None
 
 
 # ---------------------------------------------------------------------------
@@ -2984,9 +2999,12 @@ def test_count_by_role_expr_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_count_distinct_by_role_expr_raises() -> None:
-    with pytest.raises(UnimplementedFeatureError):
-        _evaluator('count_distinct_by_role("outer")')
+def test_count_distinct_by_role_expr() -> None:
+    expr = _evaluator('count_distinct_by_role("outer")')
+    assert isinstance(expr, CountByRoleEvaluator)
+    assert isinstance(expr.role, LiteralEvaluator)
+    assert expr.distinct is True
+    assert expr.token is not None
 
 
 # ---------------------------------------------------------------------------
@@ -3176,14 +3194,18 @@ def test_angle_expr_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_unique_expr_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _evaluator('u(t["name"])')
+def test_unique_expr() -> None:
+    expr = _evaluator('u(t["name"])')
+    assert isinstance(expr, UniqueEvaluator)
+    assert expr.input_set.name == "_"
+    assert isinstance(expr.evaluator, TagValueEvaluator)
 
 
-def test_unique_expr_with_set_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _evaluator('a.u(t["name"])')
+def test_unique_expr_with_set() -> None:
+    expr = _evaluator('a.u(t["name"])')
+    assert isinstance(expr, UniqueEvaluator)
+    assert expr.input_set.name == "a"
+    assert isinstance(expr.evaluator, TagValueEvaluator)
 
 
 # ---------------------------------------------------------------------------
@@ -3191,14 +3213,20 @@ def test_unique_expr_with_set_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_min_expr_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _evaluator('min(t["ele"])')
+def test_min_expr() -> None:
+    expr = _evaluator('min(t["ele"])')
+    assert isinstance(expr, MinMaxEvaluator)
+    assert expr.operator == AggregateOperator.MIN
+    assert expr.input_set.name == "_"
+    assert isinstance(expr.evaluator, TagValueEvaluator)
 
 
-def test_min_expr_with_set_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _evaluator('a.min(t["ele"])')
+def test_min_expr_with_set() -> None:
+    expr = _evaluator('a.min(t["ele"])')
+    assert isinstance(expr, MinMaxEvaluator)
+    assert expr.operator == AggregateOperator.MIN
+    assert expr.input_set.name == "a"
+    assert isinstance(expr.evaluator, TagValueEvaluator)
 
 
 # ---------------------------------------------------------------------------
@@ -3206,14 +3234,20 @@ def test_min_expr_with_set_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_max_expr_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _evaluator('max(t["ele"])')
+def test_max_expr() -> None:
+    expr = _evaluator('max(t["ele"])')
+    assert isinstance(expr, MinMaxEvaluator)
+    assert expr.operator == AggregateOperator.MAX
+    assert expr.input_set.name == "_"
+    assert isinstance(expr.evaluator, TagValueEvaluator)
 
 
-def test_max_expr_with_set_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _evaluator('a.max(t["ele"])')
+def test_max_expr_with_set() -> None:
+    expr = _evaluator('a.max(t["ele"])')
+    assert isinstance(expr, MinMaxEvaluator)
+    assert expr.operator == AggregateOperator.MAX
+    assert expr.input_set.name == "a"
+    assert isinstance(expr.evaluator, TagValueEvaluator)
 
 
 # ---------------------------------------------------------------------------
@@ -3221,14 +3255,18 @@ def test_max_expr_with_set_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_sum_expr_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _evaluator('sum(t["ele"])')
+def test_sum_expr() -> None:
+    expr = _evaluator('sum(t["ele"])')
+    assert isinstance(expr, SumEvaluator)
+    assert expr.input_set.name == "_"
+    assert isinstance(expr.evaluator, TagValueEvaluator)
 
 
-def test_sum_expr_with_set_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _evaluator('a.sum(t["ele"])')
+def test_sum_expr_with_set() -> None:
+    expr = _evaluator('a.sum(t["ele"])')
+    assert isinstance(expr, SumEvaluator)
+    assert expr.input_set.name == "a"
+    assert isinstance(expr.evaluator, TagValueEvaluator)
 
 
 # ---------------------------------------------------------------------------
@@ -3460,3 +3498,165 @@ def test_is_date_expr() -> None:
     expr = _evaluator('is_date(t["start_date"])')
     assert isinstance(expr, TypeCheckEvaluator)
     assert expr.function == TypeCheckFunction.IS_DATE
+
+
+# ---------------------------------------------------------------------------
+# _resolve_element_contexts — target_set stamping
+# ---------------------------------------------------------------------------
+
+
+def test_metadata_target_set_stamped() -> None:
+    expr = _evaluator("id()")
+    assert isinstance(expr, MetadataEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def test_tag_value_target_set_stamped() -> None:
+    expr = _evaluator('t["name"]')
+    assert isinstance(expr, TagValueEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def test_is_tag_target_set_stamped() -> None:
+    expr = _evaluator('is_tag("name")')
+    assert isinstance(expr, IsTagEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def test_coordinate_target_set_stamped() -> None:
+    expr = _evaluator("lat()")
+    assert isinstance(expr, CoordinateEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def test_is_closed_target_set_stamped() -> None:
+    expr = _evaluator("is_closed()")
+    assert isinstance(expr, IsClosedEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def test_length_target_set_stamped() -> None:
+    expr = _evaluator("length()")
+    assert isinstance(expr, LengthEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def _for_stmt2(text: str) -> ForStatement:
+    """Return the second statement (index 1) as a ForStatement."""
+    stmt = _transform_query(text).statements[1]
+    assert isinstance(stmt, ForStatement)
+    return stmt
+
+
+def test_sum_expr_inner_target_set_stamped() -> None:
+    # Inner evaluator of sum() is stamped with the sum's input_set
+    stmt = _for_stmt2("node -> .a; for(a.sum(id())) { node; }")
+    sum_expr = stmt.evaluator
+    assert isinstance(sum_expr, SumEvaluator)
+    assert isinstance(sum_expr.evaluator, MetadataEvaluator)
+    assert sum_expr.evaluator.target_set is not None
+    assert sum_expr.evaluator.target_set.name == "a"
+
+
+def test_unique_expr_inner_target_set_stamped() -> None:
+    stmt = _for_stmt2("node -> .a; for(a.u(id())) { node; }")
+    unique_expr = stmt.evaluator
+    assert isinstance(unique_expr, UniqueEvaluator)
+    assert isinstance(unique_expr.evaluator, MetadataEvaluator)
+    assert unique_expr.evaluator.target_set is not None
+    assert unique_expr.evaluator.target_set.name == "a"
+
+
+def test_min_expr_inner_target_set_stamped() -> None:
+    stmt = _for_stmt2("node -> .a; for(a.min(id())) { node; }")
+    min_expr = stmt.evaluator
+    assert isinstance(min_expr, MinMaxEvaluator)
+    assert isinstance(min_expr.evaluator, MetadataEvaluator)
+    assert min_expr.evaluator.target_set is not None
+    assert min_expr.evaluator.target_set.name == "a"
+
+
+def test_max_expr_inner_target_set_stamped() -> None:
+    stmt = _for_stmt2("node -> .a; for(a.max(id())) { node; }")
+    max_expr = stmt.evaluator
+    assert isinstance(max_expr, MinMaxEvaluator)
+    assert isinstance(max_expr.evaluator, MetadataEvaluator)
+    assert max_expr.evaluator.target_set is not None
+    assert max_expr.evaluator.target_set.name == "a"
+
+
+def test_aggregator_context_does_not_bleed_out() -> None:
+    # Evaluators outside the aggregator boundary get the outer (for loop) context,
+    # not the aggregator's input_set.
+    stmt = _for_stmt2("node -> .a; for(id() + a.sum(id())) { node; }")
+    add_expr = stmt.evaluator
+    assert isinstance(add_expr, AddEvaluator)
+    outer_id = add_expr.left_operand
+    assert isinstance(outer_id, MetadataEvaluator)
+    assert outer_id.target_set is not None
+    assert outer_id.target_set.name == "_"
+    sum_expr = add_expr.right_operand
+    assert isinstance(sum_expr, SumEvaluator)
+    inner_id = sum_expr.evaluator
+    assert isinstance(inner_id, MetadataEvaluator)
+    assert inner_id.target_set is not None
+    assert inner_id.target_set.name == "a"
+
+
+def test_if_filter_target_set_default_output() -> None:
+    # if_filter evaluator is stamped with the query's output_set
+    f = _first_filter("node(if:id());")
+    assert isinstance(f, IfFilter)
+    assert isinstance(f.evaluator, MetadataEvaluator)
+    assert f.evaluator.target_set is not None
+    assert f.evaluator.target_set.name == "_"
+
+
+def test_if_filter_target_set_named_output() -> None:
+    # Named output set is used, not the default
+    f = _first_filter("node(if:id()) -> .a;")
+    assert isinstance(f, IfFilter)
+    assert isinstance(f.evaluator, MetadataEvaluator)
+    assert f.evaluator.target_set is not None
+    assert f.evaluator.target_set.name == "a"
+
+
+def test_count_tags_target_set_stamped() -> None:
+    expr = _evaluator("count_tags()")
+    assert isinstance(expr, CountTagsEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def test_count_members_target_set_stamped() -> None:
+    expr = _evaluator("count_members()")
+    assert isinstance(expr, CountMembersEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def test_count_distinct_members_target_set_stamped() -> None:
+    expr = _evaluator("count_distinct_members()")
+    assert isinstance(expr, CountMembersEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def test_count_by_role_target_set_stamped() -> None:
+    expr = _evaluator('count_by_role("outer")')
+    assert isinstance(expr, CountByRoleEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"
+
+
+def test_count_distinct_by_role_target_set_stamped() -> None:
+    expr = _evaluator('count_distinct_by_role("outer")')
+    assert isinstance(expr, CountByRoleEvaluator)
+    assert expr.target_set is not None
+    assert expr.target_set.name == "_"

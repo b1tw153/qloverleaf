@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+from lark import Token
+
 from qloverleaf.exceptions import UnimplementedFeatureError
 from qloverleaf.transformer import (
     _NUMERIC_TYPES,
@@ -55,33 +57,51 @@ class EvaluatorPattern:
     subqueries: list[Subquery] = field(default_factory=list)
 
 
-def translate_evaluator(evaluator: Evaluator, element_var: str) -> EvaluatorPattern:
+def _evaluator_variable_name(
+    variable_base: str, token: Token, intermediate: str
+) -> str:
+    """Generate a unique SPARQL variable name for an evaluator intermediate value.
+
+    variable_base is the base name derived from the enclosing filter context
+    (e.g. "?craters1·f3"), token gives the source position of the evaluator
+    expression to disambiguate sub-expressions, and intermediate is a short
+    semantic label for the specific variable being bound (e.g. "version", "wkt").
+    """
+    return f"{variable_base}·{token.line}c{token.column}·{intermediate}"
+
+
+def translate_evaluator(
+    evaluator: Evaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     """Translate an evaluator IR node into an EvaluatorPattern.
 
     element_var is the SPARQL variable (with ? prefix) that represents the current
     OSM element in the enclosing SparqlPattern — e.g. "?_1" or "?craters1".
     Evaluators that reference element attributes use it as the subject of their
     triple patterns.
+
+    variable_base is the prefix used to generate unique intermediate variable names
+    for this evaluator context — e.g. "?craters1·f3" (from _variable_name).
     """
     # ternary_expr
     if isinstance(evaluator, TernaryEvaluator):
-        return _translate_ternary(evaluator, element_var)
+        return _translate_ternary(evaluator, element_var, variable_base)
     # or_expr
     # and_expr
     if isinstance(evaluator, BinaryEvaluator):
-        return _translate_binary(evaluator, element_var)
+        return _translate_binary(evaluator, element_var, variable_base)
     # not_expr
     if isinstance(evaluator, UnaryEvaluator):
-        return _translate_unary(evaluator, element_var)
+        return _translate_unary(evaluator, element_var, variable_base)
     # compare_expr
     if isinstance(evaluator, CompareEvaluator):
-        return _translate_compare(evaluator, element_var)
+        return _translate_compare(evaluator, element_var, variable_base)
     # add_expr
     if isinstance(evaluator, AddEvaluator):
-        return _translate_add(evaluator, element_var)
+        return _translate_add(evaluator, element_var, variable_base)
     # mul_expr
     if isinstance(evaluator, MultiplyEvaluator):
-        return _translate_multiply(evaluator, element_var)
+        return _translate_multiply(evaluator, element_var, variable_base)
     # unary_expr
     # literal_expr
     if isinstance(evaluator, LiteralEvaluator):
@@ -91,10 +111,10 @@ def translate_evaluator(evaluator: Evaluator, element_var: str) -> EvaluatorPatt
     # type_expr
     # tag_value_expr
     if isinstance(evaluator, TagValueEvaluator):
-        return _translate_tag_value(evaluator, element_var)
+        return _translate_tag_value(evaluator, element_var, variable_base)
     # is_tag_expr
     if isinstance(evaluator, IsTagEvaluator):
-        return _translate_is_tag(evaluator, element_var)
+        return _translate_is_tag(evaluator, element_var, variable_base)
     # keys_expr: unsupported
     # generic_tag_expr: unsupported
     # version_expr
@@ -103,29 +123,29 @@ def translate_evaluator(evaluator: Evaluator, element_var: str) -> EvaluatorPatt
     # uid_expr
     # user_expr
     if isinstance(evaluator, MetadataEvaluator):
-        return _translate_metadata(evaluator, element_var)
+        return _translate_metadata(evaluator, element_var, variable_base)
     # count_tags_expr
     if isinstance(evaluator, CountTagsEvaluator):
-        return _translate_count_tags(evaluator, element_var)
+        return _translate_count_tags(evaluator, element_var, variable_base)
     # count_members_expr
     # count_distinct_members_expr (CountMembersEvaluator with distinct=True)
     if isinstance(evaluator, CountMembersEvaluator):
-        return _translate_count_members(evaluator, element_var)
+        return _translate_count_members(evaluator, element_var, variable_base)
     # count_by_role_expr
     # count_distinct_by_role_expr (CountByRoleEvaluator with distinct=True)
     if isinstance(evaluator, CountByRoleEvaluator):
-        return _translate_count_by_role(evaluator, element_var)
+        return _translate_count_by_role(evaluator, element_var, variable_base)
     # is_closed_expr
     if isinstance(evaluator, IsClosedEvaluator):
-        return _translate_is_closed(evaluator, element_var)
+        return _translate_is_closed(evaluator, element_var, variable_base)
     # lat_expr
     # lon_expr
     if isinstance(evaluator, CoordinateEvaluator):
-        return _translate_coordinate(evaluator, element_var)
+        return _translate_coordinate(evaluator, element_var, variable_base)
     # geom_expr: unsupported
     # length_expr
     if isinstance(evaluator, LengthEvaluator):
-        return _translate_length(evaluator, element_var)
+        return _translate_length(evaluator, element_var, variable_base)
     # center_expr: unsupported
     # trace_expr: unsupported
     # hull_expr: unsupported
@@ -142,32 +162,32 @@ def translate_evaluator(evaluator: Evaluator, element_var: str) -> EvaluatorPatt
     # number_expr
     # date_expr
     if isinstance(evaluator, ConversionEvaluator):
-        return _translate_conversion(evaluator, element_var)
+        return _translate_conversion(evaluator, element_var, variable_base)
     # suffix_expr
     if isinstance(evaluator, SuffixEvaluator):
-        return _translate_suffix(evaluator, element_var)
+        return _translate_suffix(evaluator, element_var, variable_base)
     # abs_expr
     if isinstance(evaluator, AbsEvaluator):
-        return _translate_abs(evaluator, element_var)
+        return _translate_abs(evaluator, element_var, variable_base)
     # is_number_expr
     # is_date_expr
     if isinstance(evaluator, TypeCheckEvaluator):
-        return _translate_type_check(evaluator, element_var)
+        return _translate_type_check(evaluator, element_var, variable_base)
     # unique_expr
     if isinstance(evaluator, UniqueEvaluator):
-        return _translate_unique(evaluator, element_var)
+        return _translate_unique(evaluator, element_var, variable_base)
     # min_expr
     # max_expr
     if isinstance(evaluator, MinMaxEvaluator):
-        return _translate_minmax(evaluator, element_var)
+        return _translate_minmax(evaluator, element_var, variable_base)
     # sum_expr
     if isinstance(evaluator, SumEvaluator):
-        return _translate_sum(evaluator, element_var)
+        return _translate_sum(evaluator, element_var, variable_base)
     # set_expr: unsupported
     # gcat_expr: unsupported
     # count_expr
     if isinstance(evaluator, CountEvaluator):
-        return _translate_count(evaluator)
+        return _translate_count(evaluator, element_var, variable_base)
     # lrs_in_expr: unsupported
     # lrs_isect_expr: unsupported
     # lrs_union_expr: unsupported
@@ -175,17 +195,23 @@ def translate_evaluator(evaluator: Evaluator, element_var: str) -> EvaluatorPatt
     # lrs_max_expr: unsupported
     # val_expr
     if isinstance(evaluator, ValEvaluator):
-        return _translate_val(evaluator)
+        return _translate_val(evaluator, element_var, variable_base)
     raise NotImplementedError(f"No evaluator translator for {type(evaluator).__name__}")
 
 
 # ternary_expr
 def _translate_ternary(
-    evaluator: TernaryEvaluator, element_var: str
+    evaluator: TernaryEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    condition_pattern = translate_evaluator(evaluator.condition, element_var)
-    true_pattern = translate_evaluator(evaluator.true_expression, element_var)
-    false_pattern = translate_evaluator(evaluator.false_expression, element_var)
+    condition_pattern = translate_evaluator(
+        evaluator.condition, element_var, variable_base
+    )
+    true_pattern = translate_evaluator(
+        evaluator.true_expression, element_var, variable_base
+    )
+    false_pattern = translate_evaluator(
+        evaluator.false_expression, element_var, variable_base
+    )
     expression = (
         f"IF({condition_pattern.expression}, "
         f"{true_pattern.expression}, "
@@ -207,9 +233,12 @@ def _translate_ternary(
 
 # or_expr
 # and_expr
-def _translate_binary(evaluator: BinaryEvaluator, element_var: str) -> EvaluatorPattern:
+def _translate_binary(
+    evaluator: BinaryEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     operand_patterns = [
-        translate_evaluator(operand, element_var) for operand in evaluator.operands
+        translate_evaluator(operand, element_var, variable_base)
+        for operand in evaluator.operands
     ]
     op = evaluator.operator.value
     operand_expressions = [pattern.expression for pattern in operand_patterns]
@@ -226,8 +255,10 @@ def _translate_binary(evaluator: BinaryEvaluator, element_var: str) -> Evaluator
 
 # not_expr
 # unary_expr (NEGATE)
-def _translate_unary(evaluator: UnaryEvaluator, element_var: str) -> EvaluatorPattern:
-    inner = translate_evaluator(evaluator.operand, element_var)
+def _translate_unary(
+    evaluator: UnaryEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
+    inner = translate_evaluator(evaluator.operand, element_var, variable_base)
     op = "!" if evaluator.operator == UnaryOperator.NOT else "-"
     return EvaluatorPattern(
         expression=f"{op}({inner.expression})",
@@ -250,10 +281,14 @@ _COMPARE_OP_SPARQL: dict[CompareOperator, str] = {
 
 # compare_expr
 def _translate_compare(
-    evaluator: CompareEvaluator, element_var: str
+    evaluator: CompareEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    left_pattern = translate_evaluator(evaluator.left_operand, element_var)
-    right_pattern = translate_evaluator(evaluator.right_operand, element_var)
+    left_pattern = translate_evaluator(
+        evaluator.left_operand, element_var, variable_base
+    )
+    right_pattern = translate_evaluator(
+        evaluator.right_operand, element_var, variable_base
+    )
     op = _COMPARE_OP_SPARQL[evaluator.operator]
     expression = f"({left_pattern.expression}) {op} ({right_pattern.expression})"
     prefixes = left_pattern.prefixes | right_pattern.prefixes
@@ -265,9 +300,15 @@ def _translate_compare(
 
 
 # add_expr
-def _translate_add(evaluator: AddEvaluator, element_var: str) -> EvaluatorPattern:
-    left_pattern = translate_evaluator(evaluator.left_operand, element_var)
-    right_pattern = translate_evaluator(evaluator.right_operand, element_var)
+def _translate_add(
+    evaluator: AddEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
+    left_pattern = translate_evaluator(
+        evaluator.left_operand, element_var, variable_base
+    )
+    right_pattern = translate_evaluator(
+        evaluator.right_operand, element_var, variable_base
+    )
     prefixes = left_pattern.prefixes | right_pattern.prefixes
     clauses = left_pattern.clauses + right_pattern.clauses
     subqueries = left_pattern.subqueries + right_pattern.subqueries
@@ -287,10 +328,14 @@ def _translate_add(evaluator: AddEvaluator, element_var: str) -> EvaluatorPatter
 
 # mul_expr
 def _translate_multiply(
-    evaluator: MultiplyEvaluator, element_var: str
+    evaluator: MultiplyEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    left_pattern = translate_evaluator(evaluator.left_operand, element_var)
-    right_pattern = translate_evaluator(evaluator.right_operand, element_var)
+    left_pattern = translate_evaluator(
+        evaluator.left_operand, element_var, variable_base
+    )
+    right_pattern = translate_evaluator(
+        evaluator.right_operand, element_var, variable_base
+    )
     op = evaluator.operator.value
     expression = f"({left_pattern.expression}) {op} ({right_pattern.expression})"
     prefixes = left_pattern.prefixes | right_pattern.prefixes
@@ -330,7 +375,7 @@ def _translate_literal(evaluator: LiteralEvaluator) -> EvaluatorPattern:
 
 # tag_value_expr
 def _translate_tag_value(
-    evaluator: TagValueEvaluator, element_var: str
+    evaluator: TagValueEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
     # TODO: translate tag value evaluator (t["key"])
     raise UnimplementedFeatureError(
@@ -339,7 +384,9 @@ def _translate_tag_value(
 
 
 # is_tag_expr
-def _translate_is_tag(evaluator: IsTagEvaluator, element_var: str) -> EvaluatorPattern:
+def _translate_is_tag(
+    evaluator: IsTagEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     # TODO: translate is_tag evaluator
     raise UnimplementedFeatureError(
         "is_tag evaluator is not implemented", evaluator.token
@@ -356,7 +403,7 @@ def _translate_is_tag(evaluator: IsTagEvaluator, element_var: str) -> EvaluatorP
 # uid_expr
 # user_expr
 def _translate_metadata(
-    evaluator: MetadataEvaluator, element_var: str
+    evaluator: MetadataEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
     # TODO: translate metadata evaluator (id, type, version, timestamp, changeset,
     #   uid, user); dispatch on evaluator.attribute
@@ -367,7 +414,7 @@ def _translate_metadata(
 
 # count_tags_expr
 def _translate_count_tags(
-    evaluator: CountTagsEvaluator, element_var: str
+    evaluator: CountTagsEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
     # TODO: translate count_tags evaluator
     raise UnimplementedFeatureError(
@@ -378,7 +425,7 @@ def _translate_count_tags(
 # count_members_expr
 # count_distinct_members_expr (CountMembersEvaluator with distinct=True)
 def _translate_count_members(
-    evaluator: CountMembersEvaluator, element_var: str
+    evaluator: CountMembersEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
     # TODO: translate count_members evaluator; dispatch on evaluator.distinct
     raise UnimplementedFeatureError(
@@ -389,7 +436,7 @@ def _translate_count_members(
 # count_by_role_expr
 # count_distinct_by_role_expr (CountByRoleEvaluator with distinct=True)
 def _translate_count_by_role(
-    evaluator: CountByRoleEvaluator, element_var: str
+    evaluator: CountByRoleEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
     # TODO: translate count_by_role evaluator; dispatch on evaluator.distinct
     raise UnimplementedFeatureError(
@@ -399,7 +446,7 @@ def _translate_count_by_role(
 
 # is_closed_expr
 def _translate_is_closed(
-    evaluator: IsClosedEvaluator, element_var: str
+    evaluator: IsClosedEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
     # TODO: translate is_closed evaluator
     raise UnimplementedFeatureError(
@@ -410,7 +457,7 @@ def _translate_is_closed(
 # lat_expr
 # lon_expr
 def _translate_coordinate(
-    evaluator: CoordinateEvaluator, element_var: str
+    evaluator: CoordinateEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
     # TODO: translate coordinate evaluator (lat(), lon())
     # Note: dispatch on evaluator.axis
@@ -423,7 +470,9 @@ def _translate_coordinate(
 
 
 # length_expr
-def _translate_length(evaluator: LengthEvaluator, element_var: str) -> EvaluatorPattern:
+def _translate_length(
+    evaluator: LengthEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     # TODO: translate length evaluator
     raise UnimplementedFeatureError(
         "length evaluator is not implemented", evaluator.token
@@ -448,9 +497,9 @@ def _translate_length(evaluator: LengthEvaluator, element_var: str) -> Evaluator
 # number_expr
 # date_expr
 def _translate_conversion(
-    evaluator: ConversionEvaluator, element_var: str
+    evaluator: ConversionEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    inner_pattern = translate_evaluator(evaluator.operand, element_var)
+    inner_pattern = translate_evaluator(evaluator.operand, element_var, variable_base)
     if evaluator.function == ConversionFunction.NUMBER:
         expression = f"xsd:double(str({inner_pattern.expression}))"
     else:
@@ -465,14 +514,16 @@ def _translate_conversion(
 
 
 # suffix_expr
-def _translate_suffix(evaluator: SuffixEvaluator, element_var: str) -> EvaluatorPattern:
+def _translate_suffix(
+    evaluator: SuffixEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     # Approximation: strips the leading numeric prefix and returns the remainder.
     # Diverges from Overpass in two ways: Overpass strips whitespace between the
     # numeric prefix and the suffix ("734 m" -> "m", not " m"), and returns "" for
     # strings with no numeric prefix rather than returning the string unchanged.
     # The \\\\. in Python source produces \\. in the SPARQL text, which SPARQL
     # parses as the regex escape \. (literal dot).
-    inner_pattern = translate_evaluator(evaluator.operand, element_var)
+    inner_pattern = translate_evaluator(evaluator.operand, element_var, variable_base)
     expression = (
         f"REPLACE({inner_pattern.expression},"
         f' "^-?[0-9]+(\\\\.[0-9]+)?([eE][+-]?[0-9]+)?", "")'
@@ -486,8 +537,10 @@ def _translate_suffix(evaluator: SuffixEvaluator, element_var: str) -> Evaluator
 
 
 # abs_expr
-def _translate_abs(evaluator: AbsEvaluator, element_var: str) -> EvaluatorPattern:
-    inner_pattern = translate_evaluator(evaluator.operand, element_var)
+def _translate_abs(
+    evaluator: AbsEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
+    inner_pattern = translate_evaluator(evaluator.operand, element_var, variable_base)
     expression = f"ABS({inner_pattern.expression})"
     return EvaluatorPattern(
         expression=expression,
@@ -500,9 +553,9 @@ def _translate_abs(evaluator: AbsEvaluator, element_var: str) -> EvaluatorPatter
 # is_number_expr
 # is_date_expr
 def _translate_type_check(
-    evaluator: TypeCheckEvaluator, element_var: str
+    evaluator: TypeCheckEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    inner_pattern = translate_evaluator(evaluator.operand, element_var)
+    inner_pattern = translate_evaluator(evaluator.operand, element_var, variable_base)
     if evaluator.function == TypeCheckFunction.IS_NUMBER:
         # Approximation: Overpass uses strtod() semantics, which also accepts
         # scientific notation, leading whitespace, leading +, trailing decimal,
@@ -525,7 +578,9 @@ def _translate_type_check(
 
 
 # unique_expr
-def _translate_unique(evaluator: UniqueEvaluator, element_var: str) -> EvaluatorPattern:
+def _translate_unique(
+    evaluator: UniqueEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     # TODO: translate unique evaluator
     raise UnimplementedFeatureError(
         "unique evaluator is not implemented", evaluator.token
@@ -534,7 +589,9 @@ def _translate_unique(evaluator: UniqueEvaluator, element_var: str) -> Evaluator
 
 # min_expr
 # max_expr
-def _translate_minmax(evaluator: MinMaxEvaluator, element_var: str) -> EvaluatorPattern:
+def _translate_minmax(
+    evaluator: MinMaxEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     # TODO: translate min max evaluator (min(), max())
     # Note: dispatch on evaluator.operator
     raise UnimplementedFeatureError(
@@ -543,7 +600,9 @@ def _translate_minmax(evaluator: MinMaxEvaluator, element_var: str) -> Evaluator
 
 
 # sum_expr
-def _translate_sum(evaluator: SumEvaluator, element_var: str) -> EvaluatorPattern:
+def _translate_sum(
+    evaluator: SumEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     # TODO: translate sum evaluator (set_name.sum(evaluator))
     raise UnimplementedFeatureError("sum evaluator is not implemented", evaluator.token)
 
@@ -553,7 +612,9 @@ def _translate_sum(evaluator: SumEvaluator, element_var: str) -> EvaluatorPatter
 
 
 # count_expr
-def _translate_count(evaluator: CountEvaluator) -> EvaluatorPattern:
+def _translate_count(
+    evaluator: CountEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     # TODO: translate count evaluator (set_name.count(type))
     raise UnimplementedFeatureError(
         "count evaluator is not implemented", evaluator.token
@@ -568,6 +629,8 @@ def _translate_count(evaluator: CountEvaluator) -> EvaluatorPattern:
 
 
 # val_expr
-def _translate_val(evaluator: ValEvaluator) -> EvaluatorPattern:
+def _translate_val(
+    evaluator: ValEvaluator, element_var: str, variable_base: str
+) -> EvaluatorPattern:
     # TODO: translate val evaluator (set_name.val)
     raise UnimplementedFeatureError("val evaluator is not implemented", evaluator.token)

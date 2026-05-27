@@ -1021,6 +1021,57 @@ def _resolve_types(query: Query) -> None:
     _walk_stmts(query.statements, state, query.warnings)
 
 
+def _stamp_element_context(
+    evaluator: Evaluator, context: SetReference | None
+) -> None:
+    for f in fields(evaluator):
+        val = getattr(evaluator, f.name)
+        if f.name == "target_set":
+            if val is None and context is not None:
+                setattr(evaluator, f.name, context)
+        elif isinstance(val, Evaluator):
+            # Aggregators establish a new context boundary: their inner evaluator
+            # operates on the aggregator's input_set, not the outer context.
+            child_context: SetReference | None
+            if f.name == "evaluator" and isinstance(
+                evaluator, (UniqueEvaluator, MinMaxEvaluator, SumEvaluator)
+            ):
+                child_context = evaluator.input_set
+            else:
+                child_context = context
+            _stamp_element_context(val, child_context)
+
+
+def _walk_stmt_element_context(stmt: Statement) -> None:
+    if isinstance(stmt, QueryStatement):
+        for f in stmt.filters:
+            if isinstance(f, IfFilter):
+                _stamp_element_context(f.evaluator, stmt.output_set)
+    elif isinstance(stmt, ForStatement):
+        _stamp_element_context(stmt.evaluator, stmt.input_set)
+        for s in stmt.body:
+            _walk_stmt_element_context(s)
+    elif isinstance(stmt, IfStatement):
+        # if_stmt has no element context; walk the condition to reach any
+        # nested aggregators that establish their own context boundary.
+        _stamp_element_context(stmt.condition, None)
+        for s in stmt.then_body:
+            _walk_stmt_element_context(s)
+        for s in stmt.else_body or []:
+            _walk_stmt_element_context(s)
+    elif isinstance(stmt, (ForeachStatement, CompleteStatement)):
+        for s in stmt.body:
+            _walk_stmt_element_context(s)
+    elif isinstance(stmt, UnionStatement):
+        for member in stmt.members:
+            _walk_stmt_element_context(member.statement)
+
+
+def _resolve_element_contexts(query: Query) -> None:
+    for stmt in query.statements:
+        _walk_stmt_element_context(stmt)
+
+
 # Overpass Transformer
 
 
@@ -1043,6 +1094,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                 statements.append(child)
         result = Query(statements=statements, warnings=self.warnings)
         _resolve_types(result)
+        _resolve_element_contexts(result)
         return result
 
     # Global Settings Transform

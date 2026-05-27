@@ -202,6 +202,8 @@ _ELEMENT_TYPE_MAP: dict[str, frozenset[ElementType]] = {
     "element_type_derived": frozenset({ElementType.DERIVED}),
 }
 
+# Scalar Types
+
 
 class ScalarType(Enum):
     BOOLEAN = "xsd:boolean"
@@ -215,6 +217,18 @@ class ScalarType(Enum):
     NULL = "null"  # no scalar input
     TYPE = "element_type_uri"
     # None = indeterminate type
+
+
+_NON_EBV_TYPES = frozenset({ScalarType.DATETIME, ScalarType.CHANGESET, ScalarType.TYPE})
+_NUMERIC_TYPES = frozenset({ScalarType.INT, ScalarType.DECIMAL, ScalarType.DOUBLE})
+
+_NUMERIC_RANK = {ScalarType.INT: 0, ScalarType.DECIMAL: 1, ScalarType.DOUBLE: 3}
+
+
+def _promote_numeric_type(a: ScalarType, b: ScalarType) -> ScalarType:
+    assert a in _NUMERIC_TYPES
+    assert b in _NUMERIC_TYPES
+    return a if _NUMERIC_RANK[a] >= _NUMERIC_RANK[b] else b
 
 
 # Evaluator Classes
@@ -1748,10 +1762,60 @@ class OverpassTransformer(Transformer[Token, Query]):
     # Evaluator Transforms
 
     def ternary_expr(self, children: list[Any]) -> TernaryEvaluator:
+        condition = children[0]
+        assert isinstance(condition, Evaluator)
+        if condition.output_type in _NON_EBV_TYPES:
+            self.warnings.append(
+                Warning(
+                    f"Condition with {condition.output_type.value} will always be true",
+                    children[0].token,
+                )
+            )
+
+        true_expression = children[1]
+        assert isinstance(true_expression, Evaluator)
+        then_type = true_expression.output_type
+
+        false_expression = children[2]
+        assert isinstance(false_expression, Evaluator)
+        else_type = false_expression.output_type
+
+        if then_type is None:
+            output_type = None
+            self.warnings.append(
+                Warning(
+                    "Then branch type is indeterminate and may cause SPARQL errors",
+                    children[1].token,
+                )
+            )
+        elif else_type is None:
+            output_type = None
+            self.warnings.append(
+                Warning(
+                    "Else branch type is indeterminate and may cause SPARQL errors",
+                    children[2].token,
+                )
+            )
+        elif then_type == else_type:
+            output_type = then_type
+        elif then_type in _NUMERIC_TYPES and else_type in _NUMERIC_TYPES:
+            output_type = _promote_numeric_type(then_type, else_type)
+        else:
+            output_type = None
+            self.warnings.append(
+                Warning(
+                    "Incompatible types in ternary branches may cause SPARQL errors: "
+                    f"( {then_type.value} / {else_type.value} )",
+                    children[1].token,
+                )
+            )
+
         return TernaryEvaluator(
-            condition=children[0],
-            true_expression=children[1],
-            false_expression=children[2],
+            condition=condition,
+            input_type=ScalarType.BOOLEAN,
+            output_type=output_type,
+            true_expression=true_expression,
+            false_expression=false_expression,
             token=children[0].token,
         )
 

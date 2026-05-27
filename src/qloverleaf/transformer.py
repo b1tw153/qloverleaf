@@ -241,9 +241,9 @@ def _promote_numeric_type(a: ScalarType, b: ScalarType) -> ScalarType:
     return a if _NUMERIC_RANK[a] >= _NUMERIC_RANK[b] else b
 
 
-_INT_LITERAL = re.compile(r"^-?\d+$")
-_DECIMAL_LITERAL = re.compile(r"^-?(\d+\.\d*|\d*\.\d+)$")
-_DOUBLE_LITERAL = re.compile(r"^-?(\d+\.?\d*|\d*\.\d+)[eE][+-]?\d+$")
+_INT_LITERAL = re.compile(r"^ *[+-]?\d+ *$")
+_DECIMAL_LITERAL = re.compile(r"^ *[+-]?(\d+\.\d*|\d*\.\d+) *$")
+_DOUBLE_LITERAL = re.compile(r"^ *[+-]?(\d+\.?\d*|\d*\.\d+)[eE][+-]?\d+ *$")
 
 
 def _infer_literal_type(value: str) -> ScalarType:

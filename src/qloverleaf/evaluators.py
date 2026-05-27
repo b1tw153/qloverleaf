@@ -579,16 +579,13 @@ def _translate_conversion(
 def _translate_suffix(
     evaluator: SuffixEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    # Approximation: strips the leading numeric prefix and returns the remainder.
-    # Diverges from Overpass in two ways: Overpass strips whitespace between the
-    # numeric prefix and the suffix ("734 m" -> "m", not " m"), and returns "" for
-    # strings with no numeric prefix rather than returning the string unchanged.
     # The \\\\. in Python source produces \\. in the SPARQL text, which SPARQL
     # parses as the regex escape \. (literal dot).
     inner_pattern = translate_evaluator(evaluator.operand, element_var, variable_base)
     expression = (
-        f"REPLACE(str({inner_pattern.expression}),"
-        f' "^-?[0-9]+(\\\\.[0-9]+)?([eE][+-]?[0-9]+)?", "")'
+        f'IF(regex(str({inner_pattern.expression}),"^[+-]?[0-9]+.*"),REPLACE(str({inner_pattern.expression}),'
+        f' "^[+-]?[0-9]+(\\\\.[0-9]+)?([eE][+-]?[0-9]+)? *", "")'
+        f',"")'
     )
     return EvaluatorPattern(
         expression=expression,
@@ -628,11 +625,10 @@ def _translate_type_check(
                 clauses=inner_pattern.clauses,
                 subqueries=inner_pattern.subqueries,
             )
-        # Approximation: Overpass uses strtod() semantics, which also accepts
-        # leading whitespace and leading +. This regex covers the same forms
-        # that _infer_literal_type classifies as numeric: integers, decimals
-        # (trailing and leading dot), and scientific notation.
-        regex = '"^-?([0-9]+[.]?[0-9]*|[0-9]*[.][0-9]+)([eE][+-]?[0-9]+)?$"'
+        # This regex covers the same forms that _infer_literal_type classifies as
+        # numeric: integers, decimals (trailing and leading dot), and scientific
+        # notation -- with leading and/or trailing spaces.
+        regex = '"^ *[+-]?([0-9]+[.]?[0-9]*|[0-9]*[.][0-9]+)([eE][+-]?[0-9]+)? *$"'
     else:
         # TypeCheckFunction.IS_DATE
         if operand_type == ScalarType.DATETIME:

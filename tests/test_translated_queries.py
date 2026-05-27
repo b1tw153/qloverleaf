@@ -1060,12 +1060,7 @@ def test_translated_if_is_number_falsy() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
-@pytest.mark.xfail(
-    reason="Overpass: is_number('+1') → 1 (strtod accepts leading '+'); "
-    "QLever: REGEX(str('+1'), '^-?[0-9]+...') → false (regex has no leading '+')"
-)
 def test_translated_if_is_number_leading_plus() -> None:
-    # "+1" is numeric in Overpass (strtod accepts leading +) but our regex rejects it
     statement = 'node(1)(if:is_number("+1"));'
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
@@ -1240,10 +1235,6 @@ def test_translated_if_suffix_all_numeric() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
-@pytest.mark.xfail(
-    reason="Overpass: suffix('foo') → '' (no numeric prefix → empty string); "
-    "QLever: REPLACE no match → 'foo' unchanged; 'foo' != '' → false"
-)
 def test_translated_if_suffix_no_numeric_prefix() -> None:
     # no numeric prefix: Overpass returns ""; QLever leaves the string unchanged
     statement = 'node(1)(if:suffix("foo") == "");'
@@ -1255,13 +1246,31 @@ def test_translated_if_suffix_no_numeric_prefix() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
-@pytest.mark.xfail(
-    reason="Overpass: suffix('734 m') strips whitespace → 'm'; "
-    "QLever: REPLACE leaves ' m' (space preserved); ' m' != 'm' → false"
-)
 def test_translated_if_suffix_whitespace() -> None:
     # whitespace between number and unit: Overpass strips it, QLever preserves it
     statement = 'node(1)(if:suffix("734 m") == "m");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_suffix_whitespace_minus_prefix() -> None:
+    # whitespace between number and unit: Overpass strips it, QLever preserves it
+    statement = 'node(1)(if:suffix("-734 m") == "m");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_suffix_whitespace_plus_prefix() -> None:
+    # whitespace between number and unit: Overpass strips it, QLever preserves it
+    statement = 'node(1)(if:suffix("+734 m") == "m");'
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}

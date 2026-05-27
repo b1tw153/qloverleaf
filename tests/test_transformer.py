@@ -18,24 +18,24 @@ from qloverleaf.transformer import (
     _RELATION,
     _WAY,
     _WR,
-    AbsExpression,
-    AddExpression,
+    AbsEvaluator,
+    AddEvaluator,
     AddOperator,
     AreaIdFilter,
     AreaSetFilter,
     AroundLineFilter,
     AroundSetFilter,
     BboxFilter,
-    BinaryExpression,
+    BinaryEvaluator,
     BinaryOperator,
-    CompareExpression,
+    CompareEvaluator,
     CompareOperator,
     CompleteStatement,
-    ConversionExpression,
+    ConversionEvaluator,
     ConversionFunction,
     CoordinateAxis,
-    CoordinateExpression,
-    CountExpression,
+    CoordinateEvaluator,
+    CountEvaluator,
     CountType,
     ElementType,
     Evaluator,
@@ -44,16 +44,16 @@ from qloverleaf.transformer import (
     IdFilter,
     IfFilter,
     IfStatement,
-    IsClosedExpression,
+    IsClosedEvaluator,
     IsInStatement,
-    IsTagExpression,
+    IsTagEvaluator,
     ItemStatement,
-    LengthExpression,
-    LiteralExpression,
+    LengthEvaluator,
+    LiteralEvaluator,
     MapToAreaStatement,
     MetadataAttribute,
-    MetadataExpression,
-    MultiplyExpression,
+    MetadataEvaluator,
+    MultiplyEvaluator,
     MultiplyOperator,
     NewerFilter,
     OutSortOrder,
@@ -71,20 +71,20 @@ from qloverleaf.transformer import (
     SetFilter,
     SetReference,
     Statement,
-    SuffixExpression,
+    SuffixEvaluator,
     TagFilterOp,
     TagKeyFilter,
-    TagValueExpression,
+    TagValueEvaluator,
     TagValueFilter,
-    TernaryExpression,
-    TypeCheckExpression,
+    TernaryEvaluator,
+    TypeCheckEvaluator,
     TypeCheckFunction,
     UidFilter,
-    UnaryExpression,
+    UnaryEvaluator,
     UnaryOperator,
     UnionStatement,
     UserFilter,
-    ValExpression,
+    ValEvaluator,
     Warning,
     WayCountFilter,
     _parse_datetime,
@@ -441,9 +441,9 @@ def test_resolve_types_evaluator_ref_stamped() -> None:
     stmts = _transform_query("node -> .a; node(if:a.count(nodes)>0);").statements
     if_filter = stmts[1].filters[0]
     assert isinstance(if_filter, IfFilter)
-    assert isinstance(if_filter.evaluator, CompareExpression)
+    assert isinstance(if_filter.evaluator, CompareEvaluator)
     count_expr = if_filter.evaluator.left_operand
-    assert isinstance(count_expr, CountExpression)
+    assert isinstance(count_expr, CountEvaluator)
     assert count_expr.input_set.version == 1
     assert count_expr.input_set.content_types == _NODE
 
@@ -2639,7 +2639,7 @@ def _evaluator(expr: str) -> Any:
 
 def test_ternary_expr() -> None:
     expr = _evaluator("1 ? 2 : 3")
-    assert isinstance(expr, TernaryExpression)
+    assert isinstance(expr, TernaryEvaluator)
     assert isinstance(expr.condition, Evaluator)
     assert isinstance(expr.true_expression, Evaluator)
     assert isinstance(expr.false_expression, Evaluator)
@@ -2652,14 +2652,14 @@ def test_ternary_expr() -> None:
 
 def test_or_expr() -> None:
     expr = _evaluator("1 || 0")
-    assert isinstance(expr, BinaryExpression)
+    assert isinstance(expr, BinaryEvaluator)
     assert expr.operator == BinaryOperator.OR
     assert len(expr.operands) == 2
 
 
 def test_or_expr_repeated() -> None:
     expr = _evaluator("1 || 0 || 1")
-    assert isinstance(expr, BinaryExpression)
+    assert isinstance(expr, BinaryEvaluator)
     assert expr.operator == BinaryOperator.OR
     assert len(expr.operands) == 3
 
@@ -2671,14 +2671,14 @@ def test_or_expr_repeated() -> None:
 
 def test_and_expr() -> None:
     expr = _evaluator("1 && 0")
-    assert isinstance(expr, BinaryExpression)
+    assert isinstance(expr, BinaryEvaluator)
     assert expr.operator == BinaryOperator.AND
     assert len(expr.operands) == 2
 
 
 def test_and_expr_repeated() -> None:
     expr = _evaluator("1 && 0 && 1")
-    assert isinstance(expr, BinaryExpression)
+    assert isinstance(expr, BinaryEvaluator)
     assert expr.operator == BinaryOperator.AND
     assert len(expr.operands) == 3
 
@@ -2690,7 +2690,7 @@ def test_and_expr_repeated() -> None:
 
 def test_not_expr() -> None:
     expr = _evaluator("!1")
-    assert isinstance(expr, UnaryExpression)
+    assert isinstance(expr, UnaryEvaluator)
     assert expr.operator == UnaryOperator.NOT
     assert isinstance(expr.operand, Evaluator)
 
@@ -2702,43 +2702,43 @@ def test_not_expr() -> None:
 
 def test_compare_expr_equal() -> None:
     expr = _evaluator("1 == 2")
-    assert isinstance(expr, CompareExpression)
+    assert isinstance(expr, CompareEvaluator)
     assert expr.operator == CompareOperator.EQUAL
 
 
 def test_compare_expr_not_equal() -> None:
     expr = _evaluator("1 != 2")
-    assert isinstance(expr, CompareExpression)
+    assert isinstance(expr, CompareEvaluator)
     assert expr.operator == CompareOperator.NOT_EQUAL
 
 
 def test_compare_expr_less_than() -> None:
     expr = _evaluator("1 < 2")
-    assert isinstance(expr, CompareExpression)
+    assert isinstance(expr, CompareEvaluator)
     assert expr.operator == CompareOperator.LESS_THAN
 
 
 def test_compare_expr_greater_than() -> None:
     expr = _evaluator("1 > 2")
-    assert isinstance(expr, CompareExpression)
+    assert isinstance(expr, CompareEvaluator)
     assert expr.operator == CompareOperator.GREATER_THAN
 
 
 def test_compare_expr_less_than_or_equal() -> None:
     expr = _evaluator("1 <= 2")
-    assert isinstance(expr, CompareExpression)
+    assert isinstance(expr, CompareEvaluator)
     assert expr.operator == CompareOperator.LESS_THAN_OR_EQUAL
 
 
 def test_compare_expr_greater_than_or_equal() -> None:
     expr = _evaluator("1 >= 2")
-    assert isinstance(expr, CompareExpression)
+    assert isinstance(expr, CompareEvaluator)
     assert expr.operator == CompareOperator.GREATER_THAN_OR_EQUAL
 
 
 def test_compare_expr_operands() -> None:
     expr = _evaluator("1 == 2")
-    assert isinstance(expr, CompareExpression)
+    assert isinstance(expr, CompareEvaluator)
     assert isinstance(expr.left_operand, Evaluator)
     assert isinstance(expr.right_operand, Evaluator)
 
@@ -2750,19 +2750,19 @@ def test_compare_expr_operands() -> None:
 
 def test_add_expr_add() -> None:
     expr = _evaluator("1 + 2")
-    assert isinstance(expr, AddExpression)
+    assert isinstance(expr, AddEvaluator)
     assert expr.operator == AddOperator.ADD
 
 
 def test_add_expr_subtract() -> None:
     expr = _evaluator("1 - 2")
-    assert isinstance(expr, AddExpression)
+    assert isinstance(expr, AddEvaluator)
     assert expr.operator == AddOperator.SUBTRACT
 
 
 def test_add_expr_operands() -> None:
     expr = _evaluator("1 + 2")
-    assert isinstance(expr, AddExpression)
+    assert isinstance(expr, AddEvaluator)
     assert isinstance(expr.left_operand, Evaluator)
     assert isinstance(expr.right_operand, Evaluator)
 
@@ -2774,19 +2774,19 @@ def test_add_expr_operands() -> None:
 
 def test_mul_expr_multiply() -> None:
     expr = _evaluator("2 * 3")
-    assert isinstance(expr, MultiplyExpression)
+    assert isinstance(expr, MultiplyEvaluator)
     assert expr.operator == MultiplyOperator.MULTIPLY
 
 
 def test_mul_expr_divide() -> None:
     expr = _evaluator("6 / 2")
-    assert isinstance(expr, MultiplyExpression)
+    assert isinstance(expr, MultiplyEvaluator)
     assert expr.operator == MultiplyOperator.DIVIDE
 
 
 def test_mul_expr_operands() -> None:
     expr = _evaluator("2 * 3")
-    assert isinstance(expr, MultiplyExpression)
+    assert isinstance(expr, MultiplyEvaluator)
     assert isinstance(expr.left_operand, Evaluator)
     assert isinstance(expr.right_operand, Evaluator)
 
@@ -2798,7 +2798,7 @@ def test_mul_expr_operands() -> None:
 
 def test_unary_expr() -> None:
     expr = _evaluator("-1")
-    assert isinstance(expr, UnaryExpression)
+    assert isinstance(expr, UnaryEvaluator)
     assert expr.operator == UnaryOperator.NEGATE
     assert isinstance(expr.operand, Evaluator)
 
@@ -2810,13 +2810,13 @@ def test_unary_expr() -> None:
 
 def test_literal_expr_number() -> None:
     expr = _evaluator("42")
-    assert isinstance(expr, LiteralExpression)
+    assert isinstance(expr, LiteralEvaluator)
     assert expr.value == "42"
 
 
 def test_literal_expr_string() -> None:
     expr = _evaluator('"foo"')
-    assert isinstance(expr, LiteralExpression)
+    assert isinstance(expr, LiteralEvaluator)
     assert expr.value == "foo"
 
 
@@ -2827,7 +2827,7 @@ def test_literal_expr_string() -> None:
 
 def test_id_expr() -> None:
     expr = _evaluator("id()")
-    assert isinstance(expr, MetadataExpression)
+    assert isinstance(expr, MetadataEvaluator)
     assert expr.attribute == MetadataAttribute.ID
 
 
@@ -2838,7 +2838,7 @@ def test_id_expr() -> None:
 
 def test_type_expr() -> None:
     expr = _evaluator("type()")
-    assert isinstance(expr, MetadataExpression)
+    assert isinstance(expr, MetadataEvaluator)
     assert expr.attribute == MetadataAttribute.TYPE
 
 
@@ -2849,8 +2849,8 @@ def test_type_expr() -> None:
 
 def test_tag_value_expr() -> None:
     expr = _evaluator('t["name"]')
-    assert isinstance(expr, TagValueExpression)
-    assert isinstance(expr.evaluator, LiteralExpression)
+    assert isinstance(expr, TagValueEvaluator)
+    assert isinstance(expr.evaluator, LiteralEvaluator)
 
 
 def test_tag_value_expr_dynamic_raises() -> None:
@@ -2865,7 +2865,7 @@ def test_tag_value_expr_dynamic_raises() -> None:
 
 def test_is_tag_expr() -> None:
     expr = _evaluator("is_tag(name)")
-    assert isinstance(expr, IsTagExpression)
+    assert isinstance(expr, IsTagEvaluator)
     assert isinstance(expr.key, str)
 
 
@@ -2886,7 +2886,7 @@ def test_keys_expr_raises() -> None:
 
 def test_version_expr() -> None:
     expr = _evaluator("version()")
-    assert isinstance(expr, MetadataExpression)
+    assert isinstance(expr, MetadataEvaluator)
     assert expr.attribute == MetadataAttribute.VERSION
     assert expr.token is not None
 
@@ -2898,7 +2898,7 @@ def test_version_expr() -> None:
 
 def test_timestamp_expr() -> None:
     expr = _evaluator("timestamp()")
-    assert isinstance(expr, MetadataExpression)
+    assert isinstance(expr, MetadataEvaluator)
     assert expr.attribute == MetadataAttribute.TIMESTAMP
     assert expr.token is not None
 
@@ -2910,7 +2910,7 @@ def test_timestamp_expr() -> None:
 
 def test_changeset_expr() -> None:
     expr = _evaluator("changeset()")
-    assert isinstance(expr, MetadataExpression)
+    assert isinstance(expr, MetadataEvaluator)
     assert expr.attribute == MetadataAttribute.CHANGESET
     assert expr.token is not None
 
@@ -2922,7 +2922,7 @@ def test_changeset_expr() -> None:
 
 def test_uid_expr() -> None:
     expr = _evaluator("uid()")
-    assert isinstance(expr, MetadataExpression)
+    assert isinstance(expr, MetadataEvaluator)
     assert expr.attribute == MetadataAttribute.UID
     assert expr.token is not None
 
@@ -2934,7 +2934,7 @@ def test_uid_expr() -> None:
 
 def test_user_expr() -> None:
     expr = _evaluator("user()")
-    assert isinstance(expr, MetadataExpression)
+    assert isinstance(expr, MetadataEvaluator)
     assert expr.attribute == MetadataAttribute.USER
     assert expr.token is not None
 
@@ -2996,7 +2996,7 @@ def test_count_distinct_by_role_expr_raises() -> None:
 
 def test_is_closed_expr() -> None:
     expr = _evaluator("is_closed()")
-    assert isinstance(expr, IsClosedExpression)
+    assert isinstance(expr, IsClosedEvaluator)
 
 
 # ---------------------------------------------------------------------------
@@ -3006,7 +3006,7 @@ def test_is_closed_expr() -> None:
 
 def test_lat_expr() -> None:
     expr = _evaluator("lat()")
-    assert isinstance(expr, CoordinateExpression)
+    assert isinstance(expr, CoordinateEvaluator)
     assert expr.axis == CoordinateAxis.LAT
 
 
@@ -3017,7 +3017,7 @@ def test_lat_expr() -> None:
 
 def test_lon_expr() -> None:
     expr = _evaluator("lon()")
-    assert isinstance(expr, CoordinateExpression)
+    assert isinstance(expr, CoordinateEvaluator)
     assert expr.axis == CoordinateAxis.LON
 
 
@@ -3038,7 +3038,7 @@ def test_geom_expr_raises() -> None:
 
 def test_length_expr() -> None:
     expr = _evaluator("length()")
-    assert isinstance(expr, LengthExpression)
+    assert isinstance(expr, LengthEvaluator)
 
 
 # ---------------------------------------------------------------------------
@@ -3268,7 +3268,7 @@ def test_gcat_expr_with_set_raises() -> None:
 
 def test_count_nodes() -> None:
     expr = _evaluator("count(nodes)")
-    assert isinstance(expr, CountExpression)
+    assert isinstance(expr, CountEvaluator)
     assert expr.count_type == CountType.NODES
     assert expr.input_set.name == "_"
     assert expr.input_set.token is None
@@ -3276,7 +3276,7 @@ def test_count_nodes() -> None:
 
 def test_count_ways() -> None:
     expr = _evaluator("count(ways)")
-    assert isinstance(expr, CountExpression)
+    assert isinstance(expr, CountEvaluator)
     assert expr.count_type == CountType.WAYS
     assert expr.input_set.name == "_"
     assert expr.input_set.token is None
@@ -3284,7 +3284,7 @@ def test_count_ways() -> None:
 
 def test_count_relations() -> None:
     expr = _evaluator("count(relations)")
-    assert isinstance(expr, CountExpression)
+    assert isinstance(expr, CountEvaluator)
     assert expr.count_type == CountType.RELATIONS
     assert expr.input_set.name == "_"
     assert expr.input_set.token is None
@@ -3292,31 +3292,31 @@ def test_count_relations() -> None:
 
 def test_count_nw() -> None:
     expr = _evaluator("count(nw)")
-    assert isinstance(expr, CountExpression)
+    assert isinstance(expr, CountEvaluator)
     assert expr.count_type == CountType.NW
 
 
 def test_count_wr() -> None:
     expr = _evaluator("count(wr)")
-    assert isinstance(expr, CountExpression)
+    assert isinstance(expr, CountEvaluator)
     assert expr.count_type == CountType.WR
 
 
 def test_count_nr() -> None:
     expr = _evaluator("count(nr)")
-    assert isinstance(expr, CountExpression)
+    assert isinstance(expr, CountEvaluator)
     assert expr.count_type == CountType.NR
 
 
 def test_count_nwr() -> None:
     expr = _evaluator("count(nwr)")
-    assert isinstance(expr, CountExpression)
+    assert isinstance(expr, CountEvaluator)
     assert expr.count_type == CountType.NWR
 
 
 def test_count_with_set() -> None:
     expr = _evaluator("a.count(nodes)")
-    assert isinstance(expr, CountExpression)
+    assert isinstance(expr, CountEvaluator)
     assert expr.count_type == CountType.NODES
     assert isinstance(expr.input_set, SetReference)
     assert expr.input_set.name == "a"
@@ -3389,7 +3389,7 @@ def test_lrs_max_expr_raises() -> None:
 
 def test_val_expr() -> None:
     result = _evaluator("a.val")
-    assert isinstance(result, ValExpression)
+    assert isinstance(result, ValEvaluator)
     assert result.set_reference.name == "a"
     assert isinstance(result.set_reference.token, Token)
 
@@ -3401,7 +3401,7 @@ def test_val_expr() -> None:
 
 def test_number_expr() -> None:
     expr = _evaluator('number(t["ele"])')
-    assert isinstance(expr, ConversionExpression)
+    assert isinstance(expr, ConversionEvaluator)
     assert expr.function == ConversionFunction.NUMBER
     assert isinstance(expr.operand, Evaluator)
 
@@ -3413,7 +3413,7 @@ def test_number_expr() -> None:
 
 def test_date_expr() -> None:
     expr = _evaluator('date(t["start_date"])')
-    assert isinstance(expr, ConversionExpression)
+    assert isinstance(expr, ConversionEvaluator)
     assert expr.function == ConversionFunction.DATE
 
 
@@ -3424,7 +3424,7 @@ def test_date_expr() -> None:
 
 def test_suffix_expr() -> None:
     expr = _evaluator('suffix(t["ele"])')
-    assert isinstance(expr, SuffixExpression)
+    assert isinstance(expr, SuffixEvaluator)
     assert isinstance(expr.operand, Evaluator)
 
 
@@ -3435,7 +3435,7 @@ def test_suffix_expr() -> None:
 
 def test_abs_expr() -> None:
     expr = _evaluator("abs(-1)")
-    assert isinstance(expr, AbsExpression)
+    assert isinstance(expr, AbsEvaluator)
     assert isinstance(expr.operand, Evaluator)
 
 
@@ -3446,7 +3446,7 @@ def test_abs_expr() -> None:
 
 def test_is_number_expr() -> None:
     expr = _evaluator('is_number(t["ele"])')
-    assert isinstance(expr, TypeCheckExpression)
+    assert isinstance(expr, TypeCheckEvaluator)
     assert expr.function == TypeCheckFunction.IS_NUMBER
     assert isinstance(expr.operand, Evaluator)
 
@@ -3458,5 +3458,5 @@ def test_is_number_expr() -> None:
 
 def test_is_date_expr() -> None:
     expr = _evaluator('is_date(t["start_date"])')
-    assert isinstance(expr, TypeCheckExpression)
+    assert isinstance(expr, TypeCheckEvaluator)
     assert expr.function == TypeCheckFunction.IS_DATE

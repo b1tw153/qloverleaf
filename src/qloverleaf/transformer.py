@@ -228,40 +228,40 @@ class Evaluator:
 
 
 @dataclass
-class TernaryExpression(Evaluator):
+class TernaryEvaluator(Evaluator):
     condition: Evaluator
     true_expression: Evaluator
     false_expression: Evaluator
 
 
 @dataclass
-class BinaryExpression(Evaluator):
+class BinaryEvaluator(Evaluator):
     operator: BinaryOperator
     operands: list[Evaluator]
 
 
 @dataclass
-class UnaryExpression(Evaluator):
+class UnaryEvaluator(Evaluator):
     operator: UnaryOperator
     operand: Evaluator
 
 
 @dataclass
-class CompareExpression(Evaluator):
+class CompareEvaluator(Evaluator):
     left_operand: Evaluator
     operator: CompareOperator
     right_operand: Evaluator
 
 
 @dataclass
-class AddExpression(Evaluator):
+class AddEvaluator(Evaluator):
     left_operand: Evaluator
     operator: AddOperator
     right_operand: Evaluator
 
 
 @dataclass
-class MultiplyExpression(Evaluator):
+class MultiplyEvaluator(Evaluator):
     left_operand: Evaluator
     operator: MultiplyOperator
     right_operand: Evaluator
@@ -271,74 +271,74 @@ class MultiplyExpression(Evaluator):
 
 
 @dataclass
-class LiteralExpression(Evaluator):
+class LiteralEvaluator(Evaluator):
     value: str
 
 
 @dataclass
-class MetadataExpression(Evaluator):
+class MetadataEvaluator(Evaluator):
     attribute: MetadataAttribute
     target_set: SetReference | None = None
 
 
 @dataclass
-class TagValueExpression(Evaluator):
-    evaluator: LiteralExpression
+class TagValueEvaluator(Evaluator):
+    evaluator: LiteralEvaluator
     target_set: SetReference | None = None
 
 
 @dataclass
-class IsTagExpression(Evaluator):
+class IsTagEvaluator(Evaluator):
     key: str
     target_set: SetReference | None = None
 
 
 @dataclass
-class CoordinateExpression(Evaluator):
+class CoordinateEvaluator(Evaluator):
     axis: CoordinateAxis
     target_set: SetReference | None = None
 
 
 @dataclass
-class ConversionExpression(Evaluator):
+class ConversionEvaluator(Evaluator):
     function: ConversionFunction
     operand: Evaluator
 
 
 @dataclass
-class SuffixExpression(Evaluator):
+class SuffixEvaluator(Evaluator):
     operand: Evaluator
 
 
 @dataclass
-class AbsExpression(Evaluator):
+class AbsEvaluator(Evaluator):
     operand: Evaluator
 
 
 @dataclass
-class TypeCheckExpression(Evaluator):
+class TypeCheckEvaluator(Evaluator):
     function: TypeCheckFunction
     operand: Evaluator
 
 
 @dataclass
-class IsClosedExpression(Evaluator):
+class IsClosedEvaluator(Evaluator):
     target_set: SetReference | None = None
 
 
 @dataclass
-class LengthExpression(Evaluator):
+class LengthEvaluator(Evaluator):
     target_set: SetReference | None = None
 
 
 @dataclass
-class CountExpression(Evaluator):
+class CountEvaluator(Evaluator):
     count_type: CountType
     input_set: SetReference
 
 
 @dataclass
-class ValExpression(Evaluator):
+class ValEvaluator(Evaluator):
     set_reference: SetReference
 
 
@@ -1747,92 +1747,92 @@ class OverpassTransformer(Transformer[Token, Query]):
 
     # Evaluator Transforms
 
-    def ternary_expr(self, children: list[Any]) -> TernaryExpression:
-        return TernaryExpression(
+    def ternary_expr(self, children: list[Any]) -> TernaryEvaluator:
+        return TernaryEvaluator(
             condition=children[0],
             true_expression=children[1],
             false_expression=children[2],
             token=children[0].token,
         )
 
-    def or_expr(self, children: list[Any]) -> BinaryExpression:
-        return BinaryExpression(
+    def or_expr(self, children: list[Any]) -> BinaryEvaluator:
+        return BinaryEvaluator(
             operator=BinaryOperator.OR, operands=children, token=children[0].token
         )
 
-    def and_expr(self, children: list[Any]) -> BinaryExpression:
-        return BinaryExpression(
+    def and_expr(self, children: list[Any]) -> BinaryEvaluator:
+        return BinaryEvaluator(
             operator=BinaryOperator.AND, operands=children, token=children[0].token
         )
 
-    def not_expr(self, children: list[Any]) -> UnaryExpression:
-        return UnaryExpression(
+    def not_expr(self, children: list[Any]) -> UnaryEvaluator:
+        return UnaryEvaluator(
             operator=UnaryOperator.NOT, operand=children[1], token=children[0]
         )
 
-    def compare_expr(self, children: list[Any]) -> CompareExpression:
-        return CompareExpression(
+    def compare_expr(self, children: list[Any]) -> CompareEvaluator:
+        return CompareEvaluator(
             left_operand=children[0],
             operator=CompareOperator(children[1].value),
             right_operand=children[2],
             token=children[0].token,
         )
 
-    def add_expr(self, children: list[Any]) -> AddExpression:
-        return AddExpression(
+    def add_expr(self, children: list[Any]) -> AddEvaluator:
+        return AddEvaluator(
             left_operand=children[0],
             operator=AddOperator(children[1].value),
             right_operand=children[2],
             token=children[0].token,
         )
 
-    def mul_expr(self, children: list[Any]) -> MultiplyExpression:
-        return MultiplyExpression(
+    def mul_expr(self, children: list[Any]) -> MultiplyEvaluator:
+        return MultiplyEvaluator(
             left_operand=children[0],
             operator=MultiplyOperator(children[1].value),
             right_operand=children[2],
             token=children[0].token,
         )
 
-    def unary_expr(self, children: list[Any]) -> UnaryExpression:
-        return UnaryExpression(
+    def unary_expr(self, children: list[Any]) -> UnaryEvaluator:
+        return UnaryEvaluator(
             operator=UnaryOperator.NEGATE,
             operand=children[1],
             token=children[0],
         )
 
-    def literal_expr(self, children: list[Any]) -> LiteralExpression:
+    def literal_expr(self, children: list[Any]) -> LiteralEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return LiteralExpression(value=_unquote(token), token=token)
+        return LiteralEvaluator(value=_unquote(token), token=token)
 
-    def id_expr(self, children: list[Any]) -> MetadataExpression:
+    def id_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
 
-    def type_expr(self, children: list[Any]) -> MetadataExpression:
+    def type_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
 
-    def tag_value_expr(self, children: list[Any]) -> TagValueExpression:
+    def tag_value_expr(self, children: list[Any]) -> TagValueEvaluator:
         token = children[0].token
         assert isinstance(token, Token)
         evaluator = children[0]
-        if not isinstance(evaluator, LiteralExpression):
+        if not isinstance(evaluator, LiteralEvaluator):
             # the best known translation forces a complete scan over all triples and
             # times out (see tag-filters.md)
             raise UnsupportedFeatureError(
                 "t[...] with a dynamic key expression is not supported", token
             )
-        return TagValueExpression(evaluator=evaluator, token=token)
+        return TagValueEvaluator(evaluator=evaluator, token=token)
 
-    def is_tag_expr(self, children: list[Any]) -> IsTagExpression:
+    def is_tag_expr(self, children: list[Any]) -> IsTagEvaluator:
         token = children[0]
         key = _unquote(children[0])
         assert isinstance(token, Token)
-        return IsTagExpression(key=key, token=token)
+        return IsTagEvaluator(key=key, token=token)
 
     def keys_expr(self, children: list[Any]) -> None:
         # Returns all tag key names as semicolon-separated string; no SPARQL equivalent
@@ -1845,30 +1845,30 @@ class OverpassTransformer(Transformer[Token, Query]):
             "the generic tag evaluator is not supported", children[0]
         )
 
-    def version_expr(self, children: list[Any]) -> MetadataExpression:
+    def version_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
 
-    def timestamp_expr(self, children: list[Any]) -> MetadataExpression:
+    def timestamp_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
 
-    def changeset_expr(self, children: list[Any]) -> MetadataExpression:
+    def changeset_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
 
-    def uid_expr(self, children: list[Any]) -> MetadataExpression:
+    def uid_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
 
-    def user_expr(self, children: list[Any]) -> MetadataExpression:
+    def user_expr(self, children: list[Any]) -> MetadataEvaluator:
         token = children[0]
         assert isinstance(token, Token)
-        return MetadataExpression(attribute=MetadataAttribute(token.value), token=token)
+        return MetadataEvaluator(attribute=MetadataAttribute(token.value), token=token)
 
     def count_tags_expr(self, children: list[Any]) -> None:
         # TODO: implement count_tags_expr transform
@@ -1901,26 +1901,26 @@ class OverpassTransformer(Transformer[Token, Query]):
             "count_distinct_by_role() is not implemented", children[0].token
         )
 
-    def is_closed_expr(self, children: list[Any]) -> IsClosedExpression:
+    def is_closed_expr(self, children: list[Any]) -> IsClosedEvaluator:
         assert isinstance(children[0], Token)
-        return IsClosedExpression(token=children[0])
+        return IsClosedEvaluator(token=children[0])
 
-    def lat_expr(self, children: list[Any]) -> CoordinateExpression:
+    def lat_expr(self, children: list[Any]) -> CoordinateEvaluator:
         assert isinstance(children[0], Token)
-        return CoordinateExpression(axis=CoordinateAxis.LAT, token=children[0])
+        return CoordinateEvaluator(axis=CoordinateAxis.LAT, token=children[0])
 
-    def lon_expr(self, children: list[Any]) -> CoordinateExpression:
+    def lon_expr(self, children: list[Any]) -> CoordinateEvaluator:
         assert isinstance(children[0], Token)
-        return CoordinateExpression(axis=CoordinateAxis.LON, token=children[0])
+        return CoordinateEvaluator(axis=CoordinateAxis.LON, token=children[0])
 
     def geom_expr(self, children: list[Any]) -> None:
         # geometry can only be assigned to ::geom in convert/make which are unsupported
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("geom() is not supported", children[0])
 
-    def length_expr(self, children: list[Any]) -> LengthExpression:
+    def length_expr(self, children: list[Any]) -> LengthEvaluator:
         assert isinstance(children[0], Token)
-        return LengthExpression(token=children[0])
+        return LengthEvaluator(token=children[0])
 
     def center_expr(self, children: list[Any]) -> None:
         # geometry can only be assigned to ::geom in convert/make which are unsupported
@@ -1984,35 +1984,35 @@ class OverpassTransformer(Transformer[Token, Query]):
         assert isinstance(children[0], Token)
         raise UnsupportedFeatureError("angle() is not supported", children[0])
 
-    def number_expr(self, children: list[Any]) -> ConversionExpression:
-        return ConversionExpression(
+    def number_expr(self, children: list[Any]) -> ConversionEvaluator:
+        return ConversionEvaluator(
             function=ConversionFunction.NUMBER,
             operand=children[0],
             token=children[0].token,
         )
 
-    def date_expr(self, children: list[Any]) -> ConversionExpression:
-        return ConversionExpression(
+    def date_expr(self, children: list[Any]) -> ConversionEvaluator:
+        return ConversionEvaluator(
             function=ConversionFunction.DATE,
             operand=children[0],
             token=children[0].token,
         )
 
-    def suffix_expr(self, children: list[Any]) -> SuffixExpression:
-        return SuffixExpression(operand=children[0], token=children[0].token)
+    def suffix_expr(self, children: list[Any]) -> SuffixEvaluator:
+        return SuffixEvaluator(operand=children[0], token=children[0].token)
 
-    def abs_expr(self, children: list[Any]) -> AbsExpression:
-        return AbsExpression(operand=children[0], token=children[0].token)
+    def abs_expr(self, children: list[Any]) -> AbsEvaluator:
+        return AbsEvaluator(operand=children[0], token=children[0].token)
 
-    def is_number_expr(self, children: list[Any]) -> TypeCheckExpression:
-        return TypeCheckExpression(
+    def is_number_expr(self, children: list[Any]) -> TypeCheckEvaluator:
+        return TypeCheckEvaluator(
             function=TypeCheckFunction.IS_NUMBER,
             operand=children[0],
             token=children[0].token,
         )
 
-    def is_date_expr(self, children: list[Any]) -> TypeCheckExpression:
-        return TypeCheckExpression(
+    def is_date_expr(self, children: list[Any]) -> TypeCheckEvaluator:
+        return TypeCheckEvaluator(
             function=TypeCheckFunction.IS_DATE,
             operand=children[0],
             token=children[0].token,
@@ -2045,7 +2045,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         # geometry can only be assigned to ::geom in convert/make which are unsupported
         raise UnsupportedFeatureError("gcat() is not supported", children[0].token)
 
-    def count_expr(self, children: list[Any]) -> CountExpression:
+    def count_expr(self, children: list[Any]) -> CountEvaluator:
         count_type_token = children[-1]
         assert isinstance(count_type_token, Token)
         if len(children) == 2:
@@ -2057,7 +2057,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             raise UnsupportedFeatureError(
                 "count(deriveds) is not supported", count_type_token
             )
-        return CountExpression(
+        return CountEvaluator(
             count_type=count_type,
             input_set=set_reference,
             token=count_type_token,
@@ -2083,7 +2083,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         # operates on a semicolon separated list of values; no Sparql translation
         raise UnsupportedFeatureError("lrs_max() is not supported", children[0].token)
 
-    def val_expr(self, children: list[Any]) -> ValExpression:
+    def val_expr(self, children: list[Any]) -> ValEvaluator:
         # set_reference must be the output set of an enclosing for_stmt (sets are
         # global, so any for loop on the stack is valid, not just the innermost). Only
         # that set is populated with per-iteration values.
@@ -2092,7 +2092,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         set_reference = children[0]
         assert isinstance(set_reference, SetReference)
         assert set_reference.token is not None
-        return ValExpression(set_reference=set_reference, token=set_reference.token)
+        return ValEvaluator(set_reference=set_reference, token=set_reference.token)
 
 
 def _dump_ir_node(obj: Any, indent: int = 0) -> str:

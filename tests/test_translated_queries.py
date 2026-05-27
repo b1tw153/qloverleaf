@@ -565,6 +565,8 @@ def test_translated_if_compare_greater_than_or_equal() -> None:
 # matters: "hello" < 1 and 1 > "hello" produce false on both backends (agree),
 # while 1 < "hello" and "hello" > 1 produce true in Overpass but false in QLever
 # (diverge). xfail tests cover the diverging directions for all four operators.
+#
+# TODO: Review the xfail cases to determine if there are ways to improve compatibility
 
 
 def test_translated_if_compare_type_mismatch_equal() -> None:
@@ -904,6 +906,245 @@ def test_translated_if_add_type_mismatch() -> None:
 def test_translated_if_subtract_type_mismatch() -> None:
     # string - int: Overpass produces "NaN" (truthy); QLever type error → false
     statement = 'node(1)(if:"foo"-1);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# MultiplyEvaluator
+#
+# Both numeric → (l) * (r) or (l) / (r).
+# Mixed types → output_type=None, arithmetic syntax with a warning.
+# Diverges: Overpass produces "NaN" (truthy); QLever type error → filter false.
+
+
+def test_translated_if_multiply_truthy() -> None:
+    # 2*3 → 6 → truthy
+    statement = "node(1)(if:2*3);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_multiply_falsy() -> None:
+    # 0*5 → 0 → falsy
+    statement = "node(1)(if:0*5);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_divide_truthy() -> None:
+    # 6/2 → 3 → truthy
+    statement = "node(1)(if:6/2);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_divide_falsy() -> None:
+    # 0/5 → 0 → falsy
+    statement = "node(1)(if:0/5);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="Overpass: 'foo'*2 → 'NaN' (truthy, NaN != 0); "
+    "QLever: type error on ('foo') * (2) → filter false"
+)
+def test_translated_if_multiply_type_mismatch() -> None:
+    # string * int: Overpass produces "NaN" (truthy); QLever type error → false
+    statement = 'node(1)(if:"foo"*2);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="Overpass: 'foo'/2 → 'NaN' (truthy, NaN != 0); "
+    "QLever: type error on ('foo') / (2) → filter false"
+)
+def test_translated_if_divide_type_mismatch() -> None:
+    # string / int: Overpass produces "NaN" (truthy); QLever type error → false
+    statement = 'node(1)(if:"foo"/2);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# AbsEvaluator
+
+
+def test_translated_if_abs_truthy() -> None:
+    # abs(-1) → 1 → truthy
+    statement = "node(1)(if:abs(-1));"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_abs_falsy() -> None:
+    # abs(0) → 0 → falsy
+    statement = "node(1)(if:abs(0));"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="Overpass: abs('foo') → 'NaN' (truthy, NaN != 0); "
+    "QLever: type error on ABS('foo') → filter false"
+)
+def test_translated_if_abs_type_mismatch() -> None:
+    # abs on a non-numeric string: Overpass produces "NaN" (truthy); QLever errors
+    statement = 'node(1)(if:abs("foo"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# TypeCheckEvaluator (is_number, is_date)
+
+
+def test_translated_if_is_number_truthy() -> None:
+    # is_number("42") → 1 → truthy
+    statement = 'node(1)(if:is_number("42"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_number_falsy() -> None:
+    # is_number("foo") → 0 → falsy
+    statement = 'node(1)(if:is_number("foo"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="Overpass: is_number('+1') → 1 (strtod accepts leading '+'); "
+    "QLever: REGEX(str('+1'), '^-?[0-9]+...') → false (regex has no leading '+')"
+)
+def test_translated_if_is_number_leading_plus() -> None:
+    # "+1" is numeric in Overpass (strtod accepts leading +) but our regex rejects it
+    statement = 'node(1)(if:is_number("+1"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_number_trailing_decimal() -> None:
+    # "1." → DECIMAL (typed numeric) → is_number always true
+    statement = "node(1)(if:is_number(1.));"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_number_leading_decimal() -> None:
+    # ".5" → DECIMAL (typed numeric) → is_number always true
+    statement = 'node(1)(if:is_number(".5"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_number_scientific_notation() -> None:
+    # "1.2e1" → DOUBLE (typed numeric) → is_number always true
+    statement = "node(1)(if:is_number(1.2e1));"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_date_truthy() -> None:
+    # is_date("2024-01-01") → 1 → truthy
+    statement = 'node(1)(if:is_date("2024-01-01"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_date_with_time_truthy() -> None:
+    # is_date("2024-01-01T12:00:00Z") → 1 → truthy
+    statement = 'node(1)(if:is_date("2024-01-01T12:00:00Z"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_date_falsy() -> None:
+    # is_date("foo") → 0 → falsy
+    statement = 'node(1)(if:is_date("foo"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_date_timezone_offset() -> None:
+    # datetime.fromisoformat() accepts timezone offset forms, so _infer_literal_type
+    # classifies "2024-01-01T12:00:00+01:00" as DATETIME → short-circuit to true
+    statement = 'node(1)(if:is_date("2024-01-01T12:00:00+01:00"));'
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}

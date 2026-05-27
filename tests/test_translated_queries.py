@@ -1508,3 +1508,30 @@ def test_translated_if_length_node_absent() -> None:
     qlever_query = render_query(pattern, set_state)
     qlever_ids = _execute_qlever(qlever_query)
     assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# IsClosedEvaluator
+
+
+def test_translated_if_is_closed_closed_way() -> None:
+    # building ways are always closed; osm2rdf:area is present
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"way[building](if:is_closed()){bbox};"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_closed_open_way() -> None:
+    # highway ways are typically open; osm2rdf:area is absent
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"way[highway=secondary](if:!is_closed()){bbox};"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)

@@ -101,6 +101,11 @@ class TypeCheckFunction(Enum):
     IS_DATE = "is_date"
 
 
+class AggregateOperator(Enum):
+    MIN = "min"
+    MAX = "max"
+
+
 class CountType(Enum):
     NODES = "nodes"
     WAYS = "ways"
@@ -212,7 +217,7 @@ class ScalarType(Enum):
     DOUBLE = "xsd:double"
     INT = "xsd:int"
     LITERAL = "plain_literal"
-    NULL = "null"  # no scalar input
+    NUMERIC = "numeric"
     # None = indeterminate type
 
 
@@ -361,8 +366,22 @@ class LengthEvaluator(Evaluator):
 
 
 @dataclass
+class UniqueEvaluator(Evaluator):
+    input_set: SetReference
+    evaluator: Evaluator
+
+
+@dataclass
+class MinMaxEvaluator(Evaluator):
+    input_set: SetReference
+    operator: AggregateOperator
+    evaluator: Evaluator
+
+
+@dataclass
 class SumEvaluator(Evaluator):
     input_set: SetReference
+    evaluator: Evaluator
 
 
 @dataclass
@@ -2405,20 +2424,82 @@ class OverpassTransformer(Transformer[Token, Query]):
             token=children[0].token,
         )
 
-    def unique_expr(self, children: list[Any]) -> None:
-        # TODO: Revisit the decision to support the u evaluator
-        # There may be a translation for this feature (see evaluator-filters.md)
-        raise UnsupportedFeatureError("u() is not supported", children[0].token)
+    def unique_expr(self, children: list[Any]) -> UniqueEvaluator:
+        evaluator = children[-1]
+        assert isinstance(evaluator, Evaluator)
+        evaluator_type = evaluator.output_type
 
-    def min_expr(self, children: list[Any]) -> None:
-        # TODO: Revisit the decision to support the min evaluator
-        # Does static typing resolve the ambiguity between lexical and numeric ordering?
-        raise UnsupportedFeatureError("min() is not supported", children[0].token)
+        if evaluator_type is None:
+            self.warnings.append(
+                Warning(
+                    "Expression type is indeterminate and may cause SPARQL errors",
+                    evaluator.token,
+                )
+            )
 
-    def max_expr(self, children: list[Any]) -> None:
-        # TODO: Revisit the decision to support the max evaluator
-        # Does static typing resolve the ambiguity between lexical and numeric ordering?
-        raise UnsupportedFeatureError("max() is not supported", children[0].token)
+        if len(children) == 2:
+            set_reference = children[0]
+        else:
+            set_reference = SetReference(name="_", token=None)
+
+        return UniqueEvaluator(
+            input_set=set_reference,
+            output_type=ScalarType.LITERAL,
+            evaluator=evaluator,
+            token=evaluator.token,
+        )
+
+    def min_expr(self, children: list[Any]) -> MinMaxEvaluator:
+        evaluator = children[-1]
+        assert isinstance(evaluator, Evaluator)
+        evaluator_type = evaluator.output_type
+
+        if evaluator_type is None:
+            self.warnings.append(
+                Warning(
+                    "Expression type is indeterminate and may cause SPARQL errors",
+                    evaluator.token,
+                )
+            )
+
+        if len(children) == 2:
+            set_reference = children[0]
+        else:
+            set_reference = SetReference(name="_", token=None)
+
+        return MinMaxEvaluator(
+            input_set=set_reference,
+            operator=AggregateOperator.MIN,
+            output_type=evaluator_type,
+            evaluator=evaluator,
+            token=evaluator.token,
+        )
+
+    def max_expr(self, children: list[Any]) -> MinMaxEvaluator:
+        evaluator = children[-1]
+        assert isinstance(evaluator, Evaluator)
+        evaluator_type = evaluator.output_type
+
+        if evaluator_type is None:
+            self.warnings.append(
+                Warning(
+                    "Expression type is indeterminate and may cause SPARQL errors",
+                    evaluator.token,
+                )
+            )
+
+        if len(children) == 2:
+            set_reference = children[0]
+        else:
+            set_reference = SetReference(name="_", token=None)
+
+        return MinMaxEvaluator(
+            input_set=set_reference,
+            operator=AggregateOperator.MAX,
+            output_type=evaluator_type,
+            evaluator=evaluator,
+            token=evaluator.token,
+        )
 
     def sum_expr(self, children: list[Any]) -> SumEvaluator:
         evaluator = children[-1]
@@ -2451,7 +2532,10 @@ class OverpassTransformer(Transformer[Token, Query]):
             set_reference = SetReference(name="_", token=None)
 
         return SumEvaluator(
-            input_set=set_reference, output_type=output_type, token=evaluator.token
+            input_set=set_reference,
+            evaluator=evaluator,
+            output_type=output_type,
+            token=evaluator.token,
         )
 
     def set_expr(self, children: list[Any]) -> None:

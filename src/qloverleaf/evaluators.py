@@ -23,6 +23,7 @@ from qloverleaf.transformer import (
     IsTagEvaluator,
     LengthEvaluator,
     LiteralEvaluator,
+    MetadataAttribute,
     MetadataEvaluator,
     MinMaxEvaluator,
     MultiplyEvaluator,
@@ -381,9 +382,13 @@ def _translate_literal(evaluator: LiteralEvaluator) -> EvaluatorPattern:
 def _translate_tag_value(
     evaluator: TagValueEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    # TODO: translate tag value evaluator (t["key"])
-    raise UnimplementedFeatureError(
-        "tag value evaluator is not implemented", evaluator.token
+    key = evaluator.evaluator.value
+    var = _evaluator_variable_name(variable_base, evaluator.token, key)
+    clause = f"OPTIONAL {{ {element_var} osmkey:{key} {var} }}"
+    return EvaluatorPattern(
+        expression=f'COALESCE({var}, "")',
+        prefixes={"osmkey"},
+        clauses=[clause],
     )
 
 
@@ -391,9 +396,12 @@ def _translate_tag_value(
 def _translate_is_tag(
     evaluator: IsTagEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    # TODO: translate is_tag evaluator
-    raise UnimplementedFeatureError(
-        "is_tag evaluator is not implemented", evaluator.token
+    var = _evaluator_variable_name(variable_base, evaluator.token, evaluator.key)
+    clause = f"OPTIONAL {{ {element_var} osmkey:{evaluator.key} {var} }}"
+    return EvaluatorPattern(
+        expression=f"BOUND({var})",
+        prefixes={"osmkey"},
+        clauses=[clause],
     )
 
 
@@ -409,10 +417,36 @@ def _translate_is_tag(
 def _translate_metadata(
     evaluator: MetadataEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    # TODO: translate metadata evaluator (id, type, version, timestamp, changeset,
-    #   uid, user); dispatch on evaluator.attribute
-    raise UnimplementedFeatureError(
-        "metadata evaluator is not implemented", evaluator.token
+    attr = evaluator.attribute
+    # id() has no predicate — derived from the element URI itself; cast to xsd:integer
+    if attr == MetadataAttribute.ID:
+        return EvaluatorPattern(
+            expression=f'xsd:integer(REPLACE(STR({element_var}), ".*/", ""))',
+            prefixes={"xsd"},
+        )
+    # type() returns the rdf:type URI; extract the final path segment as a string
+    if attr == MetadataAttribute.TYPE:
+        var = _evaluator_variable_name(variable_base, evaluator.token, "type")
+        return EvaluatorPattern(
+            expression=f'REPLACE(STR({var}), ".*/", "")',
+            prefixes={"rdf"},
+            clauses=[f"{element_var} rdf:type {var} ."],
+        )
+    # changeset() returns a URI in QLever; extract and cast to xsd:integer
+    if attr == MetadataAttribute.CHANGESET:
+        var = _evaluator_variable_name(variable_base, evaluator.token, "changeset")
+        return EvaluatorPattern(
+            expression=f'xsd:integer(REPLACE(STR({var}), ".*/", ""))',
+            prefixes={"osmeta", "xsd"},
+            clauses=[f"{element_var} osmeta:changeset {var} ."],
+        )
+    # version, timestamp, uid, user — direct osmeta predicates
+    label = attr.value
+    var = _evaluator_variable_name(variable_base, evaluator.token, label)
+    return EvaluatorPattern(
+        expression=var,
+        prefixes={"osmeta"},
+        clauses=[f"{element_var} osmeta:{label} {var} ."],
     )
 
 

@@ -1268,3 +1268,169 @@ def test_translated_if_suffix_whitespace() -> None:
     qlever_query = render_query(pattern, set_state)
     qlever_ids = _execute_qlever(qlever_query)
     assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# TagValueEvaluator
+
+
+@pytest.mark.xfail(
+    reason='Overpass: t["ele"] returns a string, implicitly converted to a number; '
+    'QLever: t["ele"] returns literal, literal > xsd:int → type mismatch → '
+    "comparison fails"
+)
+def test_translated_if_tag_value_numeric_compare() -> None:
+    # number() converts the tag string to a numeric type for comparison
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f'node[natural=peak](if:number(t["ele"])>700){bbox};'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_tag_value_numeric_compare_with_conversion() -> None:
+    # number() converts the tag string to a numeric type for comparison
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f'node[natural=peak](if:number(t["ele"])>700){bbox};'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_tag_value_string_compare() -> None:
+    # tag equality via t[...] — equivalent to the tag filter form [key=value]
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f'node[natural=peak](if:t["natural"]=="peak"){bbox};'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_tag_value_missing() -> None:
+    # t["ele"] on a node without the tag returns "" in Overpass; COALESCE matches
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f'node[natural=peak](if:t["ele"]==""){bbox};'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# IsTagEvaluator
+
+
+def test_translated_if_is_tag_present() -> None:
+    # is_tag returns true when the tag exists; OPTIONAL binds → BOUND is true
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f'node[natural=peak](if:is_tag("ele")){bbox};'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_is_tag_absent() -> None:
+    # is_tag returns false when the tag is missing; OPTIONAL does not bind
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f'node[natural=peak](if:is_tag("nonexistent_tag_xyz")){bbox};'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# MetadataEvaluator
+
+
+def test_translated_if_id_compare() -> None:
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"node[natural=peak](if:id()>1){bbox};"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_type_compare() -> None:
+    # type() returns "node", "way", or "relation"
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f'nwr[natural=peak](if:type()=="node"){bbox};'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_version_compare() -> None:
+    # version() is typed xsd:int in QLever; direct numeric comparison works
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"node[natural=peak](if:version()>3){bbox};"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_timestamp_compare() -> None:
+    # timestamp() is xsd:dateTime in QLever; date() converts the string for comparison
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    cutoff = "2020-01-01T00:00:00Z"
+    statement = f'node[natural=peak](if:timestamp()>date("{cutoff}")){bbox};'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_uid_compare() -> None:
+    # uid() is typed xsd:int in QLever; direct numeric comparison works
+    statement = "node(1)(if:uid()>0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_user_compare() -> None:
+    # user() is a plain literal in QLever; string comparison works directly
+    statement = 'node(1)(if:user()!="");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_changeset_compare() -> None:
+    statement = "node(1)(if:changeset()>0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)

@@ -207,19 +207,16 @@ _ELEMENT_TYPE_MAP: dict[str, frozenset[ElementType]] = {
 
 class ScalarType(Enum):
     BOOLEAN = "xsd:boolean"
-    CHANGESET = "changeset_uri"
     DATETIME = "xsd:dateTime"
     DECIMAL = "xsd:decimal"
     DOUBLE = "xsd:double"
     INT = "xsd:int"
-    KEY = "osmkey:"
     LITERAL = "plain_literal"
     NULL = "null"  # no scalar input
-    TYPE = "element_type_uri"
     # None = indeterminate type
 
 
-_NON_EBV_TYPES = frozenset({ScalarType.DATETIME, ScalarType.CHANGESET, ScalarType.TYPE})
+_NON_EBV_TYPES = frozenset({ScalarType.DATETIME})
 _NUMERIC_TYPES = frozenset({ScalarType.INT, ScalarType.DECIMAL, ScalarType.DOUBLE})
 
 _NUMERIC_RANK = {ScalarType.INT: 0, ScalarType.DECIMAL: 1, ScalarType.DOUBLE: 3}
@@ -237,7 +234,6 @@ def _promote_numeric_type(a: ScalarType, b: ScalarType) -> ScalarType:
 @dataclass(kw_only=True)
 class Evaluator:
     token: Token
-    input_type: ScalarType | None = None
     output_type: ScalarType | None = None
 
 
@@ -1812,7 +1808,6 @@ class OverpassTransformer(Transformer[Token, Query]):
 
         return TernaryEvaluator(
             condition=condition,
-            input_type=ScalarType.BOOLEAN,
             output_type=output_type,
             true_expression=true_expression,
             false_expression=false_expression,
@@ -1820,25 +1815,95 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def or_expr(self, children: list[Any]) -> BinaryEvaluator:
+        for child in children:
+            assert isinstance(child, Evaluator)
+            if child.output_type in _NON_EBV_TYPES:
+                self.warnings.append(
+                    Warning(
+                        f"Operand using {child.output_type.value} will always be true",
+                        child.token,
+                    )
+                )
         return BinaryEvaluator(
-            operator=BinaryOperator.OR, operands=children, token=children[0].token
+            operator=BinaryOperator.OR,
+            operands=children,
+            output_type=ScalarType.BOOLEAN,
+            token=children[0].token,
         )
 
     def and_expr(self, children: list[Any]) -> BinaryEvaluator:
+        for child in children:
+            assert isinstance(child, Evaluator)
+            if child.output_type in _NON_EBV_TYPES:
+                self.warnings.append(
+                    Warning(
+                        f"Operand using {child.output_type.value} will always be true",
+                        child.token,
+                    )
+                )
         return BinaryEvaluator(
-            operator=BinaryOperator.AND, operands=children, token=children[0].token
+            operator=BinaryOperator.AND,
+            operands=children,
+            output_type=ScalarType.BOOLEAN,
+            token=children[0].token,
         )
 
     def not_expr(self, children: list[Any]) -> UnaryEvaluator:
+        operand = children[1]
+        assert isinstance(operand, Evaluator)
+        if operand.output_type in _NON_EBV_TYPES:
+            self.warnings.append(
+                Warning(
+                    f"Expression with {operand.output_type.value} will always be false",
+                    operand.token,
+                )
+            )
         return UnaryEvaluator(
-            operator=UnaryOperator.NOT, operand=children[1], token=children[0]
+            operator=UnaryOperator.NOT,
+            operand=operand,
+            output_type=ScalarType.BOOLEAN,
+            token=children[0],
         )
 
     def compare_expr(self, children: list[Any]) -> CompareEvaluator:
+        left_operand = children[0]
+        assert isinstance(left_operand, Evaluator)
+        left_type = left_operand.output_type
+
+        right_operand = children[2]
+        assert isinstance(right_operand, Evaluator)
+        right_type = right_operand.output_type
+
+        if left_type is None:
+            self.warnings.append(
+                Warning(
+                    "Operand type is indeterminate and may cause SPARQL errors",
+                    left_operand.token,
+                )
+            )
+        elif right_type is None:
+            self.warnings.append(
+                Warning(
+                    "Operand type is indeterminate and may cause SPARQL errors",
+                    right_operand.token,
+                )
+            )
+        elif left_type != right_type and not (
+            left_type in _NUMERIC_TYPES and right_type in _NUMERIC_TYPES
+        ):
+            self.warnings.append(
+                Warning(
+                    f"Incompatible operand types {left_type.value} and "
+                    f"{right_type.value} may cause SPARQL errors",
+                    left_operand.token,
+                )
+            )
+
         return CompareEvaluator(
             left_operand=children[0],
             operator=CompareOperator(children[1].value),
             right_operand=children[2],
+            output_type=ScalarType.BOOLEAN,
             token=children[0].token,
         )
 

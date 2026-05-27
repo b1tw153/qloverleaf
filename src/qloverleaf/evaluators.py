@@ -497,9 +497,12 @@ def _translate_count_by_role(
 def _translate_is_closed(
     evaluator: IsClosedEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    # TODO: translate is_closed evaluator
-    raise UnimplementedFeatureError(
-        "is_closed evaluator is not implemented", evaluator.token
+    # osm2rdf:area is present on closed ways and relations; absent otherwise.
+    var = _evaluator_variable_name(variable_base, evaluator.token, "area")
+    return EvaluatorPattern(
+        expression=f"BOUND({var})",
+        prefixes={"osm2rdf"},
+        clauses=[f"OPTIONAL {{ {element_var} osm2rdf:area {var} }}"],
     )
 
 

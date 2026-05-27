@@ -882,10 +882,20 @@ def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
 
 
 def _translate_item(stmt: ItemStatement) -> list[SparqlPattern]:
-    raise UnimplementedFeatureError(
-        "ItemStatement translation is not yet implemented",
-        stmt.token,
-    )
+    # ItemStatement just maps the input set to the output set
+    pattern = SparqlPattern(output_set=stmt.output_set)
+    sparql_var = pattern.result_variable
+    assert sparql_var is not None
+
+    # Inject the input set and assign to the output set variable
+    pattern.injections = [
+        SetInjection(
+            sparql_var=sparql_var,
+            set_name=stmt.input_set.identifier,
+            required_types=stmt.input_set.required_types,
+        )
+    ]
+    return [pattern]
 
 
 def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:

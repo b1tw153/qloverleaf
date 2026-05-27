@@ -431,6 +431,39 @@ def test_translated_set_filter_nwr() -> None:
 
 
 # ---------------------------------------------------------------------------
+# ItemStatement
+# ---------------------------------------------------------------------------
+
+
+def test_translated_item_to_default_set() -> None:
+    # .a; copies .a into ._; the composer inlines .a's cold pattern into ._
+    query = "node(1) -> .a; .a;"
+    qlever_query, overpass_ids = _compose_two(query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_item_redirect() -> None:
+    # .a -> .b; copies .a into .b; a downstream set filter resolves through both hops
+    query = "node(1) -> .a; .a -> .b; node.b;"
+    overpass_ids = _execute_overpass(query)
+    patterns = _translate_query(query)
+    set_state: SetState = {}
+    for pattern in patterns[:2]:
+        composed = compose(pattern, set_state)
+        assert composed is not None
+        assert composed.result_set_name is not None
+        set_state[composed.result_set_name] = SetStateEntry(
+            pattern=composed, nwr_results=None, area_results=None
+        )
+    composed = compose(patterns[2], set_state)
+    assert composed is not None
+    qlever_query = render_query(composed, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# ---------------------------------------------------------------------------
 # PivotFilter
 # ---------------------------------------------------------------------------
 

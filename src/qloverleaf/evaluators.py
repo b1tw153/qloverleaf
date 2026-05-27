@@ -13,6 +13,7 @@ from qloverleaf.transformer import (
     CompareOperator,
     ConversionEvaluator,
     ConversionFunction,
+    CoordinateAxis,
     CoordinateEvaluator,
     CountByRoleEvaluator,
     CountEvaluator,
@@ -440,7 +441,17 @@ def _translate_metadata(
             prefixes={"osmeta", "xsd"},
             clauses=[f"{element_var} osmeta:changeset {var} ."],
         )
-    # version, timestamp, uid, user — direct osmeta predicates
+    # uid is xsd:int in QLever, but QLever range-scans the uid index for numeric
+    # comparisons (e.g. > 0), producing a massive intermediate result. Wrapping
+    # in xsd:integer(STR(?var)) forces evaluation from the bound triple, not the index.
+    if attr == MetadataAttribute.UID:
+        var = _evaluator_variable_name(variable_base, evaluator.token, "uid")
+        return EvaluatorPattern(
+            expression=f"xsd:integer(STR({var}))",
+            prefixes={"osmeta", "xsd"},
+            clauses=[f"{element_var} osmeta:uid {var} ."],
+        )
+    # version, timestamp, user — direct osmeta predicates
     label = attr.value
     var = _evaluator_variable_name(variable_base, evaluator.token, label)
     return EvaluatorPattern(
@@ -497,10 +508,16 @@ def _translate_is_closed(
 def _translate_coordinate(
     evaluator: CoordinateEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    # TODO: translate coordinate evaluator (lat(), lon())
-    # Note: dispatch on evaluator.axis
-    raise UnimplementedFeatureError(
-        "coordinate evaluator is not implemented", evaluator.token
+    geom_var = _evaluator_variable_name(variable_base, evaluator.token, "geom")
+    wkt_var = _evaluator_variable_name(variable_base, evaluator.token, "wkt")
+    fn = "geof:latitude" if evaluator.axis == CoordinateAxis.LAT else "geof:longitude"
+    return EvaluatorPattern(
+        expression=f"{fn}({wkt_var})",
+        prefixes={"geo", "geof"},
+        clauses=[
+            f"{element_var} geo:hasGeometry {geom_var} .",
+            f"{geom_var} geo:asWKT {wkt_var} .",
+        ],
     )
 
 
@@ -511,9 +528,13 @@ def _translate_coordinate(
 def _translate_length(
     evaluator: LengthEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    # TODO: translate length evaluator
-    raise UnimplementedFeatureError(
-        "length evaluator is not implemented", evaluator.token
+    # osm2rdf:length is absent for nodes and some relation types; OPTIONAL + COALESCE
+    # returns 0 for elements without the predicate, matching Overpass behavior.
+    var = _evaluator_variable_name(variable_base, evaluator.token, "length")
+    return EvaluatorPattern(
+        expression=f"COALESCE({var}, 0)",
+        prefixes={"osm2rdf"},
+        clauses=[f"OPTIONAL {{ {element_var} osm2rdf:length {var} }}"],
     )
 
 

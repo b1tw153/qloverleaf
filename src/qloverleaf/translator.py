@@ -123,6 +123,7 @@ SPARQL_PREFIXES: dict[str, str] = {
     "geo": "http://www.opengis.net/ont/geosparql#",
     "geof": "http://www.opengis.net/def/function/geosparql/",
     "ogc": "http://www.opengis.net/rdf#",
+    "osm2rdf": "https://osm2rdf.cs.uni-freiburg.de/rdf#",
 }
 
 

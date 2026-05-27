@@ -1281,7 +1281,7 @@ def test_translated_if_suffix_whitespace() -> None:
 def test_translated_if_tag_value_numeric_compare() -> None:
     # number() converts the tag string to a numeric type for comparison
     bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
-    statement = f'node[natural=peak](if:number(t["ele"])>700){bbox};'
+    statement = f'node[natural=peak](if:t["ele"]>700){bbox};'
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}
@@ -1428,6 +1428,80 @@ def test_translated_if_user_compare() -> None:
 
 def test_translated_if_changeset_compare() -> None:
     statement = "node(1)(if:changeset()>0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# CoordinateEvaluator
+
+
+def test_translated_if_lat_truthy() -> None:
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"node[natural=peak](if:lat()>32.7){bbox};"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_lat_falsy() -> None:
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"node[natural=peak](if:lat()>90){bbox};"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_lon_truthy() -> None:
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"node[natural=peak](if:lon()>-116){bbox};"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_lon_falsy() -> None:
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"node[natural=peak](if:lon()>0){bbox};"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# LengthEvaluator
+
+
+def test_translated_if_length_truthy() -> None:
+    # osm2rdf:length is precomputed for ways; direct decimal comparison
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"way[highway=secondary](if:length()>500){bbox};"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_length_node_absent() -> None:
+    # nodes have no osm2rdf:length; COALESCE returns 0, matching Overpass
+    bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
+    statement = f"node[natural=peak](if:length()>0){bbox};"
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}

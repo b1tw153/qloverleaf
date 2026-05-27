@@ -20,6 +20,14 @@ class Warning:
     message: str
     token: Token | None
 
+    def __str__(self) -> str:
+        if self.token is not None:
+            return (
+                f"Warning at line {self.token.line}, col {self.token.column}: "
+                f"{self.message}"
+            )
+        return f"Warning: {self.message}"
+
 
 # Basic Types
 
@@ -2040,12 +2048,11 @@ class OverpassTransformer(Transformer[Token, Query]):
         elif left_type in _NUMERIC_TYPES and right_type in _NUMERIC_TYPES:
             # numeric addition/subtraction
             output_type = _promote_numeric_type(left_type, right_type)
-        elif (
-            operator == AddOperator.ADD
-            and left_type == ScalarType.LITERAL
-            and right_type == ScalarType.LITERAL
+        elif operator == AddOperator.ADD and (
+            left_type == ScalarType.LITERAL or right_type == ScalarType.LITERAL
         ):
-            # string concatenation
+            # string concatenation: Overpass concatenates whenever either operand
+            # is non-numeric, so one LITERAL side is sufficient
             output_type = ScalarType.LITERAL
         else:
             output_type = None

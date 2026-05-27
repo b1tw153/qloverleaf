@@ -316,8 +316,12 @@ def _translate_add(
         evaluator.operator == AddOperator.ADD
         and evaluator.output_type == ScalarType.LITERAL
     ):
-        # Both operands are strings: Overpass + is string concatenation
-        expression = f"CONCAT({left_pattern.expression}, {right_pattern.expression})"
+        # At least one operand is a string: Overpass + is string concatenation.
+        # str() coerces numeric arguments to their string form so that e.g.
+        # "foo" + 1 → CONCAT(str("foo"), str(1)) → "foo1", matching Overpass.
+        expression = (
+            f"CONCAT(str({left_pattern.expression}), str({right_pattern.expression}))"
+        )
     else:
         op = evaluator.operator.value
         expression = f"({left_pattern.expression}) {op} ({right_pattern.expression})"

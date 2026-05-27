@@ -184,6 +184,13 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     set_state: SetState = {}
     execution_queue: list[SparqlPattern] = []
 
+    # Output all warnings
+    if query.ir.warnings:
+        yield ("=== WARNINGS ===\n")
+        for warning in query.ir.warnings:
+            yield (str(warning))
+            yield ("\n")
+
     # Translate all statements and build initial execution queue
     for statement in query.ir.statements:
         patterns = translate(statement)

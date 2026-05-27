@@ -454,3 +454,459 @@ def test_translated_pivot_filter_wr() -> None:
     qlever_query, overpass_ids = _compose_two(query)
     qlever_ids = _execute_qlever(qlever_query)
     assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# ---------------------------------------------------------------------------
+# IfFilter
+# ---------------------------------------------------------------------------
+
+
+def test_translated_if_filter_truthy_literal() -> None:
+    # if:1 is always true; result should match the unfiltered node(1)
+    statement = "node(1)(if:1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    print(qlever_query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_filter_falsy_literal() -> None:
+    # if:0 is always false; both backends should return no elements
+    statement = "node(1)(if:0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    print(qlever_query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# CompareEvaluator
+
+
+def test_translated_if_compare_equal() -> None:
+    statement = "node(1)(if:1==1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_compare_not_equal() -> None:
+    statement = "node(1)(if:1!=0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_compare_less_than() -> None:
+    statement = "node(1)(if:0<1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_compare_less_than_or_equal() -> None:
+    statement = "node(1)(if:1<=1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_compare_greater_than() -> None:
+    statement = "node(1)(if:1>0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_compare_greater_than_or_equal() -> None:
+    statement = "node(1)(if:1>=1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# CompareEvaluator — type mismatches
+#
+# Overpass comparison coercion: int64 → double → lexicographic string fallback.
+# SPARQL raises a type error for all comparisons between incompatible types;
+# FILTER treats type errors as false.
+#
+# == agrees: Overpass string-compares "1" vs "hello" → not equal; SPARQL also
+# returns not-equal (different RDF terms). Both false.
+#
+# != diverges: Overpass string-compares → not equal → true; QLever raises a type
+# error → false. xfail tests document this divergence.
+#
+# Ordering: SPARQL always returns false (type error). Overpass falls back to
+# lexicographic string comparison. "h" > "1" (ASCII 104 > 49), so the direction
+# matters: "hello" < 1 and 1 > "hello" produce false on both backends (agree),
+# while 1 < "hello" and "hello" > 1 produce true in Overpass but false in QLever
+# (diverge). xfail tests cover the diverging directions for all four operators.
+
+
+def test_translated_if_compare_type_mismatch_equal() -> None:
+    # int vs non-numeric string: Overpass string-compares "1" vs "hello" → not equal.
+    # SPARQL: different RDF terms → not equal. Both return false.
+    statement = 'node(1)(if:1=="hello");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="QLever type error on != with incompatible types → false; "
+    "Overpass string fallback → true"
+)
+def test_translated_if_compare_type_mismatch_not_equal() -> None:
+    # int vs non-numeric string: Overpass string-compares "1" vs "hello" → not equal →
+    # true. QLever raises a type error → filter false. Backends diverge.
+    statement = 'node(1)(if:1!="hello");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_compare_type_mismatch_less_than_agree() -> None:
+    # "hello" < 1: Overpass string-compares "hello" vs "1" → "h" > "1" → false.
+    # SPARQL: type error → filter false. Both return false.
+    statement = 'node(1)(if:"hello"<1);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="QLever type error on < with incompatible types → false; "
+    "Overpass string fallback: '1' < 'h' → true"
+)
+def test_translated_if_compare_type_mismatch_less_than_diverge() -> None:
+    # 1 < "hello": Overpass string-compares "1" vs "hello" → "1" < "h" → true.
+    # QLever: type error → filter false. Backends diverge.
+    statement = 'node(1)(if:1<"hello");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_compare_type_mismatch_greater_than_agree() -> None:
+    # 1 > "hello": Overpass string-compares "1" vs "hello" → "1" < "h" → false.
+    # SPARQL: type error → filter false. Both return false.
+    statement = 'node(1)(if:1>"hello");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="QLever type error on > with incompatible types → false; "
+    "Overpass string fallback: 'h' > '1' → true"
+)
+def test_translated_if_compare_type_mismatch_greater_than_diverge() -> None:
+    # "hello" > 1: Overpass string-compares "hello" vs "1" → "h" > "1" → true.
+    # QLever: type error → filter false. Backends diverge.
+    statement = 'node(1)(if:"hello">1);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_compare_type_mismatch_less_than_or_equal_agree() -> None:
+    # "hello" <= 1: Overpass string-compares "hello" vs "1" → "h" > "1" → false.
+    # SPARQL: type error → filter false. Both return false.
+    statement = 'node(1)(if:"hello"<=1);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="QLever type error on <= with incompatible types → false; "
+    "Overpass string fallback: '1' <= 'h' → true"
+)
+def test_translated_if_compare_type_mismatch_less_than_or_equal_diverge() -> None:
+    # 1 <= "hello": Overpass string-compares "1" vs "hello" → "1" <= "h" → true.
+    # QLever: type error → filter false. Backends diverge.
+    statement = 'node(1)(if:1<="hello");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_compare_type_mismatch_greater_than_or_equal_agree() -> None:
+    # 1 >= "hello": Overpass string-compares "1" vs "hello" → "1" < "h" → false.
+    # SPARQL: type error → filter false. Both return false.
+    statement = 'node(1)(if:1>="hello");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="QLever type error on >= with incompatible types → false; "
+    "Overpass string fallback: 'h' >= '1' → true"
+)
+def test_translated_if_compare_type_mismatch_greater_than_or_equal_diverge() -> None:
+    # "hello" >= 1: Overpass string-compares "hello" vs "1" → "h" >= "1" → true.
+    # QLever: type error → filter false. Backends diverge.
+    statement = 'node(1)(if:"hello">=1);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# UnaryEvaluator
+
+
+def test_translated_if_not_falsy() -> None:
+    # !0: 0 is falsy, NOT → true
+    statement = "node(1)(if:!0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_not_truthy() -> None:
+    # !1: 1 is truthy, NOT → false
+    statement = "node(1)(if:!1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_negate() -> None:
+    # -1 < 0: negation produces a negative number
+    statement = "node(1)(if:-1<0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="Overpass: -'foo' → 'NaN', which is truthy (NaN != 0); "
+    "QLever: type error on -('foo') → filter false"
+)
+def test_translated_if_negate_type_mismatch() -> None:
+    # Negating a non-numeric string: Overpass produces "NaN" (truthy); QLever errors.
+    statement = 'node(1)(if:-"foo");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# BinaryEvaluator
+#
+# && and || use the same boolean EBV rules as !. SPARQL's EBV for non-numeric
+# plain literals (empty = false, non-empty = true) aligns with Overpass's
+# string_represents_boolean_true, so there are no diverging cases to document.
+
+
+def test_translated_if_and_truthy() -> None:
+    statement = "node(1)(if:1&&1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_and_falsy() -> None:
+    statement = "node(1)(if:1&&0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_or_truthy() -> None:
+    statement = "node(1)(if:0||1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_or_falsy() -> None:
+    statement = "node(1)(if:0||0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# TernaryEvaluator
+
+
+def test_translated_if_ternary_true_branch() -> None:
+    # 1?1:0 → condition true → result 1 → truthy
+    statement = "node(1)(if:1?1:0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_ternary_false_branch() -> None:
+    # 0?1:0 → condition false → result 0 → falsy
+    statement = "node(1)(if:0?1:0);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# AddEvaluator
+#
+# Three translation paths:
+#   both numeric → (l) + (r) or (l) - (r)
+#   ADD, at least one LITERAL → CONCAT(str(l), str(r))
+#   SUB with non-numeric operand → output_type=None, arithmetic syntax with a warning
+#
+# The subtraction mismatch diverges: Overpass produces "NaN" (truthy), while
+# QLever raises a type error (filter false). xfail test documents this divergence.
+
+
+def test_translated_if_add_numeric() -> None:
+    # 1+1 → 2 → truthy
+    statement = "node(1)(if:1+1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_add_concat() -> None:
+    # "foo"+"bar" → "foobar" → truthy; translates to CONCAT
+    statement = 'node(1)(if:"foo"+"bar");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_subtract_truthy() -> None:
+    # 2-1 → 1 → truthy
+    statement = "node(1)(if:2-1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_subtract_falsy() -> None:
+    # 1-1 → 0 → falsy
+    statement = "node(1)(if:1-1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_add_type_mismatch() -> None:
+    # string + int: Overpass concatenates → "foo1" (truthy).
+    # Translated as CONCAT(str("foo"), str(1)) → "foo1" (truthy). Both agree.
+    statement = 'node(1)(if:"foo"+1);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="Overpass: 'foo'-1 → 'NaN' (truthy, NaN != 0); "
+    "QLever: type error on ('foo') - (1) → filter false"
+)
+def test_translated_if_subtract_type_mismatch() -> None:
+    # string - int: Overpass produces "NaN" (truthy); QLever type error → false
+    statement = 'node(1)(if:"foo"-1);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)

@@ -565,8 +565,6 @@ def test_translated_if_compare_greater_than_or_equal() -> None:
 # matters: "hello" < 1 and 1 > "hello" produce false on both backends (agree),
 # while 1 < "hello" and "hello" > 1 produce true in Overpass but false in QLever
 # (diverge). xfail tests cover the diverging directions for all four operators.
-#
-# TODO: Review the xfail cases to determine if there are ways to improve compatibility
 
 
 def test_translated_if_compare_type_mismatch_equal() -> None:

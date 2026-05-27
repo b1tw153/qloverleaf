@@ -1151,3 +1151,120 @@ def test_translated_if_is_date_timezone_offset() -> None:
     qlever_query = render_query(pattern, set_state)
     qlever_ids = _execute_qlever(qlever_query)
     assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# ConversionEvaluator (number, date)
+
+
+def test_translated_if_number_truthy() -> None:
+    # number("42") → 42.0 → truthy
+    statement = 'node(1)(if:number("42"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_number_falsy() -> None:
+    # number("0") → 0.0 → falsy
+    statement = 'node(1)(if:number("0"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="Overpass: number('foo') → NaN (truthy, NaN != 0); "
+    "QLever: xsd:double cast error → filter false"
+)
+def test_translated_if_number_invalid() -> None:
+    # invalid string: Overpass produces NaN (truthy); QLever cast error → false
+    statement = 'node(1)(if:number("foo"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_date_comparison_earlier() -> None:
+    # date("2024-01-01") < date("2024-12-31") → true → truthy
+    statement = 'node(1)(if:date("2024-01-01") < date("2024-12-31"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_date_comparison_later() -> None:
+    # date("2024-12-31") < date("2024-01-01") → false → falsy
+    statement = 'node(1)(if:date("2024-12-31") < date("2024-01-01"));'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# SuffixEvaluator
+
+
+def test_translated_if_suffix_with_prefix() -> None:
+    # suffix("123m") strips the numeric prefix → "m"; "m" != "" → truthy
+    statement = 'node(1)(if:suffix("123m") == "m");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_suffix_all_numeric() -> None:
+    # suffix("123") → "" (all digits stripped); "" == "" → truthy
+    statement = 'node(1)(if:suffix("123") == "");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="Overpass: suffix('foo') → '' (no numeric prefix → empty string); "
+    "QLever: REPLACE no match → 'foo' unchanged; 'foo' != '' → false"
+)
+def test_translated_if_suffix_no_numeric_prefix() -> None:
+    # no numeric prefix: Overpass returns ""; QLever leaves the string unchanged
+    statement = 'node(1)(if:suffix("foo") == "");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason="Overpass: suffix('734 m') strips whitespace → 'm'; "
+    "QLever: REPLACE leaves ' m' (space preserved); ' m' != 'm' → false"
+)
+def test_translated_if_suffix_whitespace() -> None:
+    # whitespace between number and unit: Overpass strips it, QLever preserves it
+    statement = 'node(1)(if:suffix("734 m") == "m");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)

@@ -529,7 +529,7 @@ def _translate_suffix(
     # parses as the regex escape \. (literal dot).
     inner_pattern = translate_evaluator(evaluator.operand, element_var, variable_base)
     expression = (
-        f"REPLACE({inner_pattern.expression},"
+        f"REPLACE(str({inner_pattern.expression}),"
         f' "^-?[0-9]+(\\\\.[0-9]+)?([eE][+-]?[0-9]+)?", "")'
     )
     return EvaluatorPattern(

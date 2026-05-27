@@ -5,6 +5,7 @@ from qloverleaf.transformer import (
     _NUMERIC_TYPES,
     AbsEvaluator,
     AddEvaluator,
+    AddOperator,
     BinaryEvaluator,
     CompareEvaluator,
     CompareOperator,
@@ -180,9 +181,25 @@ def translate_evaluator(evaluator: Evaluator, element_var: str) -> EvaluatorPatt
 def _translate_ternary(
     evaluator: TernaryEvaluator, element_var: str
 ) -> EvaluatorPattern:
-    # TODO: translate ternary evaluator
-    raise UnimplementedFeatureError(
-        "ternary evaluator is not implemented", evaluator.token
+    condition_pattern = translate_evaluator(evaluator.condition, element_var)
+    true_pattern = translate_evaluator(evaluator.true_expression, element_var)
+    false_pattern = translate_evaluator(evaluator.false_expression, element_var)
+    expression = (
+        f"IF({condition_pattern.expression}, "
+        f"{true_pattern.expression}, "
+        f"{false_pattern.expression})"
+    )
+    prefixes = (
+        condition_pattern.prefixes | true_pattern.prefixes | false_pattern.prefixes
+    )
+    clauses = condition_pattern.clauses + true_pattern.clauses + false_pattern.clauses
+    subqueries = (
+        condition_pattern.subqueries
+        + true_pattern.subqueries
+        + false_pattern.subqueries
+    )
+    return EvaluatorPattern(
+        expression=expression, prefixes=prefixes, clauses=clauses, subqueries=subqueries
     )
 
 
@@ -247,18 +264,38 @@ def _translate_compare(
 
 # add_expr
 def _translate_add(evaluator: AddEvaluator, element_var: str) -> EvaluatorPattern:
-    # TODO: translate add evaluator (+, -)
-    # Note: + is string concatenation when both operands are strings
-    raise UnimplementedFeatureError("add evaluator is not implemented", evaluator.token)
+    left_pattern = translate_evaluator(evaluator.left_operand, element_var)
+    right_pattern = translate_evaluator(evaluator.right_operand, element_var)
+    prefixes = left_pattern.prefixes | right_pattern.prefixes
+    clauses = left_pattern.clauses + right_pattern.clauses
+    subqueries = left_pattern.subqueries + right_pattern.subqueries
+    if (
+        evaluator.operator == AddOperator.ADD
+        and evaluator.output_type == ScalarType.LITERAL
+    ):
+        # Both operands are strings: Overpass + is string concatenation
+        expression = f"CONCAT({left_pattern.expression}, {right_pattern.expression})"
+    else:
+        op = evaluator.operator.value
+        expression = f"({left_pattern.expression}) {op} ({right_pattern.expression})"
+    return EvaluatorPattern(
+        expression=expression, prefixes=prefixes, clauses=clauses, subqueries=subqueries
+    )
 
 
 # mul_expr
 def _translate_multiply(
     evaluator: MultiplyEvaluator, element_var: str
 ) -> EvaluatorPattern:
-    # TODO: translate multiply evaluator (*, /)
-    raise UnimplementedFeatureError(
-        "multiply evaluator is not implemented", evaluator.token
+    left_pattern = translate_evaluator(evaluator.left_operand, element_var)
+    right_pattern = translate_evaluator(evaluator.right_operand, element_var)
+    op = evaluator.operator.value
+    expression = f"({left_pattern.expression}) {op} ({right_pattern.expression})"
+    prefixes = left_pattern.prefixes | right_pattern.prefixes
+    clauses = left_pattern.clauses + right_pattern.clauses
+    subqueries = left_pattern.subqueries + right_pattern.subqueries
+    return EvaluatorPattern(
+        expression=expression, prefixes=prefixes, clauses=clauses, subqueries=subqueries
     )
 
 

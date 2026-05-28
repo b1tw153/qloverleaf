@@ -4,7 +4,7 @@ import requests
 from qloverleaf.composer import compose
 from qloverleaf.interpreter import SetState, SetStateEntry
 from qloverleaf.parser import parse
-from qloverleaf.transformer import OverpassTransformer
+from qloverleaf.transformer import ElementType, OverpassTransformer
 from qloverleaf.translator import SparqlPattern, render_query, translate
 
 pytestmark = pytest.mark.live
@@ -390,7 +390,37 @@ def test_translated_recurse_bn_relation_tagged() -> None:
 # WayCountFilter
 # ---------------------------------------------------------------------------
 
-# TODO: Requires set composition
+
+def test_translated_way_count_filter() -> None:
+    # 7 highway ways sharing nodes with way 100; produces 8 junction nodes
+    ways = "100,4055383,4055631,8046838,17967466,169588430,169588433"
+    way_query = f"way(id:{ways}) -> .ways;"
+    full_query = way_query + "node(way_cnt.ways:2-);"
+    overpass_ids = _execute_overpass(full_query)
+
+    patterns = _translate_query(full_query)
+    set_state: SetState = {}
+
+    # Execute first pattern on QLever to materialize way URIs
+    composed_ways = compose(patterns[0], set_state)
+    assert composed_ways is not None
+    assert composed_ways.result_set_name is not None
+    way_sparql = render_query(composed_ways, set_state)
+    way_ids = _execute_qlever(way_sparql)
+    way_uris = [
+        (ElementType.WAY, f"https://www.openstreetmap.org/way/{s.split('/')[1]}")
+        for s in way_ids
+    ]
+    set_state[composed_ways.result_set_name] = SetStateEntry(
+        pattern=composed_ways,
+        nwr_results=way_uris,
+        area_results=None,
+    )
+
+    # Render second pattern directly — must_materialize, VALUES pre-populated
+    node_sparql = render_query(patterns[1], set_state)
+    qlever_ids = _execute_qlever(node_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
 # ---------------------------------------------------------------------------

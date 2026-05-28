@@ -150,6 +150,7 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
         lines.append(f"SELECT {distinct}{pattern.result_variable} WHERE {{")
 
     # VALUES injections
+    subquery_substitutions: dict[str, str] = {}
     for injection in pattern.injections:
         entry = set_state.get(injection.set_name)
         uris: list[tuple[ElementType, str]] = []
@@ -163,9 +164,15 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
                 uris += entry.nwr_results or []
         uri_list = " ".join(f"<{u}>" for _, u in uris)
         lines.append(f"  VALUES {injection.sparql_var} {{ {uri_list} }}")
+        # Track for subquery substitution (QLever cannot see outer VALUES in subqueries)
+        subquery_substitutions[f"VALUES {injection.sparql_var} {{ }}"] = (
+            f"VALUES {injection.sparql_var} {{ {uri_list} }}"
+        )
 
-    # WHERE clauses
+    # WHERE clauses — substitute subquery VALUES placeholders where needed
     for clause in pattern.where_clauses:
+        for placeholder, replacement in subquery_substitutions.items():
+            clause = clause.replace(placeholder, replacement)
         lines.append(f"  {clause}")
 
     lines.append("}")
@@ -796,7 +803,7 @@ def _translate_way_count_filter(
     # Note: VALUES must appear in both outer and inner query due to QLever limitation
     subquery = (
         f"{{ SELECT {result_variable} (COUNT(DISTINCT {way_var}) AS {count_var})"
-        " WHERE {{"
+        " WHERE {"
         f" VALUES {way_var} {{ }}"
         f" {way_var} osmway:member {blank_var} ."
         f" {blank_var} osmway:member_id {result_variable} ."

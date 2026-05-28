@@ -10,6 +10,8 @@ _URI_PREFIXES: list[tuple[str, ElementType]] = [
     ("https://www.openstreetmap.org/node/", ElementType.NODE),
     ("https://www.openstreetmap.org/way/", ElementType.WAY),
     ("https://www.openstreetmap.org/relation/", ElementType.RELATION),
+    # Untagged nodes use http:// in osm2rdf; ways/relations are always tagged
+    ("http://www.openstreetmap.org/node/", ElementType.NODE),
 ]
 
 

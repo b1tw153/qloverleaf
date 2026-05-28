@@ -236,7 +236,7 @@ def test_ir_completeness_evaluators() -> None:
 
 
 def test_ir_completeness_out_stmt() -> None:
-    _assert_no_raw_nodes(_stmt("out meta qt 10;"))
+    _assert_no_raw_nodes(_stmt("out meta asc 10;"))
 
 
 # ---------------------------------------------------------------------------
@@ -2344,8 +2344,8 @@ def test_out_bb_center() -> None:
 
 
 def test_out_sort_qt() -> None:
-    stmt = _out_stmt("out qt;")
-    assert stmt.sort_order == OutSortOrder.QT
+    with pytest.raises(UnsupportedFeatureError):
+        _out_stmt("out qt;")
 
 
 def test_out_sort_asc() -> None:
@@ -2365,9 +2365,9 @@ def test_out_verbosity_and_geometry() -> None:
 
 
 def test_out_verbosity_and_sort() -> None:
-    stmt = _out_stmt("out meta qt;")
+    stmt = _out_stmt("out meta asc;")
     assert stmt.verbosity == OutVerbosity.META
-    assert stmt.sort_order == OutSortOrder.QT
+    assert stmt.sort_order == OutSortOrder.ASC
 
 
 def test_out_verbosity_and_limit() -> None:

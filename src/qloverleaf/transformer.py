@@ -1762,6 +1762,11 @@ class OverpassTransformer(Transformer[Token, Query]):
                         f"out debug cannot be combined with {name!r}", debug_token
                     )
 
+        if sort_token is not None and OutSortOrder(str(sort_token)) == OutSortOrder.QT:
+            raise UnsupportedFeatureError(
+                "Quad tile sorting is not supported", sort_token
+            )
+
         input_set.required_types = _NWRA
 
         return OutStatement(

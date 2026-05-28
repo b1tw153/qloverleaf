@@ -958,6 +958,14 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             stmt.token,
         )
 
+    if stmt.center:
+        assert pattern.select_clause is not None
+        pattern.select_clause += " ?centroid"
+        pattern.prefixes |= {"geo", "geof"}
+        pattern.where_clauses.append(f"{result_variable} geo:hasGeometry ?geom .")
+        pattern.where_clauses.append("?geom geo:asWKT ?wkt .")
+        pattern.where_clauses.append("BIND(geof:centroid(?wkt) AS ?centroid)")
+
     if not stmt.count:
         pattern.order_by = result_variable
         pattern.limit = stmt.limit

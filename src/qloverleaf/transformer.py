@@ -783,6 +783,7 @@ class ItemStatement(Statement):
 class OutStatement(Statement):
     input_set: SetReference
     count: bool
+    debug: bool
     verbosity: OutVerbosity
     geom: bool
     bb: bool
@@ -1667,6 +1668,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         seen_verbs: dict[str, Token] = {}
         verbosity_token: Token | None = None
         count_token: Token | None = None
+        debug_token: Token | None = None
         geom_token: Token | None = None
         bb_token: Token | None = None
         center_token: Token | None = None
@@ -1705,6 +1707,8 @@ class OverpassTransformer(Transformer[Token, Query]):
                         verbosity_token = child
                     elif verb == "count":
                         count_token = child
+                    elif verb == "debug":
+                        debug_token = child
                     elif verb == "geom":
                         geom_token = child
                     elif verb == "bb":
@@ -1732,6 +1736,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         if count_token is not None:
             for conflicting, name in (
                 (verbosity_token, str(verbosity_token) if verbosity_token else None),
+                (debug_token, "debug"),
                 (geom_token, "geom"),
                 (bb_token, "bb"),
                 (center_token, "center"),
@@ -1743,11 +1748,26 @@ class OverpassTransformer(Transformer[Token, Query]):
                         f"out count cannot be combined with {name!r}", count_token
                     )
 
+        if debug_token is not None:
+            for conflicting, name in (
+                (verbosity_token, str(verbosity_token) if verbosity_token else None),
+                (geom_token, "geom"),
+                (bb_token, "bb"),
+                (center_token, "center"),
+                (sort_token, str(sort_token) if sort_token else None),
+                (limit_token, "INTEGER"),
+            ):
+                if conflicting is not None:
+                    raise QueryError(
+                        f"out debug cannot be combined with {name!r}", debug_token
+                    )
+
         input_set.required_types = _NWRA
 
         return OutStatement(
             input_set=input_set,
             count=count_token is not None,
+            debug=debug_token is not None,
             verbosity=(
                 OutVerbosity(str(verbosity_token))
                 if verbosity_token is not None

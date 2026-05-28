@@ -29,12 +29,14 @@ global_output: global_output_xml
              | global_output_csv
              | global_output_custom
              | global_output_popup
+             | global_output_raw // Qloverleaf only
 
 global_output_xml:    "xml"
 global_output_json:   "json"
 global_output_csv:    "csv" "(" csv_spec ")"
 global_output_custom: "custom"
 global_output_popup:  "popup" ("(" popup_config ")")?
+global_output_raw:    "raw" // Qloverleaf only
 
 popup_config: popup_token (";" popup_token)* ";"?
 
@@ -266,6 +268,7 @@ OUT_VERB: "ids"
         | "noids" 
         | "asc" 
         | "qt"
+        | "debug" // Qloverleaf only
 
 recurse_stmt: set_ref? RECURSE_DIR set_assignment?
 

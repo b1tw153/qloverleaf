@@ -38,6 +38,7 @@ MEDIA_TYPES = {
     OutputFormat.CSV: "text/csv",
     OutputFormat.CUSTOM: "text/plain",
     OutputFormat.POPUP: "application/html",
+    OutputFormat.RAW: "application/json",
 }
 
 
@@ -121,6 +122,8 @@ def _apply_global_settings(query: QueryContext) -> None:
                 query.out = OutputFormat.CUSTOM
             case "global_output_popup":
                 query.out = OutputFormat.POPUP
+            case "global_output_raw":
+                query.out = OutputFormat.RAW
             case _:
                 assert False, (
                     f"Unexpected global output type: {global_output_token.value}"

@@ -34,6 +34,7 @@ class OutputFormat(Enum):
     CSV = "csv"
     CUSTOM = "custom"
     POPUP = "popup"
+    RAW = "raw"
 
 
 @dataclass

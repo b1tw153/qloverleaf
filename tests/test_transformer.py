@@ -2074,7 +2074,10 @@ def test_union_member_difference() -> None:
     assert stmt.members[2].difference is True
 
 
-# TODO: test_union_member_statement — once statement production is handled
+def test_union_member_statement_and_token() -> None:
+    stmt = _union_stmt("( node(1); node(2); );")
+    assert isinstance(stmt.members[0].statement, QueryStatement)
+    assert stmt.token is stmt.members[0].statement.token
 
 
 def test_union_output_set() -> None:
@@ -2087,10 +2090,6 @@ def test_union_no_output_set() -> None:
     stmt = _union_stmt("( node(1); node(2); );")
     assert stmt.output_set.name == "_"
     assert stmt.output_set.token is None
-
-
-# TODO: test_union_token — token comes from first member's statement
-# revisit once statement production is handled
 
 
 def test_union_empty() -> None:

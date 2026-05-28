@@ -47,7 +47,6 @@ async def initialize(query: QueryContext) -> tuple[AsyncGenerator[str, None], st
     # and apply the settings from the ir instead of directly from the parse tree
 
     query.ir = OverpassTransformer().transform(query.tree)
-    # TODO: (deferred) walk IR and flag dead code (unused output)
 
     return _execute(query), MEDIA_TYPES[query.out]
 

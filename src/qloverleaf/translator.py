@@ -935,7 +935,7 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         pattern.select_clause = f"{result_variable} ?wkt"
         pattern.where_clauses.append(f"{result_variable} geo:hasGeometry ?geom .")
         pattern.where_clauses.append("?geom geo:asWKT ?wkt .")
-        # TODO: Handle way/relation members - needs type-specific queries
+        # TODO: Handle way/relation members
     elif stmt.verbosity == OutVerbosity.TAGS:
         # Output all tags (no geometry or members)
         pattern.select_clause = f"{result_variable} ?p ?v"

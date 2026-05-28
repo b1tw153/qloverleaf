@@ -2661,8 +2661,8 @@ class OverpassTransformer(Transformer[Token, Query]):
         # set_reference must be the output set of an enclosing for_stmt (sets are
         # global, so any for loop on the stack is valid, not just the innermost). Only
         # that set is populated with per-iteration values.
-        # TODO: (deferred) validate in a semantic pass — walk the IR with a stack of
-        # for loop output set names; raise if set_reference.name matches none of them.
+        # TODO: validate in a semantic pass — walk the IR with a stack of for loop
+        # output set names; raise if set_reference.name matches none of them.
         # TODO: carry the output type of the for loop evaluator down to this
         # evaluator's output type
         set_reference = children[0]

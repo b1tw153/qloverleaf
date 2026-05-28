@@ -390,7 +390,7 @@ def test_translated_recurse_bn_relation_tagged() -> None:
 # WayCountFilter
 # ---------------------------------------------------------------------------
 
-# TODO: Requires set composition - deferred
+# TODO: Requires set composition
 
 
 # ---------------------------------------------------------------------------

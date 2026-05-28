@@ -143,20 +143,18 @@ def test_ir_completeness_filters() -> None:
     _assert_no_raw_nodes(_stmt('node(w.x)(r:"member")(area.y)(uid:1,2)(user:"alice");'))
 
 
-# TODO: test_ir_completeness_foreach_stmt — body contains untransformed statement
-# Trees until the query/statement rules are handled
+# TODO: test_ir_completeness_foreach_stmt
 
-# TODO: test_ir_completeness_for_stmt — same reason as foreach
+# TODO: test_ir_completeness_for_stmt
 
-# TODO: test_ir_completeness_complete_stmt — same reason as foreach
+# TODO: test_ir_completeness_complete_stmt
 
-# TODO: test_ir_completeness_if_stmt — same reason as foreach
+# TODO: test_ir_completeness_if_stmt
 
-# TODO: test_ir_completeness_union_stmt — UnionMember.statement is an untransformed
-# Tree until the query/statement rules are handled
+# TODO: test_ir_completeness_union_stmt
 
 # TODO: test_ir_completeness_val_expr — val_expr is only valid inside a for body;
-# test via "for -> .a (1) { node(if:a.val); }" once block body transforms are handled
+# test via "for -> .a (1) { node(if:a.val); }"
 
 
 def test_ir_completeness_tag_and_positional_filters() -> None:

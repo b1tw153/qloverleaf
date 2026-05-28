@@ -186,7 +186,7 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
         lines.append(f"ORDER BY {pattern.order_by}")
 
     # LIMIT
-    if pattern.limit:
+    if pattern.limit is not None:
         lines.append(f"LIMIT {pattern.limit}")
 
     return "\n".join(lines)
@@ -929,6 +929,7 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         pattern.select_clause = f"?type (COUNT(DISTINCT {result_variable}) AS ?count)"
         pattern.group_by = "?type"
         pattern.where_clauses.append(f"{result_variable} rdf:type ?type .")
+        # ORDER BY / LIMIT don't apply to count
     elif stmt.verbosity == OutVerbosity.IDS:
         # Just output element URIs
         pattern.select_clause = result_variable
@@ -956,6 +957,10 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             f"out {stmt.verbosity.value} not yet implemented",
             stmt.token,
         )
+
+    if not stmt.count:
+        pattern.order_by = result_variable
+        pattern.limit = stmt.limit
 
     return [pattern]
 

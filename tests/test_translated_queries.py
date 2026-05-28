@@ -1656,3 +1656,96 @@ def test_translated_out_limit_zero() -> None:
     overpass_ids = _execute_overpass_with_out(query)
     qlever_ids = _execute_qlever(_compose_out_query(query))
     assert overpass_ids == qlever_ids == []
+
+
+# ---------------------------------------------------------------------------
+# out center
+# ---------------------------------------------------------------------------
+
+
+def _parse_wkt_point(wkt: str) -> tuple[float, float]:
+    """Parse WKT POINT(lon lat) and return (lat, lon)."""
+    coords = wkt.strip().removeprefix("POINT(").removesuffix(")")
+    lon_str, lat_str = coords.split()
+    return float(lat_str), float(lon_str)
+
+
+def _overpass_center_coords(query: str) -> dict[str, tuple[float, float]]:
+    """Execute Overpass and return {type/id: (lat, lon)} from center or lat/lon."""
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    result = {}
+    for elem in response.json().get("elements", []):
+        eid = f"{elem['type']}/{elem['id']}"
+        if "center" in elem:
+            result[eid] = (elem["center"]["lat"], elem["center"]["lon"])
+        elif "lat" in elem:
+            result[eid] = (elem["lat"], elem["lon"])
+    return result
+
+
+def _qlever_centroid_coords(sparql: str) -> dict[str, tuple[float, float]]:
+    """Execute SPARQL and return {type/id: (lat, lon)} from ?centroid WKT bindings."""
+    response = requests.post(
+        QLEVER_URL,
+        data={"query": sparql},
+        headers={"Accept": "application/sparql-results+json"},
+    )
+    response.raise_for_status()
+    result = {}
+    for binding in response.json().get("results", {}).get("bindings", []):
+        eid = None
+        latlon = None
+        for var_value in binding.values():
+            if var_value.get("type") == "uri":
+                uri = var_value["value"]
+                for path in ("/node/", "/way/", "/relation/"):
+                    if path in uri:
+                        eid = f"{path.strip('/')}/{uri.split(path)[1]}"
+                        break
+            elif var_value.get("type") == "literal":
+                val = var_value.get("value", "")
+                if val.startswith("POINT("):
+                    latlon = _parse_wkt_point(val)
+        if eid and latlon:
+            result[eid] = latlon
+    return result
+
+
+def _assert_center_coords(
+    overpass_data: dict[str, tuple[float, float]],
+    qlever_data: dict[str, tuple[float, float]],
+) -> None:
+    assert set(overpass_data) == set(qlever_data)
+    for eid in overpass_data:
+        op_lat, op_lon = overpass_data[eid]
+        ql_lat, ql_lon = qlever_data[eid]
+        assert op_lat == pytest.approx(ql_lat, abs=0.01), f"{eid} lat mismatch"
+        assert op_lon == pytest.approx(ql_lon, abs=0.01), f"{eid} lon mismatch"
+
+
+def test_translated_out_center_nodes() -> None:
+    # nodes: Overpass returns lat/lon inline (no center object); QLever uses centroid
+    query = "node(id:1,2,3); out ids center;"
+    _assert_center_coords(
+        _overpass_center_coords(query),
+        _qlever_centroid_coords(_compose_out_query(query)),
+    )
+
+
+def test_translated_out_center_ways() -> None:
+    # ways: Overpass returns center.lat/lon; QLever computes geof:centroid from geometry
+    query = "way(id:44019040,992347334,1122162378); out ids center;"
+    _assert_center_coords(
+        _overpass_center_coords(query),
+        _qlever_centroid_coords(_compose_out_query(query)),
+    )
+
+
+def test_translated_out_center_relations() -> None:
+    # relations: Overpass returns center.lat/lon; QLever computes geof:centroid
+    query = "relation(id:15006797,4050577,4050578); out ids center;"
+    _assert_center_coords(
+        _overpass_center_coords(query),
+        _qlever_centroid_coords(_compose_out_query(query)),
+    )

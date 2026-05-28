@@ -2254,6 +2254,7 @@ def test_out_default() -> None:
     assert stmt.input_set.name == "_"
     assert stmt.input_set.token is None
     assert stmt.count is False
+    assert stmt.debug is False
     assert stmt.verbosity == OutVerbosity.BODY
     assert stmt.geom is False
     assert stmt.bb is False
@@ -2297,6 +2298,13 @@ def test_out_verbosity_meta() -> None:
 def test_out_count() -> None:
     stmt = _out_stmt("out count;")
     assert stmt.count is True
+    assert stmt.verbosity == OutVerbosity.BODY
+
+
+def test_out_debug() -> None:
+    stmt = _out_stmt("out debug;")
+    assert stmt.debug is True
+    assert stmt.count is False
     assert stmt.verbosity == OutVerbosity.BODY
 
 
@@ -2426,6 +2434,41 @@ def test_out_count_with_sort_raises() -> None:
 def test_out_count_with_limit_raises() -> None:
     with pytest.raises(QueryError):
         _out_stmt("out count 5;")
+
+
+def test_out_count_with_debug_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out count debug;")
+
+
+def test_out_debug_with_verbosity_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out debug body;")
+
+
+def test_out_debug_with_geom_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out debug geom;")
+
+
+def test_out_debug_with_bb_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out debug bb;")
+
+
+def test_out_debug_with_center_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out debug center;")
+
+
+def test_out_debug_with_sort_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out debug qt;")
+
+
+def test_out_debug_with_limit_raises() -> None:
+    with pytest.raises(QueryError):
+        _out_stmt("out debug 5;")
 
 
 def test_out_noids_raises() -> None:

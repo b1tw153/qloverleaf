@@ -143,18 +143,30 @@ def test_ir_completeness_filters() -> None:
     _assert_no_raw_nodes(_stmt('node(w.x)(r:"member")(area.y)(uid:1,2)(user:"alice");'))
 
 
-# TODO: test_ir_completeness_foreach_stmt
+def test_ir_completeness_foreach_stmt() -> None:
+    _assert_no_raw_nodes(_stmt("foreach .x { node[amenity=cafe]; }"))
 
-# TODO: test_ir_completeness_for_stmt
 
-# TODO: test_ir_completeness_complete_stmt
+def test_ir_completeness_for_stmt() -> None:
+    _assert_no_raw_nodes(_stmt("for -> .a (1) { node[amenity=cafe]; }"))
 
-# TODO: test_ir_completeness_if_stmt
 
-# TODO: test_ir_completeness_union_stmt
+def test_ir_completeness_complete_stmt() -> None:
+    _assert_no_raw_nodes(_stmt("complete { node[amenity=cafe]; }"))
 
-# TODO: test_ir_completeness_val_expr — val_expr is only valid inside a for body;
-# test via "for -> .a (1) { node(if:a.val); }"
+
+def test_ir_completeness_if_stmt() -> None:
+    _assert_no_raw_nodes(
+        _stmt("if (1) { node[amenity=cafe]; } else { node[amenity=parking]; }")
+    )
+
+
+def test_ir_completeness_union_stmt() -> None:
+    _assert_no_raw_nodes(_stmt("( node(1); way(1); );"))
+
+
+def test_ir_completeness_val_expr() -> None:
+    _assert_no_raw_nodes(_stmt("for -> .a (1) { node(if:a.val); }"))
 
 
 def test_ir_completeness_tag_and_positional_filters() -> None:

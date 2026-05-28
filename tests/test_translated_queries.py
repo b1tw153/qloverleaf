@@ -1605,3 +1605,54 @@ def test_translated_if_is_closed_open_way() -> None:
     qlever_query = render_query(pattern, set_state)
     qlever_ids = _execute_qlever(qlever_query)
     assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# ---------------------------------------------------------------------------
+# out sort and limit
+# ---------------------------------------------------------------------------
+
+
+def _execute_overpass_with_out(query: str) -> list[str]:
+    """Execute a complete Overpass query that already includes an out statement."""
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    return [f"{e['type']}/{e['id']}" for e in response.json().get("elements", [])]
+
+
+def _compose_out_query(query: str) -> str:
+    """Translate a query+out statement pair and return rendered SPARQL."""
+    patterns = _translate_query(query)
+    set_state: SetState = {}
+    composed = compose(patterns[0], set_state)
+    assert composed is not None
+    assert composed.result_set_name is not None
+    set_state[composed.result_set_name] = SetStateEntry(
+        pattern=composed, nwr_results=None, area_results=None
+    )
+    composed = compose(patterns[1], set_state)
+    assert composed is not None
+    return render_query(composed, set_state)
+
+
+def test_translated_out_sort_asc() -> None:
+    # asc sort: results must be in ascending ID order on both backends
+    query = "node(id:1,2,3); out ids asc;"
+    overpass_ids = _execute_overpass_with_out(query)
+    qlever_ids = _execute_qlever(_compose_out_query(query))
+    assert overpass_ids == qlever_ids
+
+
+def test_translated_out_limit() -> None:
+    # limit 2: both backends return the first 2 elements (by ascending ID)
+    query = "node(id:1,2,3); out ids 2;"
+    overpass_ids = _execute_overpass_with_out(query)
+    qlever_ids = _execute_qlever(_compose_out_query(query))
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_out_limit_zero() -> None:
+    # limit 0: both backends return no elements
+    query = "node(id:1,2,3); out ids 0;"
+    overpass_ids = _execute_overpass_with_out(query)
+    qlever_ids = _execute_qlever(_compose_out_query(query))
+    assert overpass_ids == qlever_ids == []

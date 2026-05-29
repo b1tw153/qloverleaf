@@ -956,9 +956,32 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         pattern.where_clauses.append(f"{result_variable} rdf:type ?type .")
         # ORDER BY / LIMIT don't apply to count
     elif stmt.verbosity == OutVerbosity.IDS:
-        pattern.injections.append(_flat_injection())
-        pattern.select_clause = result_variable
         pattern.distinct = True
+        if stmt.bb:
+            # ids + bb: emit element URIs plus the element's own WKT so the
+            # formatter can derive bounds (ways/relations) or lat/lon (nodes).
+            # Use a site-injection marker so the input bindings land before the
+            # OPTIONAL; otherwise QLever evaluates `OPTIONAL { ?x geo:hasGeometry
+            # ... }` against the unbound ?x and full-scans the dataset.
+            pattern.prefixes.add("geo")
+            bb_marker = f"VALUES {result_variable} {{ }}"
+            pattern.select_clause = f"{result_variable} ?bb_wkt"
+            pattern.where_clauses.append(bb_marker)
+            pattern.where_clauses.append(
+                f"OPTIONAL {{ {result_variable} geo:hasGeometry ?bb_geom ."
+                " ?bb_geom geo:asWKT ?bb_wkt . }"
+            )
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=result_variable,
+                    set_name=input_set.identifier,
+                    required_types=required_types,
+                    marker=bb_marker,
+                )
+            )
+        else:
+            pattern.injections.append(_flat_injection())
+            pattern.select_clause = result_variable
     elif stmt.verbosity in (OutVerbosity.SKEL, OutVerbosity.BODY, OutVerbosity.META):
         # Skeleton: nodes get geometry, ways/relations get ordered member lists.
         # Body adds a fourth UNION branch for tags; each row is either a skel row
@@ -970,7 +993,11 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         # type-filtered VALUES inside the branch (Option 1).
         include_tags = stmt.verbosity in (OutVerbosity.BODY, OutVerbosity.META)
         include_meta = stmt.verbosity == OutVerbosity.META
-        include_geom = stmt.geom
+        # bb reuses the per-member-WKT collection path: bounds is derived from
+        # the union of member coordinates in the formatter. For nodes the
+        # element's own ?wkt POINT from the NODE branch is already sufficient,
+        # so bb adds nothing there.
+        include_member_wkt = stmt.geom or stmt.bb
         pattern.prefixes |= {"rdf", "osm", "osmway", "osmrel", "geo"}
         if include_tags:
             pattern.prefixes.add("osmkey")
@@ -1002,10 +1029,12 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     "?m osmway:member_id ?member .",
                     "?m osmway:member_pos ?pos .",
                 ]
-                if include_geom:
+                if include_member_wkt:
                     # Per-member node WKT (POINT). OPTIONAL guards against
                     # missing geometry, though in practice every node should
-                    # have one.
+                    # have one. Must come after `?m osmway:member_id ?member`
+                    # so ?member is bound — otherwise QLever full-scans
+                    # geo:hasGeometry.
                     branch_lines.append(
                         "OPTIONAL { ?member geo:hasGeometry ?member_geom ."
                         " ?member_geom geo:asWKT ?member_wkt . }"
@@ -1023,9 +1052,11 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     "?m osmrel:member_pos ?pos .",
                     "?m osmrel:member_role ?role .",
                 ]
-                if include_geom:
+                if include_member_wkt:
                     # Per-member WKT: POINT for node members, LINESTRING/POLYGON
-                    # for way members, unbound for sub-relation members.
+                    # for way members, unbound for sub-relation members. Must
+                    # come after `?m osmrel:member_id ?member` so ?member is
+                    # bound — otherwise QLever full-scans geo:hasGeometry.
                     branch_lines.append(
                         "OPTIONAL { ?member geo:hasGeometry ?member_geom ."
                         " ?member_geom geo:asWKT ?member_wkt . }"
@@ -1065,7 +1096,7 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                 if v not in select_parts:
                     select_parts.append(v)
 
-        if include_geom and has_members:
+        if include_member_wkt and has_members:
             select_parts.append("?member_wkt")
 
         if include_meta:
@@ -1103,12 +1134,54 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
 
         return [pattern]
     elif stmt.verbosity == OutVerbosity.TAGS:
-        pattern.injections.append(_flat_injection())
-        pattern.select_clause = f"{result_variable} ?p ?v"
-        pattern.where_clauses.append(f"{result_variable} ?p ?v .")
-        pattern.where_clauses.append(
-            'FILTER(STRSTARTS(STR(?p), "https://www.openstreetmap.org/wiki/Key:"))'
-        )
+        if stmt.bb:
+            # tags + bb: two-branch UNION. Tag rows carry ?p/?v; bb rows carry
+            # the element's own ?bb_wkt. Mirrors the body design of separating
+            # tag rows from skel rows to avoid repeating WKT on every tag row.
+            # Each branch puts its marker first so the input substitution binds
+            # ?_1 before the subsequent triple patterns — otherwise QLever
+            # full-scans the dataset (?p/?v unbound; geo:hasGeometry unbound).
+            pattern.prefixes.add("geo")
+            tags_marker = f"VALUES {result_variable}·tags {{ }}"
+            bb_marker = f"VALUES {result_variable}·bb {{ }}"
+            tags_branch = (
+                "{\n  "
+                + tags_marker
+                + f"\n  {result_variable} ?p ?v ."
+                + "\n  FILTER(STRSTARTS(STR(?p),"
+                ' "https://www.openstreetmap.org/wiki/Key:"))\n}'
+            )
+            bb_branch = (
+                "{\n  "
+                + bb_marker
+                + f"\n  {result_variable} geo:hasGeometry ?bb_geom ."
+                + "\n  ?bb_geom geo:asWKT ?bb_wkt .\n}"
+            )
+            pattern.select_clause = f"{result_variable} ?p ?v ?bb_wkt"
+            pattern.where_clauses.append(tags_branch + "\nUNION\n" + bb_branch)
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=result_variable,
+                    set_name=input_set.identifier,
+                    required_types=required_types,
+                    marker=tags_marker,
+                )
+            )
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=result_variable,
+                    set_name=input_set.identifier,
+                    required_types=required_types,
+                    marker=bb_marker,
+                )
+            )
+        else:
+            pattern.injections.append(_flat_injection())
+            pattern.select_clause = f"{result_variable} ?p ?v"
+            pattern.where_clauses.append(f"{result_variable} ?p ?v .")
+            pattern.where_clauses.append(
+                'FILTER(STRSTARTS(STR(?p), "https://www.openstreetmap.org/wiki/Key:"))'
+            )
     else:
         raise UnimplementedFeatureError(
             f"out {stmt.verbosity.value} not yet implemented",

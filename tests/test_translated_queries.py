@@ -2491,3 +2491,245 @@ def test_translated_out_geom_relation_subrelation_members() -> None:
     assert op_tags == ql_tags
     _assert_geom(op_geom, ql_geom)
     assert op_geom == {}, "expected no per-member geometry for sub-relation members"
+
+
+# ---------------------------------------------------------------------------
+# out bb
+# ---------------------------------------------------------------------------
+
+# Top-level bounds as (minlat, minlon, maxlat, maxlon) per element key.
+_BoundsMap = dict[str, tuple[float, float, float, float]]
+
+
+def _bounds_from_coords(
+    coords: list[tuple[float, float]],
+) -> tuple[float, float, float, float] | None:
+    if not coords:
+        return None
+    lats = [c[0] for c in coords]
+    lons = [c[1] for c in coords]
+    return min(lats), min(lons), max(lats), max(lons)
+
+
+def _overpass_bb_ids(query: str) -> tuple[dict[str, tuple[float, float]], _BoundsMap]:
+    """Execute Overpass `out ids bb` and return (node_coords, bounds)."""
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    coords: dict[str, tuple[float, float]] = {}
+    bounds: _BoundsMap = {}
+    for elem in response.json().get("elements", []):
+        eid = f"{elem['type']}/{elem['id']}"
+        if "lat" in elem:
+            coords[eid] = (elem["lat"], elem["lon"])
+        if "bounds" in elem:
+            b = elem["bounds"]
+            bounds[eid] = (b["minlat"], b["minlon"], b["maxlat"], b["maxlon"])
+    return coords, bounds
+
+
+def _qlever_bb_ids(sparql: str) -> tuple[dict[str, tuple[float, float]], _BoundsMap]:
+    """Execute SPARQL `out ids bb` query and return (node_coords, bounds).
+
+    For nodes, the element's own POINT WKT yields lat/lon directly. For ways
+    and relations, the LINESTRING/POLYGON WKT is reduced to its min/max
+    coordinates to form a bounds tuple.
+    """
+    response = requests.post(
+        QLEVER_URL,
+        data={"query": sparql},
+        headers={"Accept": "application/sparql-results+json"},
+    )
+    response.raise_for_status()
+    data = response.json()
+    elem_var = data.get("head", {}).get("vars", [""])[0]
+    coords: dict[str, tuple[float, float]] = {}
+    bounds: _BoundsMap = {}
+    for binding in data.get("results", {}).get("bindings", []):
+        elem_val = binding.get(elem_var, {})
+        if elem_val.get("type") != "uri":
+            continue
+        elem_key = _uri_to_type_id(elem_val["value"])
+        if elem_key is None:
+            continue
+        wkt_val = binding.get("bb_wkt")
+        if not (wkt_val and wkt_val.get("type") == "literal"):
+            continue
+        wkt_str = wkt_val["value"]
+        if wkt_str.startswith("POINT("):
+            coords[elem_key] = _parse_wkt_point(wkt_str)
+        else:
+            parsed = _parse_wkt_coords(wkt_str)
+            b = _bounds_from_coords(parsed)
+            if b is not None:
+                bounds[elem_key] = b
+    return coords, bounds
+
+
+def _assert_bounds(op: _BoundsMap, ql: _BoundsMap) -> None:
+    assert set(op) == set(ql), f"bounds key mismatch: {set(op) ^ set(ql)}"
+    for key in op:
+        op_b = op[key]
+        ql_b = ql[key]
+        for label, ov, qv in zip(("minlat", "minlon", "maxlat", "maxlon"), op_b, ql_b):
+            assert ov == pytest.approx(qv, abs=1e-6), f"{key} {label} mismatch"
+
+
+def test_translated_out_bb_ids_node() -> None:
+    # node + bb: emits lat/lon (no bounds key).
+    query = "node(1); out ids bb;"
+    op_coords, op_bounds = _overpass_bb_ids(query)
+    ql_coords, ql_bounds = _qlever_bb_ids(_compose_out_query(query))
+    _assert_node_coords(op_coords, ql_coords)
+    assert op_bounds == ql_bounds == {}
+
+
+def test_translated_out_bb_ids_way_open() -> None:
+    query = "way(6007783); out ids bb;"
+    _, op_bounds = _overpass_bb_ids(query)
+    _, ql_bounds = _qlever_bb_ids(_compose_out_query(query))
+    _assert_bounds(op_bounds, ql_bounds)
+
+
+def test_translated_out_bb_ids_way_closed() -> None:
+    query = "way(100); out ids bb;"
+    _, op_bounds = _overpass_bb_ids(query)
+    _, ql_bounds = _qlever_bb_ids(_compose_out_query(query))
+    _assert_bounds(op_bounds, ql_bounds)
+
+
+def test_translated_out_bb_ids_relation() -> None:
+    query = "relation(18375544); out ids bb;"
+    _, op_bounds = _overpass_bb_ids(query)
+    _, ql_bounds = _qlever_bb_ids(_compose_out_query(query))
+    _assert_bounds(op_bounds, ql_bounds)
+
+
+# ---------------------------------------------------------------------------
+# out tags bb
+# ---------------------------------------------------------------------------
+
+
+def _overpass_bb_tags(
+    query: str,
+) -> tuple[dict[str, tuple[float, float]], _BoundsMap, dict[str, dict[str, str]]]:
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    coords: dict[str, tuple[float, float]] = {}
+    bounds: _BoundsMap = {}
+    tags: dict[str, dict[str, str]] = {}
+    for elem in response.json().get("elements", []):
+        eid = f"{elem['type']}/{elem['id']}"
+        if "lat" in elem:
+            coords[eid] = (elem["lat"], elem["lon"])
+        if "bounds" in elem:
+            b = elem["bounds"]
+            bounds[eid] = (b["minlat"], b["minlon"], b["maxlat"], b["maxlon"])
+        tags[eid] = elem.get("tags", {})
+    return coords, bounds, tags
+
+
+def _qlever_bb_tags(
+    sparql: str,
+) -> tuple[dict[str, tuple[float, float]], _BoundsMap, dict[str, dict[str, str]]]:
+    response = requests.post(
+        QLEVER_URL,
+        data={"query": sparql},
+        headers={"Accept": "application/sparql-results+json"},
+    )
+    response.raise_for_status()
+    data = response.json()
+    elem_var = data.get("head", {}).get("vars", [""])[0]
+    coords: dict[str, tuple[float, float]] = {}
+    bounds: _BoundsMap = {}
+    tags: dict[str, dict[str, str]] = {}
+    for binding in data.get("results", {}).get("bindings", []):
+        elem_val = binding.get(elem_var, {})
+        if elem_val.get("type") != "uri":
+            continue
+        elem_key = _uri_to_type_id(elem_val["value"])
+        if elem_key is None:
+            continue
+        if elem_key not in tags:
+            tags[elem_key] = {}
+
+        wkt_val = binding.get("bb_wkt")
+        if wkt_val and wkt_val.get("type") == "literal":
+            wkt_str = wkt_val["value"]
+            if wkt_str.startswith("POINT("):
+                coords[elem_key] = _parse_wkt_point(wkt_str)
+            else:
+                parsed = _parse_wkt_coords(wkt_str)
+                b = _bounds_from_coords(parsed)
+                if b is not None:
+                    bounds[elem_key] = b
+
+        pred_val = binding.get("p", {})
+        val_val = binding.get("v", {})
+        if pred_val.get("type") == "uri" and val_val.get("type") == "literal":
+            pred_uri = pred_val["value"]
+            if "Key:" in pred_uri:
+                tags[elem_key][pred_uri.split("Key:")[1]] = val_val["value"]
+
+    return coords, bounds, tags
+
+
+def test_translated_out_bb_tags_node() -> None:
+    # node + tags + bb: tags carry lat/lon (no bounds for nodes).
+    query = "node(1); out tags bb;"
+    op_coords, op_bounds, op_tags = _overpass_bb_tags(query)
+    ql_coords, ql_bounds, ql_tags = _qlever_bb_tags(_compose_out_query(query))
+    _assert_node_coords(op_coords, ql_coords)
+    assert op_bounds == ql_bounds == {}
+    assert op_tags == ql_tags
+
+
+def test_translated_out_bb_tags_way() -> None:
+    query = "way(100); out tags bb;"
+    _, op_bounds, op_tags = _overpass_bb_tags(query)
+    _, ql_bounds, ql_tags = _qlever_bb_tags(_compose_out_query(query))
+    _assert_bounds(op_bounds, ql_bounds)
+    assert op_tags == ql_tags
+
+
+# ---------------------------------------------------------------------------
+# out body bb (skel/body/meta path: bounds derived from per-member WKTs)
+# ---------------------------------------------------------------------------
+
+
+def test_translated_out_bb_body_relation() -> None:
+    # body + bb: members + tags + bounds. The translator collects per-member
+    # WKTs via the include_member_wkt path; bounds is the union of all member
+    # coordinates.
+    query = "relation(18375544); out body bb;"
+    op_members, _, op_tags, op_geom = _overpass_geom(query)
+    ql_members, _, ql_tags, ql_geom = _qlever_geom(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    assert op_tags == ql_tags
+
+    # Compute bounds from per-member coords on both sides and compare against
+    # the Overpass top-level bounds.
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    op_top_bounds: _BoundsMap = {}
+    for elem in response.json().get("elements", []):
+        if "bounds" in elem:
+            b = elem["bounds"]
+            op_top_bounds[f"{elem['type']}/{elem['id']}"] = (
+                b["minlat"],
+                b["minlon"],
+                b["maxlat"],
+                b["maxlon"],
+            )
+
+    ql_bounds: _BoundsMap = {}
+    by_elem: dict[str, list[tuple[float, float]]] = {}
+    for (elem_key, _pos), coords in ql_geom.items():
+        by_elem.setdefault(elem_key, []).extend(coords)
+    for elem_key, all_coords in by_elem.items():
+        b = _bounds_from_coords(all_coords)
+        if b is not None:
+            ql_bounds[elem_key] = b
+
+    _assert_bounds(op_top_bounds, ql_bounds)

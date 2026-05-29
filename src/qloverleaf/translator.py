@@ -287,6 +287,12 @@ def _add_type_filter(
         # BUG: select only closed ways and relations if we're searching for areas
         assert element_types == frozenset({ElementType.AREA})
         element_types = frozenset({ElementType.WAY, ElementType.RELATION})
+        pattern.prefixes |= {"osm2rdf"}
+        assert pattern.output_set is not None
+        area_var = _variable_name(
+            pattern.output_set, filter_index=0, intermediate="area"
+        )
+        pattern.where_clauses.append(f"{result_variable} osm2rdf:area {area_var} .")
     if ElementType.DERIVED in element_types:
         raise UnsupportedFeatureError("derived element queries are not supported", None)
     osm_types = [_OSM_TYPE_NAMES[t] for t in _OSM_TYPE_ORDER if t in element_types]

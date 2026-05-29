@@ -143,6 +143,7 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
     composed_pattern = SparqlPattern(
         pattern.output_set,
         pattern.materialize,  # false
+        pattern.output,
         composed_prefixes,
         pattern.select_clause,  # None
         composed_distinct,

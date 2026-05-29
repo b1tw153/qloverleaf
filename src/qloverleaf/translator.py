@@ -68,6 +68,7 @@ class SetInjection:
 class SparqlPattern:
     output_set: SetReference | None
     materialize: bool = False
+    output: bool = False
     prefixes: set[str] = field(default_factory=set)
     select_clause: str | None = None
     distinct: bool = False
@@ -1007,7 +1008,7 @@ def _injection_marker(sparql_var: str, elem_type: ElementType) -> str:
 
 def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
     # OutStatement doesn't produce a set, only outputs an existing one
-    pattern = SparqlPattern(output_set=None, materialize=False)
+    pattern = SparqlPattern(output_set=None, output=True)
 
     input_set = stmt.input_set
     result_variable = f"?{input_set.identifier}"

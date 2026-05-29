@@ -1,4 +1,3 @@
-import json
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, replace
 
@@ -13,6 +12,7 @@ from qloverleaf.formatter import (
     format_end,
     format_error,
     format_init,
+    format_output,
     format_warnings,
 )
 from qloverleaf.query_context import Bbox, OutputFormat, QueryContext
@@ -24,7 +24,6 @@ from qloverleaf.transformer import (
 )
 from qloverleaf.translator import (
     SparqlPattern,
-    _dump_sparql_pattern,
     render_query,
     translate,
 )
@@ -270,9 +269,6 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                 # Execute the pattern (all dependencies are materialized,
                 # or pattern is hot)
                 sparql = render_query(working_pattern, set_state)
-                yield "=== QUERY ===\n"
-                yield f"{sparql}\n"
-                yield "=============\n"
                 data = await query_qlever(sparql, client)
 
                 # Store results if pattern produces a set; otherwise just yield
@@ -289,26 +285,9 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                     else:
                         set_state[pattern.result_set_name].nwr_results = results
 
-                yield json.dumps(data, indent=2)
-                yield "\n"
+                if pattern.output:
+                    yield format_output(data)
 
-        # Debug: dump set_state after queue is cleared
-        yield "=== SET STATE DEBUG ===\n"
-        for set_name, entry in set_state.items():
-            yield f"--- Set: {set_name} ---\n"
-            if entry.pattern:
-                yield "----- Pattern:\n"
-                yield _dump_sparql_pattern(entry.pattern)
-            if entry.nwr_results:
-                yield f"----- NWR results: {len(entry.nwr_results)} elements\n"
-                for elem_type, uri in entry.nwr_results:
-                    yield f"  {elem_type.value}: {uri}\n"
-            if entry.area_results:
-                yield f"----- Area results: {len(entry.area_results)} elements\n"
-                for elem_type, uri in entry.area_results:
-                    yield f"  {elem_type.value}: {uri}\n"
-            if not entry.pattern and not entry.nwr_results and not entry.area_results:
-                yield "(empty entry)"
 
     except Exception as e:
         yield format_error(e)

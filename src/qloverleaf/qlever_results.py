@@ -109,10 +109,14 @@ def parse_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str, A
     elem_var = data["head"]["vars"][0]
 
     include_tags = stmt.verbosity in (
-        OutVerbosity.TAGS, OutVerbosity.BODY, OutVerbosity.META
+        OutVerbosity.TAGS,
+        OutVerbosity.BODY,
+        OutVerbosity.META,
     )
     include_members = stmt.verbosity in (
-        OutVerbosity.SKEL, OutVerbosity.BODY, OutVerbosity.META
+        OutVerbosity.SKEL,
+        OutVerbosity.BODY,
+        OutVerbosity.META,
     )
     include_meta = stmt.verbosity == OutVerbosity.META
     # ids/tags + bb uses a dedicated ?bb_wkt column; skel/body/meta + bb derives
@@ -162,8 +166,10 @@ def parse_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str, A
         member_val = binding.get("member")
         pos_val = binding.get("pos")
         if (
-            member_val and member_val.get("type") == "uri"
-            and pos_val and "_members" in elem
+            member_val
+            and member_val.get("type") == "uri"
+            and pos_val
+            and "_members" in elem
         ):
             member_parsed = _uri_to_type_id(member_val["value"])
             if member_parsed:

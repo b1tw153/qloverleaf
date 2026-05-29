@@ -80,7 +80,7 @@ def _apply_global_settings(query: QueryContext) -> None:
             f"Unexpected parsing error: Invalid global timeout {global_timeout}"
         )
         query.timeout = int(global_timeout_param.value)
-        print(f"[timeout:{int(global_timeout_param.value)}]")
+        # print(f"[timeout:{int(global_timeout_param.value)}]")
 
     # apply global maxsize
     matches = list(query.tree.find_data("global_maxsize"))
@@ -99,7 +99,7 @@ def _apply_global_settings(query: QueryContext) -> None:
             f"Unexpected parsing error: Invalid global maxsize {global_maxsize}"
         )
         query.maxsize = int(global_maxsize_param.value)
-        print(f"[maxsize:{int(global_maxsize_param.value)}]")
+        # print(f"[maxsize:{int(global_maxsize_param.value)}]")
 
     # apply global output
     matches = list(query.tree.find_data("global_output"))
@@ -148,7 +148,7 @@ def _apply_global_settings(query: QueryContext) -> None:
             out_params = global_output_setting.children[0]
             if isinstance(out_params, Tree):
                 query.out_params = out_params
-        print(f"[out:{query.out}({query.out_params})]")
+        # print(f"[out:{query.out}({query.out_params})]")
 
     # apply global bbox
     matches = list(query.tree.find_data("global_bbox"))
@@ -166,7 +166,7 @@ def _apply_global_settings(query: QueryContext) -> None:
         if float(south) >= float(north):
             raise QueryError("Invalid global bbox parameters", s_tok)
         query.bbox = Bbox(south, west, north, east)
-        print(f"[bbox:{query.bbox}]")
+        # print(f"[bbox:{query.bbox}]")
 
     # apply global date
     matches = list(query.tree.find_data("global_date"))

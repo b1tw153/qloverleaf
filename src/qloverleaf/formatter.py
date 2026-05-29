@@ -56,7 +56,7 @@ def format_begin() -> str:
             return ""
         case OutputFormat.RAW:
             # No document header
-            return ""
+            return "\n"
         case _:
             assert False
 

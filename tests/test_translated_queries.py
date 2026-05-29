@@ -1,9 +1,11 @@
 import pytest
 import requests
 
+from qloverleaf import interpreter
 from qloverleaf.composer import compose
 from qloverleaf.interpreter import SetState, SetStateEntry
 from qloverleaf.parser import parse
+from qloverleaf.query_context import QueryContext
 from qloverleaf.transformer import ElementType, OverpassTransformer
 from qloverleaf.translator import SparqlPattern, render_query, translate
 
@@ -2757,3 +2759,35 @@ def test_translated_out_bb_body_relation() -> None:
             ql_bounds[elem_key] = b
 
     _assert_bounds(op_top_bounds, ql_bounds)
+
+
+# ---------------------------------------------------------------------------
+# out debug
+# ---------------------------------------------------------------------------
+
+
+def test_out_debug_one_stmt() -> None:
+    import asyncio
+
+    query_text = (
+        "[out:raw]; way(381029345) -> .a; node(w.a) -> .b; way(bn.b); out debug;"
+    )
+
+    async def run() -> str:
+        tree = parse(query_text)
+        query = QueryContext(text=query_text, tree=tree)
+        content, _media_type = await interpreter.initialize(query)
+        chunks = []
+        async for chunk in content:
+            chunks.append(chunk)
+        return "".join(chunks)
+
+    output = asyncio.run(run())
+    print(output)
+    assert "output_set:" in output
+    assert "result_variable:" in output
+    assert "distinct:" in output
+    assert "materialize:" in output
+    assert "prefixes:" in output
+    assert "where_clauses:" in output
+    assert "injections:" in output

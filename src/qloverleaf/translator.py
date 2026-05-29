@@ -959,12 +959,22 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         pattern.injections.append(_flat_injection())
         pattern.select_clause = result_variable
         pattern.distinct = True
-    elif stmt.verbosity == OutVerbosity.SKEL:
+    elif stmt.verbosity in (OutVerbosity.SKEL, OutVerbosity.BODY, OutVerbosity.META):
         # Skeleton: nodes get geometry, ways/relations get ordered member lists.
-        # Uses a UNION block with one branch per element type; each branch has
-        # its own injection marker so cold clauses land inside the branch (Option 2)
-        # and hot sets get type-filtered VALUES inside the branch (Option 1).
+        # Body adds a fourth UNION branch for tags; each row is either a skel row
+        # or a tag row — never both — and the formatter combines them per element.
+        # Meta adds flat osmeta: triples after the UNION block, joining on the
+        # element variable so every row carries the full metadata for that element.
+        # All three use one branch per element type with an injection marker so
+        # cold clauses land inside the branch (Option 2) and hot sets get
+        # type-filtered VALUES inside the branch (Option 1).
+        include_tags = stmt.verbosity in (OutVerbosity.BODY, OutVerbosity.META)
+        include_meta = stmt.verbosity == OutVerbosity.META
         pattern.prefixes |= {"rdf", "osm", "osmway", "osmrel", "geo"}
+        if include_tags:
+            pattern.prefixes.add("osmkey")
+        if include_meta:
+            pattern.prefixes.add("osmeta")
         select_parts = [result_variable]
         branches: list[str] = []
         has_members = False
@@ -1019,8 +1029,43 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                 )
             )
 
+        if include_tags:
+            tags_marker = f"VALUES {result_variable}·tags {{ }}"
+            tags_branch_lines = [
+                tags_marker,
+                f"{result_variable} ?p ?v .",
+                'FILTER(STRSTARTS(STR(?p), "https://www.openstreetmap.org/wiki/Key:"))',
+            ]
+            branches.append("{\n  " + "\n  ".join(tags_branch_lines) + "\n}")
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=result_variable,
+                    set_name=input_set.identifier,
+                    required_types=required_types,
+                    marker=tags_marker,
+                )
+            )
+            for v in ["?p", "?v"]:
+                if v not in select_parts:
+                    select_parts.append(v)
+
+        if include_meta:
+            for v in ["?version", "?timestamp", "?changeset", "?uid", "?user"]:
+                select_parts.append(v)
+
         pattern.select_clause = " ".join(select_parts)
         pattern.where_clauses.append("\nUNION\n".join(branches))
+
+        if include_meta:
+            pattern.where_clauses.extend(
+                [
+                    f"{result_variable} osmeta:version ?version .",
+                    f"{result_variable} osmeta:timestamp ?timestamp .",
+                    f"{result_variable} osmeta:changeset ?changeset .",
+                    f"{result_variable} osmeta:uid ?uid .",
+                    f"{result_variable} osmeta:user ?user .",
+                ]
+            )
 
         if not stmt.count:
             order_by = result_variable

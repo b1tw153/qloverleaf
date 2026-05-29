@@ -1585,6 +1585,12 @@ def test_translated_if_length_node_absent() -> None:
 
 def test_translated_if_is_closed_closed_way() -> None:
     # building ways are always closed; osm2rdf:area is present
+    # BUG: The bbox filter does not limit the scope of the result scan in QLever. This
+    # is a known limitation. And (if:is_closed()) is a FILTER clause on query results.
+    # The remaining query, way[building] produces too large of a result set which causes
+    # the query to time out. The timeout is not specifically related to is_closed() but
+    # is a condition of the selected test case. Find a test case with a more specific
+    # result set in which is_closed() can be applied.
     bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
     statement = f"way[building](if:is_closed()){bbox};"
     pattern = _translate(statement)[0]
@@ -1597,6 +1603,12 @@ def test_translated_if_is_closed_closed_way() -> None:
 
 def test_translated_if_is_closed_open_way() -> None:
     # highway ways are typically open; osm2rdf:area is absent
+    # BUG: The bbox filter does not limit the scope of the result scan in QLever. This
+    # is a known limitation. And (if:is_closed()) is a FILTER clause on query results.
+    # The remaining query, highway[secondary] produces too large of a result set which
+    # causes the query to time out. The timeout is not specifically related to
+    # is_closed() but is a condition of the selected test case. Find a test case with a
+    # more specific result set in which is_closed() can be applied.
     bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
     statement = f"way[highway=secondary](if:!is_closed()){bbox};"
     pattern = _translate(statement)[0]
@@ -1749,3 +1761,218 @@ def test_translated_out_center_relations() -> None:
         _overpass_center_coords(query),
         _qlever_centroid_coords(_compose_out_query(query)),
     )
+
+
+# ---------------------------------------------------------------------------
+# out skel
+# ---------------------------------------------------------------------------
+
+
+def _uri_to_type_id(uri: str) -> str | None:
+    """Convert an OSM URI (http or https scheme) to 'type/id'."""
+    for path in ("/node/", "/way/", "/relation/"):
+        if path in uri:
+            return f"{path.strip('/')}/{uri.split(path)[1]}"
+    return None
+
+
+def _overpass_skel(
+    query: str,
+) -> tuple[dict[str, list[tuple[int, str, str]]], dict[str, tuple[float, float]]]:
+    """Execute Overpass out skel and return (member_data, node_coords).
+
+    member_data: {element_key: [(pos, member_key, role)]}
+    node_coords: {node_key: (lat, lon)}
+    """
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    members: dict[str, list[tuple[int, str, str]]] = {}
+    coords: dict[str, tuple[float, float]] = {}
+    for elem in response.json().get("elements", []):
+        eid = f"{elem['type']}/{elem['id']}"
+        if elem["type"] == "node":
+            members[eid] = []
+            coords[eid] = (elem["lat"], elem["lon"])
+        elif elem["type"] == "way":
+            members[eid] = [
+                (i, f"node/{nid}", "") for i, nid in enumerate(elem.get("nodes", []))
+            ]
+        elif elem["type"] == "relation":
+            members[eid] = [
+                (i, f"{m['type']}/{m['ref']}", m.get("role", ""))
+                for i, m in enumerate(elem.get("members", []))
+            ]
+    return members, coords
+
+
+def _qlever_skel(
+    sparql: str,
+) -> tuple[dict[str, list[tuple[int, str, str]]], dict[str, tuple[float, float]]]:
+    """Execute SPARQL out skel query and return (member_data, node_coords).
+
+    member_data: {element_key: [(pos, member_key, role)]}
+    node_coords: {node_key: (lat, lon)} parsed from ?wkt POINT bindings
+    """
+    response = requests.post(
+        QLEVER_URL,
+        data={"query": sparql},
+        headers={"Accept": "application/sparql-results+json"},
+    )
+    response.raise_for_status()
+    data = response.json()
+    elem_var = data.get("head", {}).get("vars", [""])[0]
+
+    members: dict[str, list[tuple[int, str, str]]] = {}
+    coords: dict[str, tuple[float, float]] = {}
+    for binding in data.get("results", {}).get("bindings", []):
+        elem_val = binding.get(elem_var, {})
+        if elem_val.get("type") != "uri":
+            continue
+        elem_key = _uri_to_type_id(elem_val["value"])
+        if elem_key is None:
+            continue
+        if elem_key not in members:
+            members[elem_key] = []
+
+        wkt_val = binding.get("wkt")
+        if wkt_val and wkt_val.get("type") == "literal":
+            wkt_str = wkt_val["value"]
+            if wkt_str.startswith("POINT("):
+                coords[elem_key] = _parse_wkt_point(wkt_str)
+
+        member_val = binding.get("member")
+        pos_val = binding.get("pos")
+        if member_val and member_val.get("type") == "uri" and pos_val:
+            member_key = _uri_to_type_id(member_val["value"])
+            if member_key:
+                pos = int(pos_val["value"])
+                role = binding.get("role", {}).get("value", "")
+                members[elem_key].append((pos, member_key, role))
+
+    for elem_members in members.values():
+        elem_members.sort()
+
+    return members, coords
+
+
+def _assert_node_coords(
+    overpass_data: dict[str, tuple[float, float]],
+    qlever_data: dict[str, tuple[float, float]],
+) -> None:
+    assert set(overpass_data) == set(qlever_data)
+    for eid in overpass_data:
+        op_lat, op_lon = overpass_data[eid]
+        ql_lat, ql_lon = qlever_data[eid]
+        assert op_lat == pytest.approx(ql_lat, abs=1e-6), f"{eid} lat mismatch"
+        assert op_lon == pytest.approx(ql_lon, abs=1e-6), f"{eid} lon mismatch"
+
+
+def test_translated_out_skel_nodes() -> None:
+    # nodes: one geometry row per node; no member data
+    query = "node[name=Ocotillo]; out skel;"
+    op_members, op_coords = _overpass_skel(query)
+    ql_members, ql_coords = _qlever_skel(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    _assert_node_coords(op_coords, ql_coords)
+
+
+def test_translated_out_skel_ways() -> None:
+    # ways: ordered member node list per way
+    query = "way[name=Ocotillo]; out skel;"
+    op_members, _ = _overpass_skel(query)
+    ql_members, _ = _qlever_skel(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+
+
+def test_translated_out_skel_relations() -> None:
+    # relations: ordered member list with roles per relation
+    query = "relation[name=Ocotillo]; out skel;"
+    op_members, _ = _overpass_skel(query)
+    ql_members, _ = _qlever_skel(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+
+
+def test_translated_out_skel_nwr() -> None:
+    # mixed nwr: all three UNION branches active
+    query = "nwr[name=Ocotillo]; out skel;"
+    op_members, op_coords = _overpass_skel(query)
+    ql_members, ql_coords = _qlever_skel(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    _assert_node_coords(op_coords, ql_coords)
+
+
+# ---------------------------------------------------------------------------
+# out tags
+# ---------------------------------------------------------------------------
+
+
+def _overpass_tags(query: str) -> dict[str, dict[str, str]]:
+    """Execute Overpass out tags and return {element_key: {tag_key: tag_value}}."""
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    result: dict[str, dict[str, str]] = {}
+    for elem in response.json().get("elements", []):
+        eid = f"{elem['type']}/{elem['id']}"
+        result[eid] = elem.get("tags", {})
+    return result
+
+
+def _qlever_tags(sparql: str) -> dict[str, dict[str, str]]:
+    """Execute SPARQL out tags query and return {element_key: {tag_key: tag_value}}."""
+    response = requests.post(
+        QLEVER_URL,
+        data={"query": sparql},
+        headers={"Accept": "application/sparql-results+json"},
+    )
+    response.raise_for_status()
+    data = response.json()
+    elem_var = data.get("head", {}).get("vars", [""])[0]
+
+    result: dict[str, dict[str, str]] = {}
+    for binding in data.get("results", {}).get("bindings", []):
+        elem_val = binding.get(elem_var, {})
+        if elem_val.get("type") != "uri":
+            continue
+        elem_key = _uri_to_type_id(elem_val["value"])
+        if elem_key is None:
+            continue
+        if elem_key not in result:
+            result[elem_key] = {}
+
+        pred_val = binding.get("p", {})
+        val_val = binding.get("v", {})
+        if pred_val.get("type") == "uri" and val_val.get("type") == "literal":
+            pred_uri = pred_val["value"]
+            if "Key:" in pred_uri:
+                key = pred_uri.split("Key:")[1]
+                result[elem_key][key] = val_val["value"]
+
+    return result
+
+
+def test_translated_out_tags_nodes() -> None:
+    query = "node[name=Ocotillo]; out tags;"
+    assert _overpass_tags(query) == _qlever_tags(_compose_out_query(query))
+
+
+def test_translated_out_tags_ways() -> None:
+    query = "way[name=Ocotillo]; out tags;"
+    assert _overpass_tags(query) == _qlever_tags(_compose_out_query(query))
+
+
+def test_translated_out_tags_relations() -> None:
+    query = "relation[name=Ocotillo]; out tags;"
+    assert _overpass_tags(query) == _qlever_tags(_compose_out_query(query))
+
+
+def test_translated_out_tags_nwr() -> None:
+    query = "nwr[name=Ocotillo]; out tags;"
+    assert _overpass_tags(query) == _qlever_tags(_compose_out_query(query))

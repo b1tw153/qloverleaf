@@ -115,17 +115,26 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
             for clause in input_pattern.where_clauses
         ]
 
-        # Concatenate: append substituted clauses
-        composed_where_clauses.extend(substituted_clauses)
-
         # merge prefixes
         composed_prefixes = composed_prefixes | input_pattern.prefixes
 
         # carry distinct forward
         composed_distinct = composed_distinct | input_pattern.distinct
 
-        # Deduplicate: remove duplicate where clauses
-        composed_where_clauses = list(dict.fromkeys(composed_where_clauses))
+        if injection.marker is not None:
+            # Site injection: substitute the marker inside the existing where_clause
+            # string rather than appending to the flat clause list
+            cold_block = "\n  ".join(substituted_clauses)
+            for i, clause in enumerate(composed_where_clauses):
+                if injection.marker in clause:
+                    composed_where_clauses[i] = clause.replace(
+                        injection.marker, cold_block
+                    )
+                    break
+        else:
+            # Flat injection: append substituted clauses and deduplicate
+            composed_where_clauses.extend(substituted_clauses)
+            composed_where_clauses = list(dict.fromkeys(composed_where_clauses))
 
         # Reduce: don't add this injection to remaining_injections (it's been inlined)
         continue

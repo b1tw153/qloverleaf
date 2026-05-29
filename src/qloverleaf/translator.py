@@ -57,6 +57,10 @@ class SetInjection:
     must_materialize: bool = (
         False  # True if this input must be materialized (cannot compose)
     )
+    # marker: if set, substitute this placeholder string in where_clauses with
+    # VALUES {sparql_var} { uri_list } (hot) or cold clauses (cold), rather
+    # than emitting a top-level VALUES block
+    marker: str | None = None
 
 
 @dataclass
@@ -150,7 +154,9 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
         lines.append(f"SELECT {distinct}{pattern.result_variable} WHERE {{")
 
     # VALUES injections
-    subquery_substitutions: dict[str, str] = {}
+    # site_substitutions maps placeholder strings to their filled VALUES clauses;
+    # applied to where_clauses strings after top-level VALUES are emitted
+    site_substitutions: dict[str, str] = {}
     for injection in pattern.injections:
         entry = set_state.get(injection.set_name)
         uris: list[tuple[ElementType, str]] = []
@@ -163,15 +169,20 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
             if injection.required_types is None or injection.required_types & _NWR:
                 uris += entry.nwr_results or []
         uri_list = " ".join(f"<{u}>" for _, u in uris)
-        lines.append(f"  VALUES {injection.sparql_var} {{ {uri_list} }}")
-        # Track for subquery substitution (QLever cannot see outer VALUES in subqueries)
-        subquery_substitutions[f"VALUES {injection.sparql_var} {{ }}"] = (
-            f"VALUES {injection.sparql_var} {{ {uri_list} }}"
-        )
+        filled = f"VALUES {injection.sparql_var} {{ {uri_list} }}"
+        if injection.marker is not None:
+            # Site injection: substitute marker inside where_clauses
+            site_substitutions[injection.marker] = filled
+        else:
+            # Top-level injection: emit VALUES before where_clauses
+            lines.append(f"  {filled}")
+            # Also substitute any matching placeholder in subqueries
+            # (QLever cannot see outer VALUES inside subqueries)
+            site_substitutions[f"VALUES {injection.sparql_var} {{ }}"] = filled
 
-    # WHERE clauses — substitute subquery VALUES placeholders where needed
+    # WHERE clauses — apply site substitutions where needed
     for clause in pattern.where_clauses:
-        for placeholder, replacement in subquery_substitutions.items():
+        for placeholder, replacement in site_substitutions.items():
             clause = clause.replace(placeholder, replacement)
         lines.append(f"  {clause}")
 
@@ -272,6 +283,7 @@ def _add_type_filter(
     pattern: SparqlPattern,
 ) -> None:
     if ElementType.AREA in element_types:
+        # BUG: select only closed ways and relations if we're searching for areas
         assert element_types == frozenset({ElementType.AREA})
         element_types = frozenset({ElementType.WAY, ElementType.RELATION})
     if ElementType.DERIVED in element_types:
@@ -731,6 +743,8 @@ def _translate_recurse_filter(
                 output_set, filter_index=filter_index, intermediate="mrh"
             )
             pattern.prefixes.update({"osmway", "osmrel"})
+            # BUG: This BIND statement does not play well and causes the query to time
+            # out. Look for alternate ways to express this query.
             pattern.where_clauses.append(
                 f'BIND(IRI(REPLACE(STR({input_var}), "^https://", "http://"))'
                 f" AS {http_var})"
@@ -905,54 +919,133 @@ def _translate_item(stmt: ItemStatement) -> list[SparqlPattern]:
     return [pattern]
 
 
+_BRANCH_SUFFIX: dict[ElementType, str] = {
+    ElementType.NODE: "",
+    ElementType.WAY: "·way",
+    ElementType.RELATION: "·rel",
+}
+
+
+def _injection_marker(sparql_var: str, elem_type: ElementType) -> str:
+    """Unique injection site marker for one branch of a type UNION block."""
+    return f"VALUES {sparql_var}{_BRANCH_SUFFIX[elem_type]} {{ }}"
+
+
 def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
     # OutStatement doesn't produce a set, only outputs an existing one
     pattern = SparqlPattern(output_set=None, materialize=False)
 
-    # Use the input set's variable for the query
     input_set = stmt.input_set
     result_variable = f"?{input_set.identifier}"
-
-    # Inject input set (allow composition)
     assert input_set.required_types is not None
-    pattern.injections.append(
-        SetInjection(
+    required_types = input_set.required_types
+
+    def _flat_injection() -> SetInjection:
+        return SetInjection(
             sparql_var=result_variable,
             set_name=input_set.identifier,
-            required_types=input_set.required_types,
+            required_types=required_types,
         )
-    )
 
     if stmt.count:
         # Per-type count breakdown with GROUP BY
+        pattern.injections.append(_flat_injection())
         pattern.prefixes |= {"rdf", "osm"}
         pattern.select_clause = f"?type (COUNT(DISTINCT {result_variable}) AS ?count)"
         pattern.group_by = "?type"
         pattern.where_clauses.append(f"{result_variable} rdf:type ?type .")
         # ORDER BY / LIMIT don't apply to count
     elif stmt.verbosity == OutVerbosity.IDS:
-        # Just output element URIs
+        pattern.injections.append(_flat_injection())
         pattern.select_clause = result_variable
         pattern.distinct = True
     elif stmt.verbosity == OutVerbosity.SKEL:
-        # Skeleton output: structure without tags
-        # For nodes: include geometry (lat/lon via WKT)
-        # For ways: include node members
-        # For relations: include members with roles
-        pattern.prefixes |= {"geo"}
-        pattern.select_clause = f"{result_variable} ?wkt"
-        pattern.where_clauses.append(f"{result_variable} geo:hasGeometry ?geom .")
-        pattern.where_clauses.append("?geom geo:asWKT ?wkt .")
-        # TODO: Handle way/relation members
+        # Skeleton: nodes get geometry, ways/relations get ordered member lists.
+        # Uses a UNION block with one branch per element type; each branch has
+        # its own injection marker so cold clauses land inside the branch (Option 2)
+        # and hot sets get type-filtered VALUES inside the branch (Option 1).
+        pattern.prefixes |= {"rdf", "osm", "osmway", "osmrel", "geo"}
+        select_parts = [result_variable]
+        branches: list[str] = []
+        has_members = False
+
+        for elem_type in _OSM_TYPE_ORDER:
+            if elem_type not in required_types:
+                continue
+            marker = _injection_marker(result_variable, elem_type)
+
+            if elem_type == ElementType.NODE:
+                branch_lines = [
+                    f"{result_variable} rdf:type osm:node .",
+                    marker,
+                    f"{result_variable} geo:hasGeometry ?geom .",
+                    "?geom geo:asWKT ?wkt .",
+                ]
+                if "?wkt" not in select_parts:
+                    select_parts.append("?wkt")
+            elif elem_type == ElementType.WAY:
+                branch_lines = [
+                    f"{result_variable} rdf:type osm:way .",
+                    marker,
+                    f"{result_variable} osmway:member ?m .",
+                    "?m osmway:member_id ?member .",
+                    "?m osmway:member_pos ?pos .",
+                ]
+                for v in ["?member", "?pos"]:
+                    if v not in select_parts:
+                        select_parts.append(v)
+                has_members = True
+            else:  # RELATION
+                branch_lines = [
+                    f"{result_variable} rdf:type osm:relation .",
+                    marker,
+                    f"{result_variable} osmrel:member ?m .",
+                    "?m osmrel:member_id ?member .",
+                    "?m osmrel:member_pos ?pos .",
+                    "?m osmrel:member_role ?role .",
+                ]
+                for v in ["?member", "?pos", "?role"]:
+                    if v not in select_parts:
+                        select_parts.append(v)
+                has_members = True
+
+            branches.append("{\n  " + "\n  ".join(branch_lines) + "\n}")
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=result_variable,
+                    set_name=input_set.identifier,
+                    required_types=frozenset({elem_type}),
+                    marker=marker,
+                )
+            )
+
+        pattern.select_clause = " ".join(select_parts)
+        pattern.where_clauses.append("\nUNION\n".join(branches))
+
+        if not stmt.count:
+            order_by = result_variable
+            if has_members:
+                order_by += " ?pos"
+            pattern.order_by = order_by
+            pattern.limit = stmt.limit
+
+        if stmt.center:
+            assert pattern.select_clause is not None
+            pattern.select_clause += " ?centroid"
+            pattern.prefixes |= {"geo", "geof"}
+            pattern.where_clauses.append(f"{result_variable} geo:hasGeometry ?geom .")
+            pattern.where_clauses.append("?geom geo:asWKT ?wkt .")
+            pattern.where_clauses.append("BIND(geof:centroid(?wkt) AS ?centroid)")
+
+        return [pattern]
     elif stmt.verbosity == OutVerbosity.TAGS:
-        # Output all tags (no geometry or members)
+        pattern.injections.append(_flat_injection())
         pattern.select_clause = f"{result_variable} ?p ?v"
         pattern.where_clauses.append(f"{result_variable} ?p ?v .")
         pattern.where_clauses.append(
             'FILTER(STRSTARTS(STR(?p), "https://www.openstreetmap.org/wiki/Key:"))'
         )
     else:
-        # Other verbosity levels not yet implemented
         raise UnimplementedFeatureError(
             f"out {stmt.verbosity.value} not yet implemented",
             stmt.token,

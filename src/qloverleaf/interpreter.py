@@ -57,7 +57,7 @@ async def initialize(query: QueryContext) -> tuple[AsyncGenerator[str, None], st
 
     query.ir = OverpassTransformer().transform(query.tree)
 
-    format_init(query)
+    await format_init(query)
 
     return _execute(query), MEDIA_TYPES[query.out]
 

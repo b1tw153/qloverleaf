@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+import httpx
 from lark import Token, Tree
 
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
+from qloverleaf.executor import QLEVER_ENDPOINT
 from qloverleaf.query_context import OutputFormat, QueryContext
 from qloverleaf.transformer import Warning
 from qloverleaf.translator import _dump_sparql_pattern
@@ -17,9 +19,18 @@ if TYPE_CHECKING:
 _query_context: QueryContext
 _output_format: OutputFormat
 _output_params: Tree[Token] | None
+_first_element: bool
+_qlever_stats: dict[str, Any]
+
+_VERSION = "0.1"
+_COPYRIGHT = (
+    "The data included in this document is from www.openstreetmap.org. "
+    "The data is made available under ODbL."
+)
+_GENERATOR = "QLoverleaf"
 
 
-def format_init(context: QueryContext) -> None:
+async def format_init(context: QueryContext) -> None:
     global _query_context
     global _output_format
     global _output_params
@@ -27,11 +38,18 @@ def format_init(context: QueryContext) -> None:
     _output_format = context.out
     _output_params = context.out_params
 
+    global _first_element
+    _first_element = True
+
     match _output_format:
         case OutputFormat.XML:
             raise UnimplementedFeatureError("XML output is not implemented", None)
         case OutputFormat.JSON:
-            raise UnimplementedFeatureError("JSON output is not implemented", None)
+            global _qlever_stats
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{QLEVER_ENDPOINT}?cmd=stats")
+                response.raise_for_status()
+                _qlever_stats = response.json()
         case OutputFormat.CSV:
             raise UnimplementedFeatureError("CSV output is not implemented", None)
         case OutputFormat.RAW:
@@ -49,8 +67,7 @@ def format_begin() -> str:
             # TODO: return XML document header
             return ""
         case OutputFormat.JSON:
-            # TODO: return JSON document header
-            return ""
+            return _format_begin_json()
         case OutputFormat.CSV:
             # TODO: return CSV document header
             return ""
@@ -59,6 +76,20 @@ def format_begin() -> str:
             return "\n"
         case _:
             assert False
+
+
+def _format_begin_json() -> str:
+    # use static header to leave elements open
+    return (
+        "{\n"
+        f'  "version": {_VERSION},\n'
+        f'  "generator": "{_GENERATOR}",\n'
+        '  "osm3s": {\n'
+        f'    "qlever_source": "{_qlever_stats["name-index"]}",\n'
+        f'    "copyright": "{_COPYRIGHT}"\n'
+        "  },\n"
+        '  "elements": [\n'
+    )
 
 
 def format_warnings(warnings: list[Warning]) -> str:
@@ -170,8 +201,8 @@ def format_end() -> str:
             # TODO: return XML document footer
             return ""
         case OutputFormat.JSON:
-            # TODO: return JSON document footer
-            return ""
+            # use static footer to close elements and document
+            return "\n  ]\n}\n"
         case OutputFormat.CSV:
             # TODO: return CSV document footer
             return ""

@@ -970,6 +970,7 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         # type-filtered VALUES inside the branch (Option 1).
         include_tags = stmt.verbosity in (OutVerbosity.BODY, OutVerbosity.META)
         include_meta = stmt.verbosity == OutVerbosity.META
+        include_geom = stmt.geom
         pattern.prefixes |= {"rdf", "osm", "osmway", "osmrel", "geo"}
         if include_tags:
             pattern.prefixes.add("osmkey")
@@ -1001,6 +1002,14 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     "?m osmway:member_id ?member .",
                     "?m osmway:member_pos ?pos .",
                 ]
+                if include_geom:
+                    # Per-member node WKT (POINT). OPTIONAL guards against
+                    # missing geometry, though in practice every node should
+                    # have one.
+                    branch_lines.append(
+                        "OPTIONAL { ?member geo:hasGeometry ?member_geom ."
+                        " ?member_geom geo:asWKT ?member_wkt . }"
+                    )
                 for v in ["?member", "?pos"]:
                     if v not in select_parts:
                         select_parts.append(v)
@@ -1014,6 +1023,13 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     "?m osmrel:member_pos ?pos .",
                     "?m osmrel:member_role ?role .",
                 ]
+                if include_geom:
+                    # Per-member WKT: POINT for node members, LINESTRING/POLYGON
+                    # for way members, unbound for sub-relation members.
+                    branch_lines.append(
+                        "OPTIONAL { ?member geo:hasGeometry ?member_geom ."
+                        " ?member_geom geo:asWKT ?member_wkt . }"
+                    )
                 for v in ["?member", "?pos", "?role"]:
                     if v not in select_parts:
                         select_parts.append(v)
@@ -1048,6 +1064,9 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             for v in ["?p", "?v"]:
                 if v not in select_parts:
                     select_parts.append(v)
+
+        if include_geom and has_members:
+            select_parts.append("?member_wkt")
 
         if include_meta:
             for v in ["?version", "?timestamp", "?changeset", "?uid", "?user"]:

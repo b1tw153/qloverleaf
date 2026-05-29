@@ -1,13 +1,16 @@
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from lark import Token, Tree
 
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
-from qloverleaf.interpreter import SetStateEntry
 from qloverleaf.query_context import OutputFormat, QueryContext
 from qloverleaf.transformer import Warning
 from qloverleaf.translator import _dump_sparql_pattern
+
+# TODO: consider refactoring to avoid circular imports
+if TYPE_CHECKING:
+    from qloverleaf.interpreter import SetStateEntry
 
 _query_context: QueryContext
 _output_format: OutputFormat

@@ -6,6 +6,7 @@ from lark import Token, Tree
 
 from qloverleaf.exceptions import (
     QueryError,
+    QueryWarning,
     UnimplementedFeatureError,
     UnsupportedFeatureError,
 )
@@ -92,7 +93,6 @@ from qloverleaf.transformer import (
     UniqueEvaluator,
     UserFilter,
     ValEvaluator,
-    Warning,
     WayCountFilter,
     _parse_datetime,
     _unquote,
@@ -1627,7 +1627,7 @@ def test_query_stmt_no_output_set() -> None:
 
 def test_query_stmt_output_types() -> None:
     stmt = _query_stmt("node;")
-    warnings: list[Warning] = list()
+    warnings: list[QueryWarning] = list()
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NODE
     assert not warnings
@@ -1635,7 +1635,7 @@ def test_query_stmt_output_types() -> None:
 
 def test_query_stmt_output_mismatch() -> None:
     stmt = _query_stmt("area(uid:1);")
-    warnings: list[Warning] = list()
+    warnings: list[QueryWarning] = list()
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NONE
     assert warnings
@@ -1643,7 +1643,7 @@ def test_query_stmt_output_mismatch() -> None:
 
 def test_query_stmt_output_filter_mismatch() -> None:
     stmt = _query_stmt("node(w)(bw);")
-    warnings: list[Warning] = list()
+    warnings: list[QueryWarning] = list()
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NONE
     assert warnings
@@ -1653,7 +1653,7 @@ def test_query_stmt_output_indefinite() -> None:
     stmt = _query_stmt("node.a;")
     set_filter = next(f for f in stmt.filters if isinstance(f, SetFilter))
     set_filter.set_reference.content_types = None
-    warnings: list[Warning] = list()
+    warnings: list[QueryWarning] = list()
     output_types = stmt.get_output_types(warnings)
     assert output_types is None
     assert not warnings
@@ -1714,7 +1714,7 @@ def test_foreach_body() -> None:
 def test_foreach_get_output_types_indefinite() -> None:
     stmt = _foreach_stmt("foreach .x -> .a { out; }")
     stmt.input_set.content_types = None
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) is None
     assert not warnings
 
@@ -1739,7 +1739,7 @@ def test_foreach_get_output_types_assigned() -> None:
 def test_foreach_get_output_types_concrete() -> None:
     stmt = _foreach_stmt("foreach .x -> .a { out; }")
     stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE
     assert not warnings
 
@@ -1784,7 +1784,7 @@ def test_for_body() -> None:
 def test_for_get_output_types_indefinite() -> None:
     stmt = _for_stmt("for .x -> .a (1) { out; }")
     stmt.input_set.content_types = None
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) is None
     assert not warnings
 
@@ -1851,7 +1851,7 @@ def test_complete_body() -> None:
 def test_complete_get_output_types_indefinite_input() -> None:
     stmt = _complete_stmt("complete { node; }")
     stmt.input_set.content_types = None
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) is None
     assert not warnings
 
@@ -1877,7 +1877,7 @@ def test_complete_get_output_types_input_assigned() -> None:
 def test_complete_get_output_types_no_body_contribution() -> None:
     stmt = _complete_stmt("complete { out; }")
     stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE
     assert not warnings
 
@@ -1888,7 +1888,7 @@ def test_complete_get_output_types_indefinite_body() -> None:
     item_stmt = stmt.body[0]
     assert isinstance(item_stmt, ItemStatement)
     item_stmt.input_set.content_types = None
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) is None
     assert not warnings
 
@@ -1912,7 +1912,7 @@ def test_complete_get_output_types_body_assigned() -> None:
 def test_complete_get_output_types_body_leaf() -> None:
     stmt = _complete_stmt("complete { way; }")
     stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE | _WAY
     assert not warnings
 
@@ -1921,7 +1921,7 @@ def test_complete_get_output_types_foreach_output_is_accum() -> None:
     # foreach output_set == accum; loop exit clears accum, no body contribution
     stmt = _complete_stmt("complete { foreach { way; } }")
     stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE
     assert not warnings
 
@@ -1930,7 +1930,7 @@ def test_complete_get_output_types_foreach_body_writes_accum() -> None:
     # foreach output_set != accum; body write to ._ persists
     stmt = _complete_stmt("complete { foreach -> .each { way; } }")
     stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE | _WAY
     assert not warnings
 
@@ -1939,7 +1939,7 @@ def test_complete_get_output_types_for_output_is_accum() -> None:
     # for output_set == accum; loop exit clears accum, no body contribution
     stmt = _complete_stmt("complete { for(1) { way; } }")
     stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE
     assert not warnings
 
@@ -1948,7 +1948,7 @@ def test_complete_get_output_types_for_body_writes_accum() -> None:
     # for output_set != accum; body write to ._ persists
     stmt = _complete_stmt("complete { for -> .group (1) { way; } }")
     stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE | _WAY
     assert not warnings
 
@@ -1956,7 +1956,7 @@ def test_complete_get_output_types_for_body_writes_accum() -> None:
 def test_complete_get_output_types_if_branch() -> None:
     stmt = _complete_stmt("complete { if(1) { way; } }")
     stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE | _WAY
     assert not warnings
 
@@ -1964,7 +1964,7 @@ def test_complete_get_output_types_if_branch() -> None:
 def test_complete_get_output_types_if_else_branches() -> None:
     stmt = _complete_stmt("complete { if(1) { way; } else { relation; } }")
     stmt.input_set.content_types = _NODE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NWR
     assert not warnings
 
@@ -1975,7 +1975,7 @@ def test_complete_get_output_types_nested_complete() -> None:
     inner = stmt.body[0]
     assert isinstance(inner, CompleteStatement)
     inner.input_set.content_types = _NONE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE | _WAY
     assert not warnings
 
@@ -1983,7 +1983,7 @@ def test_complete_get_output_types_nested_complete() -> None:
 def test_complete_get_output_types_union_to_underscore() -> None:
     stmt = _complete_stmt("complete { ( node; way; ); }")
     stmt.input_set.content_types = _NONE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NODE | _WAY
     assert not warnings
 
@@ -1992,7 +1992,7 @@ def test_complete_get_output_types_union_to_named_set() -> None:
     # union -> .found propagates inner ._ as a side effect; last member (way) wins
     stmt = _complete_stmt("complete { ( node; way; ) -> .found; }")
     stmt.input_set.content_types = _NONE
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _WAY
     assert not warnings
 
@@ -2034,7 +2034,7 @@ def test_if_else_body() -> None:
 
 def test_if_get_output_types() -> None:
     stmt = _if_stmt("if(1) { node; }")
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     assert stmt.get_output_types(warnings) == _NONE
     assert not warnings
 
@@ -2107,7 +2107,7 @@ def test_union_empty_token_with_output_set() -> None:
 
 def test_union_stmt_output_types() -> None:
     stmt = _union_stmt("( node(1); way(1); );")
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NODE | _WAY
     assert not warnings
@@ -2115,7 +2115,7 @@ def test_union_stmt_output_types() -> None:
 
 def test_union_stmt_output_types_empty() -> None:
     stmt = _union_stmt("();")
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NONE
     assert warnings
@@ -2127,7 +2127,7 @@ def test_union_stmt_output_types_indefinite_member() -> None:
     assert isinstance(member_stmt, QueryStatement)
     set_filter = next(f for f in member_stmt.filters if isinstance(f, SetFilter))
     set_filter.set_reference.content_types = None
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types is None
     assert not warnings
@@ -2150,7 +2150,7 @@ def test_union_stmt_output_types_member_assigned() -> None:
 
 def test_union_stmt_output_types_difference_excluded() -> None:
     stmt = _union_stmt("( node(1); - way(1); );")
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NODE
     assert not warnings
@@ -2162,7 +2162,7 @@ def test_union_stmt_output_types_difference_indefinite() -> None:
     assert isinstance(diff_stmt, QueryStatement)
     set_filter = next(f for f in diff_stmt.filters if isinstance(f, SetFilter))
     set_filter.set_reference.content_types = None
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NODE
     assert not warnings
@@ -2185,7 +2185,7 @@ def test_union_stmt_output_types_difference_assigned() -> None:
 
 def test_union_stmt_output_types_difference_warning() -> None:
     stmt = _union_stmt("( node(1); - area(uid:1); );")
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NODE
     assert warnings
@@ -2193,7 +2193,7 @@ def test_union_stmt_output_types_difference_warning() -> None:
 
 def test_union_stmt_output_types_all_difference() -> None:
     stmt = _union_stmt("( - node(1); );")
-    warnings: list[Warning] = []
+    warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NONE
     assert warnings

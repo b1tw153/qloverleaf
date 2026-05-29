@@ -2,10 +2,10 @@ import pytest
 import requests
 
 from qloverleaf.composer import compose
-from qloverleaf.interpreter import SetState, SetStateEntry
 from qloverleaf.parser import parse
 from qloverleaf.transformer import ElementType, OverpassTransformer
-from qloverleaf.translator import SparqlPattern, render_query, translate
+from qloverleaf.translator import render_query, translate
+from qloverleaf.types import SetState, SetStateEntry, SparqlPattern
 
 pytestmark = pytest.mark.live
 

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import math
 from typing import Any
 
@@ -70,7 +68,7 @@ def _bounds_dict(acc: list[float]) -> dict[str, float]:
     return {"minlat": acc[0], "minlon": acc[1], "maxlat": acc[2], "maxlon": acc[3]}
 
 
-def parse_count(data: dict[str, Any]) -> dict[str, Any]:
+def collate_count(data: dict[str, Any]) -> dict[str, Any]:
     """Parse a QLever count result into an Overpass-shaped count element.
 
     The SPARQL query groups by ?type and counts distinct elements per type.
@@ -100,7 +98,7 @@ def parse_count(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def parse_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str, Any]]:
+def collate_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str, Any]]:
     """Parse QLever SPARQL results into a list of Overpass-shaped element dicts."""
     bindings = data.get("results", {}).get("bindings", [])
     if not bindings:

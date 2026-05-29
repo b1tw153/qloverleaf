@@ -1,14 +1,7 @@
-from __future__ import annotations
-
 import re
-from typing import TYPE_CHECKING
-
-# TODO: consider refactoring to avoid circular imports
-if TYPE_CHECKING:
-    from qloverleaf.interpreter import SetState
 
 from qloverleaf.transformer import _AREA, _NWR, Statement
-from qloverleaf.translator import SparqlPattern
+from qloverleaf.types import SetState, SparqlPattern
 
 
 def _substitute_variable(clause: str, old_var: str, new_var: str) -> str:

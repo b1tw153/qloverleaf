@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from lark import Token
 
 
@@ -77,3 +79,17 @@ class QueryMaxsizeError(QueryLimitError):
     """Query result exceeded its [maxsize:N] limit."""
 
     pass
+
+
+@dataclass
+class QueryWarning:
+    message: str
+    token: Token | None
+
+    def __str__(self) -> str:
+        if self.token is not None:
+            return (
+                f"Warning at line {self.token.line}, col {self.token.column}: "
+                f"{self.message}"
+            )
+        return f"Warning: {self.message}"

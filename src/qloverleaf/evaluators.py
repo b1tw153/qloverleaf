@@ -40,7 +40,7 @@ from qloverleaf.transformer import (
     UniqueEvaluator,
     ValEvaluator,
 )
-from qloverleaf.translator import SetInjection
+from qloverleaf.types import SetInjection
 
 
 @dataclass

@@ -1,21 +1,20 @@
-from __future__ import annotations
-
 import json
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import httpx
 from lark import Token, Tree
 
-from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
+from qloverleaf.collator import collate_count, collate_elements
+from qloverleaf.exceptions import (
+    QueryWarning,
+    UnimplementedFeatureError,
+    UnsupportedFeatureError,
+)
 from qloverleaf.executor import QLEVER_ENDPOINT
-from qloverleaf.qlever_results import parse_count, parse_elements
 from qloverleaf.query_context import OutputFormat, QueryContext
-from qloverleaf.transformer import OutStatement, Warning
+from qloverleaf.transformer import OutStatement
 from qloverleaf.translator import _dump_sparql_pattern
-
-# TODO: consider refactoring to avoid circular imports
-if TYPE_CHECKING:
-    from qloverleaf.interpreter import SetStateEntry
+from qloverleaf.types import SetStateEntry
 
 _query_context: QueryContext
 _output_format: OutputFormat
@@ -97,7 +96,7 @@ def _format_begin_json() -> str:
     )
 
 
-def format_warnings(warnings: list[Warning]) -> str:
+def format_warnings(warnings: list[QueryWarning]) -> str:
     global _output_format
     output = ""
     for warning in warnings:
@@ -188,9 +187,9 @@ def format_output(data: dict[str, Any], stmt: OutStatement) -> str:
             return ""
         case OutputFormat.JSON:
             if stmt.count:
-                elements = [parse_count(data)]
+                elements = [collate_count(data)]
             else:
-                elements = parse_elements(data, stmt)
+                elements = collate_elements(data, stmt)
             output = ""
             for element in elements:
                 global _first_element

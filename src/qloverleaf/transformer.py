@@ -10,26 +10,10 @@ from lark.exceptions import VisitError
 
 from qloverleaf.exceptions import (
     QueryError,
+    QueryWarning,
     UnimplementedFeatureError,
     UnsupportedFeatureError,
 )
-
-
-# TODO: Refactor this to QueryWarning so it doesn't hide the native class and move it to
-# exceptions.py
-@dataclass
-class Warning:
-    message: str
-    token: Token | None
-
-    def __str__(self) -> str:
-        if self.token is not None:
-            return (
-                f"Warning at line {self.token.line}, col {self.token.column}: "
-                f"{self.message}"
-            )
-        return f"Warning: {self.message}"
-
 
 # Basic Types
 
@@ -559,7 +543,7 @@ class Statement:
 
     def get_output_types(
         self,
-        warnings: list[Warning],
+        warnings: list[QueryWarning],
     ) -> frozenset[ElementType] | None:
         return None
 
@@ -567,7 +551,7 @@ class Statement:
 @dataclass
 class Query:
     statements: list[Statement]
-    warnings: list[Warning]
+    warnings: list[QueryWarning]
 
 
 # Simple Statement Classes
@@ -581,7 +565,7 @@ class QueryStatement(Statement):
 
     def get_output_types(
         self,
-        warnings: list[Warning],
+        warnings: list[QueryWarning],
     ) -> frozenset[ElementType] | None:
         current_types: frozenset[ElementType] | None = self.element_types
         for filter in self.filters:
@@ -598,7 +582,7 @@ class QueryStatement(Statement):
             filter.output_types = current_types
             if current_types == _NONE:
                 warnings.append(
-                    Warning(
+                    QueryWarning(
                         f"Filter cannot output any elements given "
                         f"{[e.name for e in current_types]} as input",
                         filter.token,
@@ -618,7 +602,7 @@ class ForeachStatement(Statement):
     body: list[Statement]
 
     def get_output_types(
-        self, warnings: list[Warning]
+        self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         return self.input_set.content_types
 
@@ -631,7 +615,7 @@ class ForStatement(Statement):
     body: list[Statement]
 
     def get_output_types(
-        self, warnings: list[Warning]
+        self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         return self.input_set.content_types
 
@@ -644,7 +628,7 @@ class CompleteStatement(Statement):
     body: list[Statement]
 
     def get_output_types(
-        self, warnings: list[Warning]
+        self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         # union_inward fires once per iteration, after all body statements finish,
         # examining only the final value of the input set. Walk forward tracking
@@ -736,7 +720,7 @@ class IfStatement(Statement):
     else_body: list[Statement] | None
 
     def get_output_types(
-        self, warnings: list[Warning]
+        self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         return _NONE
 
@@ -757,7 +741,7 @@ class UnionStatement(Statement):
 
     def get_output_types(
         self,
-        warnings: list[Warning],
+        warnings: list[QueryWarning],
     ) -> frozenset[ElementType] | None:
         result = _NONE
         for member in self.members:
@@ -774,7 +758,7 @@ class UnionStatement(Statement):
             result = result | member_output_types
         if result == _NONE:
             warnings.append(
-                Warning(
+                QueryWarning(
                     "Union statement returns no data",
                     None,
                 )
@@ -788,7 +772,7 @@ class ItemStatement(Statement):
     output_set: SetReference
 
     def get_output_types(
-        self, warnings: list[Warning]
+        self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         return self.input_set.content_types
 
@@ -813,7 +797,7 @@ class RecurseStatement(Statement):
     recurse_dir: RecurseDir
 
     def get_output_types(
-        self, warnings: list[Warning]
+        self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         input_types = self.input_set.content_types
         if input_types is None:
@@ -850,7 +834,7 @@ class IsInStatement(Statement):
     output_set: SetReference
 
     def get_output_types(
-        self, warnings: list[Warning]
+        self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         return _AREA
 
@@ -861,7 +845,7 @@ class MapToAreaStatement(Statement):
     output_set: SetReference
 
     def get_output_types(
-        self, warnings: list[Warning]
+        self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         return _AREA
 
@@ -901,10 +885,10 @@ _SetState = tuple[int, frozenset[ElementType] | None]
 _State = dict[str, _SetState]
 
 
-def _stamp_read(ref: SetReference, state: _State, warnings: list[Warning]) -> None:
+def _stamp_read(ref: SetReference, state: _State, warnings: list[QueryWarning]) -> None:
     if ref.name not in state:
         warnings.append(
-            Warning(f"Uninitialized set .{ref.name} contains no data", ref.token)
+            QueryWarning(f"Uninitialized set .{ref.name} contains no data", ref.token)
         )
         state[ref.name] = (0, _NONE)
     version, content_types = state[ref.name]
@@ -915,7 +899,7 @@ def _stamp_read(ref: SetReference, state: _State, warnings: list[Warning]) -> No
         have = [e.name for e in content_types] if content_types else ["nothing"]
         need = [e.name for e in ref.required_types]
         warnings.append(
-            Warning(
+            QueryWarning(
                 f"Set .{ref.name} contains {have} but requires {need}",
                 ref.token,
             )
@@ -938,7 +922,7 @@ def _stamp_write(
 
 
 def _stamp_evaluator(
-    evaluator: Evaluator, state: _State, warnings: list[Warning]
+    evaluator: Evaluator, state: _State, warnings: list[QueryWarning]
 ) -> None:
     for f in fields(evaluator):
         val = getattr(evaluator, f.name)
@@ -953,7 +937,7 @@ def _stamp_evaluator(
 
 
 def _stamp_filter_refs(
-    filter_: QueryFilter, state: _State, warnings: list[Warning]
+    filter_: QueryFilter, state: _State, warnings: list[QueryWarning]
 ) -> None:
     set_reference: SetReference | None = getattr(filter_, "set_reference", None)
     if set_reference is not None:
@@ -962,12 +946,14 @@ def _stamp_filter_refs(
         _stamp_evaluator(filter_.evaluator, state, warnings)
 
 
-def _walk_stmts(stmts: list[Statement], state: _State, warnings: list[Warning]) -> None:
+def _walk_stmts(
+    stmts: list[Statement], state: _State, warnings: list[QueryWarning]
+) -> None:
     for stmt in stmts:
         _walk_stmt(stmt, state, warnings)
 
 
-def _walk_stmt(stmt: Statement, state: _State, warnings: list[Warning]) -> None:
+def _walk_stmt(stmt: Statement, state: _State, warnings: list[QueryWarning]) -> None:
     if isinstance(stmt, IfStatement):
         _walk_if(stmt, state, warnings)
     elif isinstance(stmt, (ForeachStatement, ForStatement)):
@@ -991,7 +977,7 @@ def _walk_stmt(stmt: Statement, state: _State, warnings: list[Warning]) -> None:
 def _walk_loop(
     stmt: ForeachStatement | ForStatement,
     state: _State,
-    warnings: list[Warning],
+    warnings: list[QueryWarning],
 ) -> None:
     _stamp_read(stmt.input_set, state, warnings)
     if isinstance(stmt, ForStatement):
@@ -1004,7 +990,7 @@ def _walk_loop(
 def _walk_complete(
     stmt: CompleteStatement,
     state: _State,
-    warnings: list[Warning],
+    warnings: list[QueryWarning],
 ) -> None:
     _stamp_read(stmt.input_set, state, warnings)
     _stamp_write(stmt.output_set, state, stmt.input_set.content_types)
@@ -1012,13 +998,15 @@ def _walk_complete(
     _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
 
 
-def _walk_union(stmt: UnionStatement, state: _State, warnings: list[Warning]) -> None:
+def _walk_union(
+    stmt: UnionStatement, state: _State, warnings: list[QueryWarning]
+) -> None:
     for member in stmt.members:
         _walk_stmt(member.statement, state, warnings)
     _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
 
 
-def _walk_if(stmt: IfStatement, state: _State, warnings: list[Warning]) -> None:
+def _walk_if(stmt: IfStatement, state: _State, warnings: list[QueryWarning]) -> None:
     _stamp_evaluator(stmt.condition, state, warnings)
     then_state = dict(state)
     else_state = dict(state)
@@ -1099,7 +1087,7 @@ def _resolve_element_contexts(query: Query) -> None:
 class OverpassTransformer(Transformer[Token, Query]):
     def __init__(self) -> None:
         super().__init__()
-        self.warnings: list[Warning] = []
+        self.warnings: list[QueryWarning] = []
 
     def transform(self, tree: Tree[Token]) -> Query:
         try:
@@ -1268,7 +1256,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
         if float(south) >= float(north):
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Bounding box south >= north: filter will always be empty",
                     s_tok,
                 )
@@ -1931,7 +1919,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         assert isinstance(condition, Evaluator)
         if condition.output_type in _NON_EBV_TYPES:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     f"Condition with {condition.output_type.value} will always be true",
                     children[0].token,
                 )
@@ -1948,7 +1936,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         if then_type is None:
             output_type = None
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Then branch type is indeterminate and may cause SPARQL errors",
                     children[1].token,
                 )
@@ -1956,7 +1944,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         elif else_type is None:
             output_type = None
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Else branch type is indeterminate and may cause SPARQL errors",
                     children[2].token,
                 )
@@ -1968,7 +1956,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         else:
             output_type = None
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Incompatible types in ternary branches may cause SPARQL errors: "
                     f"( {then_type.value} / {else_type.value} )",
                     children[1].token,
@@ -1988,7 +1976,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             assert isinstance(child, Evaluator)
             if child.output_type in _NON_EBV_TYPES:
                 self.warnings.append(
-                    Warning(
+                    QueryWarning(
                         f"Operand using {child.output_type.value} will always be true",
                         child.token,
                     )
@@ -2005,7 +1993,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             assert isinstance(child, Evaluator)
             if child.output_type in _NON_EBV_TYPES:
                 self.warnings.append(
-                    Warning(
+                    QueryWarning(
                         f"Operand using {child.output_type.value} will always be true",
                         child.token,
                     )
@@ -2022,7 +2010,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         assert isinstance(operand, Evaluator)
         if operand.output_type in _NON_EBV_TYPES:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     f"Expression with {operand.output_type.value} will always be false",
                     operand.token,
                 )
@@ -2045,14 +2033,14 @@ class OverpassTransformer(Transformer[Token, Query]):
 
         if left_type is None:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is indeterminate and may cause SPARQL errors",
                     left_operand.token,
                 )
             )
         elif right_type is None:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is indeterminate and may cause SPARQL errors",
                     right_operand.token,
                 )
@@ -2061,7 +2049,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             left_type in _NUMERIC_TYPES and right_type in _NUMERIC_TYPES
         ):
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     f"Incompatible operand types {left_type.value} and "
                     f"{right_type.value} may cause SPARQL errors",
                     left_operand.token,
@@ -2091,7 +2079,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             output_type = None
             token = left_operand.token if left_type is None else right_operand.token
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is indeterminate and may cause SPARQL errors", token
                 )
             )
@@ -2112,7 +2100,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                 else "subtraction"
             )
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     f"Operand types are incompatible with {op_name}: "
                     f"( {left_type.value} / {right_type.value} )",
                     left_operand.token,
@@ -2142,7 +2130,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             output_type = None
             token = left_operand.token if left_type is None else right_operand.token
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is indeterminate and may cause SPARQL errors", token
                 )
             )
@@ -2156,7 +2144,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                 else "division"
             )
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     f"Operand types are incompatible with {op_name}: "
                     f"( {left_type.value} / {right_type.value} )",
                     left_operand.token,
@@ -2179,7 +2167,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         if operand_type is None:
             output_type = None
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is indeterminate and may cause SPARQL errors",
                     operand.token,
                 )
@@ -2187,7 +2175,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         elif operand_type not in _NUMERIC_TYPES:
             output_type = None
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is incompatible with negation: "
                     f"( {operand_type.value} )",
                     operand.token,
@@ -2425,7 +2413,7 @@ class OverpassTransformer(Transformer[Token, Query]):
 
         if operand_type is None:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is indeterminate and may not be convertable to a "
                     "number",
                     operand.token,
@@ -2433,7 +2421,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             )
         elif operand_type != ScalarType.LITERAL and operand_type not in _NUMERIC_TYPES:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand may type may not be convertable to a number: "
                     f"( {operand_type.value} )",
                     operand.token,
@@ -2454,7 +2442,7 @@ class OverpassTransformer(Transformer[Token, Query]):
 
         if operand_type is None:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is indeterminate and may not be convertable to a "
                     "date",
                     operand.token,
@@ -2462,7 +2450,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             )
         elif operand_type != ScalarType.LITERAL:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand may type may not be convertable to a number: "
                     f"( {operand_type.value} )",
                     operand.token,
@@ -2483,14 +2471,14 @@ class OverpassTransformer(Transformer[Token, Query]):
 
         if operand_type is None:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is indeterminate and may cause SPARQL errors",
                     operand.token,
                 )
             )
         elif operand_type != ScalarType.LITERAL:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand may type may cause SPARQL errors: "
                     f"( {operand_type.value} )",
                     operand.token,
@@ -2509,7 +2497,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         if operand_type is None:
             output_type = None
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand type is indeterminate and may cause SPARQL errors",
                     operand.token,
                 )
@@ -2517,7 +2505,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         elif operand_type not in _NUMERIC_TYPES:
             output_type = None
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Operand may type is non-numeric and may cause SPARQL errors: "
                     f"( {operand_type.value} )",
                     operand.token,
@@ -2553,7 +2541,7 @@ class OverpassTransformer(Transformer[Token, Query]):
 
         if evaluator_type is None:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Expression type is indeterminate and may cause SPARQL errors",
                     evaluator.token,
                 )
@@ -2578,7 +2566,7 @@ class OverpassTransformer(Transformer[Token, Query]):
 
         if evaluator_type is None:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Expression type is indeterminate and may cause SPARQL errors",
                     evaluator.token,
                 )
@@ -2604,7 +2592,7 @@ class OverpassTransformer(Transformer[Token, Query]):
 
         if evaluator_type is None:
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Expression type is indeterminate and may cause SPARQL errors",
                     evaluator.token,
                 )
@@ -2631,7 +2619,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         if evaluator_type is None:
             output_type = None
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Expression type is indeterminate and may cause SPARQL errors",
                     evaluator.token,
                 )
@@ -2639,7 +2627,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         elif evaluator_type not in _NUMERIC_TYPES:
             output_type = None
             self.warnings.append(
-                Warning(
+                QueryWarning(
                     "Expression type is non-numeric and may cause SPARQL errors: "
                     f"( {evaluator_type.value} )",
                     evaluator.token,

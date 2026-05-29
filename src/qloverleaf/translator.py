@@ -1,11 +1,5 @@
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
-
+from qloverleaf.evaluators import translate_evaluator
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
-
-# TODO: Consider refactoring to avoid circular imports
-if TYPE_CHECKING:
-    from qloverleaf.interpreter import SetState
 from qloverleaf.transformer import (
     _AREA,
     _NWR,
@@ -46,47 +40,7 @@ from qloverleaf.transformer import (
     UserFilter,
     WayCountFilter,
 )
-
-
-@dataclass
-class SetInjection:
-    sparql_var: str  # e.g. "?a0"
-    set_name: str  # versioned set name to look up in set state, e.g. "a0"
-    # required_types specifies what the injection consumes from the set;
-    # None means whatever the set contains
-    required_types: frozenset[ElementType] | None
-    must_materialize: bool = (
-        False  # True if this input must be materialized (cannot compose)
-    )
-    # marker: if set, substitute this placeholder string in where_clauses with
-    # VALUES {sparql_var} { uri_list } (hot) or cold clauses (cold), rather
-    # than emitting a top-level VALUES block
-    marker: str | None = None
-
-
-@dataclass
-class SparqlPattern:
-    output_set: SetReference | None
-    materialize: bool = False
-    prefixes: set[str] = field(default_factory=set)
-    select_clause: str | None = None
-    distinct: bool = False
-    group_by: str | None = None
-    order_by: str | None = None
-    where_clauses: list[str] = field(default_factory=list)
-    injections: list[SetInjection] = field(default_factory=list)
-    limit: int | None = None
-    statements: list[Statement] = field(default_factory=list)
-
-    @property
-    def result_variable(self) -> str | None:
-        """SPARQL variable name with ? prefix (e.g., '?craters1')"""
-        return f"?{self.output_set.identifier}" if self.output_set else None
-
-    @property
-    def result_set_name(self) -> str | None:
-        """Set state key without ? prefix (e.g., 'craters1')"""
-        return self.output_set.identifier if self.output_set else None
+from qloverleaf.types import SetInjection, SetState, SparqlPattern
 
 
 def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
@@ -960,11 +914,6 @@ def _translate_if_filter(
     result_variable: str,
     pattern: SparqlPattern,
 ) -> None:
-    # Deferred import: evaluators.py imports translator.py (SetInjection), so
-    # importing evaluators at module level would create a circular dependency.
-    # TODO: Consider refactoring to avoid circular imports
-    from qloverleaf.evaluators import translate_evaluator
-
     variable_base = _variable_name(output_set, filter_index=filter_index)
     evaluator_pattern = translate_evaluator(f.evaluator, result_variable, variable_base)
     if evaluator_pattern.subqueries:

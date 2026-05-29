@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 import httpx
 from lark import Token, Tree
@@ -25,20 +25,10 @@ from qloverleaf.transformer import (
     OverpassTransformer,
 )
 from qloverleaf.translator import (
-    SparqlPattern,
     render_query,
     translate,
 )
-
-
-@dataclass
-class SetStateEntry:
-    pattern: SparqlPattern | None
-    nwr_results: list[tuple[ElementType, str]] | None
-    area_results: list[tuple[ElementType, str]] | None
-
-
-SetState = dict[str, SetStateEntry]
+from qloverleaf.types import SetState, SetStateEntry, SparqlPattern
 
 MEDIA_TYPES = {
     OutputFormat.XML: "application/osm3s+xml",

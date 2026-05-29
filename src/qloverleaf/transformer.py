@@ -1749,7 +1749,6 @@ class OverpassTransformer(Transformer[Token, Query]):
         if count_token is not None:
             for conflicting, name in (
                 (verbosity_token, str(verbosity_token) if verbosity_token else None),
-                (debug_token, "debug"),
                 (geom_token, "geom"),
                 (bb_token, "bb"),
                 (center_token, "center"),
@@ -1759,20 +1758,6 @@ class OverpassTransformer(Transformer[Token, Query]):
                 if conflicting is not None:
                     raise QueryError(
                         f"out count cannot be combined with {name!r}", count_token
-                    )
-
-        if debug_token is not None:
-            for conflicting, name in (
-                (verbosity_token, str(verbosity_token) if verbosity_token else None),
-                (geom_token, "geom"),
-                (bb_token, "bb"),
-                (center_token, "center"),
-                (sort_token, str(sort_token) if sort_token else None),
-                (limit_token, "INTEGER"),
-            ):
-                if conflicting is not None:
-                    raise QueryError(
-                        f"out debug cannot be combined with {name!r}", debug_token
                     )
 
         if sort_token is not None and OutSortOrder(str(sort_token)) == OutSortOrder.QT:

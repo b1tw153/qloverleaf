@@ -280,7 +280,9 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                 if isinstance(pattern.statements[-1], OutStatement):
                     stmt = pattern.statements[-1]
                     if stmt.debug:
-                        yield format_debug(set_state[stmt.input_set.identifier])
+                        yield format_debug(
+                            set_state[stmt.input_set.identifier], pattern
+                        )
                     else:
                         yield format_output(data, stmt)
 

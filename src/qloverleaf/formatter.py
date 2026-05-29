@@ -14,7 +14,7 @@ from qloverleaf.executor import QLEVER_ENDPOINT
 from qloverleaf.query_context import OutputFormat, QueryContext
 from qloverleaf.transformer import OutStatement
 from qloverleaf.translator import _dump_sparql_pattern
-from qloverleaf.types import SetStateEntry
+from qloverleaf.types import SetStateEntry, SparqlPattern
 
 _query_context: QueryContext
 _output_format: OutputFormat
@@ -134,7 +134,7 @@ def format_error(error: Exception) -> str:
             return ""
 
 
-def format_debug(set_state_entry: SetStateEntry) -> str:
+def format_debug(set_state_entry: SetStateEntry, pattern: SparqlPattern) -> str:
     global _output_format
     match _output_format:
         case OutputFormat.XML:
@@ -147,16 +147,16 @@ def format_debug(set_state_entry: SetStateEntry) -> str:
             # TODO: return CSV dump of SetStateEntry
             return ""
         case OutputFormat.RAW:
-            return _format_debug_raw(set_state_entry)
+            return _format_debug_raw(set_state_entry, pattern)
         case _:
             assert False
 
 
-def _format_debug_raw(set_state_entry: SetStateEntry) -> str:
+def _format_debug_raw(set_state_entry: SetStateEntry, pattern: SparqlPattern) -> str:
     lines: list[str] = []
 
     if set_state_entry.pattern:
-        lines.append("pattern:")
+        lines.append("input_pattern:")
         for line in _dump_sparql_pattern(set_state_entry.pattern).splitlines():
             lines.append(f"  {line}")
     else:
@@ -175,6 +175,10 @@ def _format_debug_raw(set_state_entry: SetStateEntry) -> str:
             lines.append(f"  {elem_type.value}: {uri}")
     else:
         lines.append("area_results: None")
+
+    lines.append("output_pattern:")
+    for line in _dump_sparql_pattern(pattern).splitlines():
+        lines.append(f"  {line}")
 
     return "\n".join(lines) + "\n"
 

@@ -292,7 +292,7 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                     if stmt.debug:
                         yield format_debug(set_state[stmt.input_set.identifier])
                     else:
-                        yield format_output(data)
+                        yield format_output(data, stmt)
 
     except Exception as e:
         yield format_error(e)

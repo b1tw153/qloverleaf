@@ -8,8 +8,9 @@ from lark import Token, Tree
 
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 from qloverleaf.executor import QLEVER_ENDPOINT
+from qloverleaf.qlever_results import parse_count
 from qloverleaf.query_context import OutputFormat, QueryContext
-from qloverleaf.transformer import Warning
+from qloverleaf.transformer import OutStatement, Warning
 from qloverleaf.translator import _dump_sparql_pattern
 
 # TODO: consider refactoring to avoid circular imports
@@ -179,14 +180,17 @@ def _format_debug_raw(set_state_entry: SetStateEntry) -> str:
     return "\n".join(lines) + "\n"
 
 
-def format_output(data: dict[str, Any]) -> str:
+def format_output(data: dict[str, Any], stmt: OutStatement) -> str:
     global _output_format
     match _output_format:
         case OutputFormat.XML:
             # TODO: return Overpass/XML output
             return ""
         case OutputFormat.JSON:
-            # TODO: return Overpass/GeoJSON output
+            if stmt.count:
+                element = parse_count(data)
+                return f"\n{json.dumps(element, indent=2)}\n"
+            # TODO: return Overpass/GeoJSON output for other verbosity modes
             return ""
         case OutputFormat.CSV:
             # TODO: return CSV output
@@ -220,7 +224,7 @@ def _format_end_json() -> str:
     remark = (
         f',\n  "remark": {json.dumps(". \n".join(_remarks))}\n' if _remarks else "\n"
     )
-    return f"  ]{remark}}}\n"
+    return f"\n  ]{remark}}}\n"
 
 
 # TODO: Format QLever JSON into Overpass XML and Overpass JSON

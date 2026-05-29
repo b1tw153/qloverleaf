@@ -90,6 +90,8 @@ class SparqlPattern:
 
 
 def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
+    # TODO: add a _dump_statement helper to transformer.py and use it to dump the list
+    # of statements
     output_set_str = (
         f".{pattern.output_set.name} (v{pattern.output_set.version})"
         if pattern.output_set

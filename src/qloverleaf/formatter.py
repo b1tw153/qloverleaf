@@ -21,13 +21,14 @@ _output_format: OutputFormat
 _output_params: Tree[Token] | None
 _first_element: bool
 _qlever_stats: dict[str, Any]
+_remarks: list[str]
 
 _VERSION = "0.1"
 _COPYRIGHT = (
     "The data included in this document is from www.openstreetmap.org. "
     "The data is made available under ODbL."
 )
-_GENERATOR = "QLoverleaf"
+_GENERATOR = f"Qloverleaf {_VERSION}"
 
 
 async def format_init(context: QueryContext) -> None:
@@ -40,6 +41,9 @@ async def format_init(context: QueryContext) -> None:
 
     global _first_element
     _first_element = True
+
+    global _remarks
+    _remarks = []
 
     match _output_format:
         case OutputFormat.XML:
@@ -101,8 +105,7 @@ def format_warnings(warnings: list[Warning]) -> str:
                 # TODO: return XML warnings
                 pass
             case OutputFormat.JSON:
-                # TODO: return JSON warnings
-                pass
+                _remarks.append(str(warning))
             case OutputFormat.CSV:
                 # TODO: return CSV warnings
                 pass
@@ -117,13 +120,13 @@ def format_error(error: Exception) -> str:
     global _output_format
     match _output_format:
         case OutputFormat.XML:
-            # TODO: return XML warnings
+            # TODO: return XML errors
             return ""
         case OutputFormat.JSON:
-            # TODO: return JSON warnings
+            _remarks.append(str(error))
             return ""
         case OutputFormat.CSV:
-            # TODO: return CSV warnings
+            # TODO: return CSV errors
             return ""
         case OutputFormat.RAW:
             return f"{str(error)}\n"
@@ -201,8 +204,7 @@ def format_end() -> str:
             # TODO: return XML document footer
             return ""
         case OutputFormat.JSON:
-            # use static footer to close elements and document
-            return "\n  ]\n}\n"
+            return _format_end_json()
         case OutputFormat.CSV:
             # TODO: return CSV document footer
             return ""
@@ -211,6 +213,14 @@ def format_end() -> str:
             return ""
         case _:
             assert False
+
+
+def _format_end_json() -> str:
+    # TODO: research how Overpass formats remark text
+    remark = (
+        f',\n  "remark": {json.dumps(". \n".join(_remarks))}\n' if _remarks else "\n"
+    )
+    return f"  ]{remark}}}\n"
 
 
 # TODO: Format QLever JSON into Overpass XML and Overpass JSON

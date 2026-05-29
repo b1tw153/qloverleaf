@@ -314,6 +314,25 @@ def _compose_two(query: str) -> tuple[str, list[str]]:
     return render_query(composed, set_state), overpass_ids
 
 
+def _compose_chain(query: str) -> tuple[str, list[str]]:
+    """Translate a query whose final statement is an explicit `out`, compose
+    every pattern sequentially, and return (rendered_sparql_query, overpass_ids).
+    """
+    overpass_ids = _execute_overpass_with_out(query)
+    patterns = _translate_query(query)
+    set_state: SetState = {}
+    composed = None
+    for pattern in patterns:
+        composed = compose(pattern, set_state)
+        assert composed is not None
+        if composed.result_set_name is not None:
+            set_state[composed.result_set_name] = SetStateEntry(
+                pattern=composed, nwr_results=None, area_results=None
+            )
+    assert composed is not None
+    return render_query(composed, set_state), overpass_ids
+
+
 def test_translated_recurse_w_filter() -> None:
     # nodes that are members of way 100 (24 nodes)
     query = "way(100) -> .a; node(w.a);"
@@ -358,6 +377,15 @@ def test_translated_recurse_bn_way_untagged() -> None:
     # parent ways of node 3843108154 (untagged → http:// URI; 4 ways)
     query = "node(3843108154) -> .a; way(bn.a);"
     qlever_query, overpass_ids = _compose_two(query)
+    print(qlever_query)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_bn_way_by_membership() -> None:
+    # parent ways of node 3843108154 (untagged → http:// URI; 4 ways)
+    query = "way(381029345) -> .a; node(w.a) -> .b; way(bn.b); out ids;"
+    qlever_query, overpass_ids = _compose_chain(query)
     print(qlever_query)
     qlever_ids = _execute_qlever(qlever_query)
     assert sorted(overpass_ids) == sorted(qlever_ids)

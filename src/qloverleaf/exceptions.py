@@ -11,7 +11,7 @@ class QLoverleafError(Exception):
     def __str__(self) -> str:
         msg = str(self.args[0])
         if self.token is not None:
-            return f"line {self.token.line}, column {self.token.column}: {msg}"
+            return f"Error at line {self.token.line}, column {self.token.column}: {msg}"
         return msg
 
 
@@ -89,7 +89,7 @@ class QueryWarning:
     def __str__(self) -> str:
         if self.token is not None:
             return (
-                f"Warning at line {self.token.line}, col {self.token.column}: "
+                f"Warning at line {self.token.line}, column {self.token.column}: "
                 f"{self.message}"
             )
         return f"Warning: {self.message}"

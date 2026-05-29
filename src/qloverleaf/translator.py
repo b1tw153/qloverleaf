@@ -444,7 +444,15 @@ def _translate_id_filter(
     osm_types = [t for t in _OSM_TYPE_ORDER if t in f.output_types]
     for t in osm_types:
         pattern.prefixes.add(_OSM_TYPE_PREFIXES[t])
-    uris = [f"{_OSM_TYPE_PREFIXES[t]}:{id_}" for t in osm_types for id_ in f.ids]
+    uris: list[str] = []
+    for t in osm_types:
+        for id_ in f.ids:
+            uris.append(f"{_OSM_TYPE_PREFIXES[t]}:{id_}")
+            if t is ElementType.NODE:
+                # osm2rdf stores untagged nodes under http:// and tagged nodes
+                # under https://; emit both forms so the VALUES set matches
+                # whichever scheme the node actually lives at.
+                uris.append(f"<http://www.openstreetmap.org/node/{id_}>")
     pattern.where_clauses.append(f"VALUES {result_variable} {{ {' '.join(uris)} }}")
 
 

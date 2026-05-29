@@ -730,7 +730,40 @@ def _translate_recurse_filter(
             # osmway:member_id and osmrel:member_id store node URIs using http://
             # for untagged nodes and https:// for tagged nodes. Both schemes must
             # be covered. The input variable carries the https:// form (osmnode:
-            # prefix), so we derive the http:// form with BIND before the UNION.
+            # prefix), so we derive the http:// form with BIND inside each leaf
+            # that needs it.
+            #
+            # In QLever each UNION block is executed and produces results before
+            # the outer clauses are applied. If a leaf is not constrained by the
+            # input set the query can time out or run out of memory. So we inline
+            # VALUES (via a marker substituted at render time) and the input
+            # rdf:type clause into every leaf, and the BIND into the leaves that
+            # use ?http.
+            #
+            # The generated query has this shape:
+            #
+            # SELECT DISTINCT ?_1 WHERE {
+            #   ?_1 rdf:type osm:way .
+            #   {
+            #     {
+            #       VALUES ?_1·f0·input { osmnode:3843108154 }
+            #       ?_1·f0·input rdf:type osm:node .
+            #       ?_1·f0·m osmway:member_id ?_1·f0·input .
+            #       ?_1 osmway:member ?_1·f0·m .
+            #     } UNION {
+            #       VALUES ?_1·f0·input { osmnode:3843108154 }
+            #       BIND(IRI(REPLACE(STR(?_1·f0·input), "^https://", "http://"))
+            #            AS ?_1·f0·http)
+            #       ?_1·f0·http rdf:type osm:node .
+            #       ?_1·f0·mwh osmway:member_id ?_1·f0·http .
+            #       ?_1 osmway:member ?_1·f0·mwh .
+            #     }
+            #   } UNION {
+            #     { ... rel: member_id ?input ... }
+            #     UNION
+            #     { ... BIND ?http ... rel: member_id ?http ... }
+            #   }
+            # }
             http_var = _variable_name(
                 output_set, filter_index=filter_index, intermediate="http"
             )
@@ -743,28 +776,54 @@ def _translate_recurse_filter(
             rel_blank_http = _variable_name(
                 output_set, filter_index=filter_index, intermediate="mrh"
             )
-            pattern.prefixes.update({"osmway", "osmrel"})
-            # BUG: This BIND statement does not play well and causes the query to time
-            # out. Look for alternate ways to express this query.
-            pattern.where_clauses.append(
+            pattern.prefixes.update({"osm", "rdf", "osmway", "osmrel"})
+            # The input VALUES must live inside each UNION leaf (QLever does not
+            # push an outer VALUES through UNION). Use the marker mechanism so a
+            # single injection fills every leaf — both render_query and the
+            # composer substitute every occurrence in the matched clause, and
+            # all four leaves share the same where_clause string here.
+            input_values_marker = f"VALUES {input_var} {{ }}"
+            pattern.injections[-1].marker = input_values_marker
+            input_type = f"{input_var} rdf:type osm:node ."
+            http_bind = (
                 f'BIND(IRI(REPLACE(STR({input_var}), "^https://", "http://"))'
                 f" AS {http_var})"
             )
-            way_union = (
-                f"{{ {blank_var} osmway:member_id {input_var} ."
-                f" {result_variable} osmway:member {blank_var} . }}"
-                f" UNION"
-                f" {{ {way_blank_http} osmway:member_id {http_var} ."
-                f" {result_variable} osmway:member {way_blank_http} . }}"
+            http_type = f"{http_var} rdf:type osm:node ."
+
+            def _leaf(*lines: str) -> str:
+                return "{ " + " ".join(lines) + " }"
+
+            way_leaf = _leaf(
+                input_values_marker,
+                input_type,
+                f"{blank_var} osmway:member_id {input_var} .",
+                f"{result_variable} osmway:member {blank_var} .",
             )
-            rel_union = (
-                f"{{ {rel_blank} osmrel:member_id {input_var} ."
-                f" {result_variable} osmrel:member {rel_blank} . }}"
-                f" UNION"
-                f" {{ {rel_blank_http} osmrel:member_id {http_var} ."
-                f" {result_variable} osmrel:member {rel_blank_http} . }}"
+            way_http_leaf = _leaf(
+                input_values_marker,
+                http_bind,
+                http_type,
+                f"{way_blank_http} osmway:member_id {http_var} .",
+                f"{result_variable} osmway:member {way_blank_http} .",
             )
-            pattern.where_clauses.append(f"{{ {way_union} }} UNION {{ {rel_union} }}")
+            rel_leaf = _leaf(
+                input_values_marker,
+                input_type,
+                f"{rel_blank} osmrel:member_id {input_var} .",
+                f"{result_variable} osmrel:member {rel_blank} .",
+            )
+            rel_http_leaf = _leaf(
+                input_values_marker,
+                http_bind,
+                http_type,
+                f"{rel_blank_http} osmrel:member_id {http_var} .",
+                f"{result_variable} osmrel:member {rel_blank_http} .",
+            )
+            pattern.where_clauses.append(
+                f"{{ {way_leaf} UNION {way_http_leaf} }}"
+                f" UNION {{ {rel_leaf} UNION {rel_http_leaf} }}"
+            )
 
         case RecurseFilterType.BW:
             # way → parent relations (upward)

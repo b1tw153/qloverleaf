@@ -2358,10 +2358,41 @@ def test_out_limit() -> None:
     assert stmt.limit == 10
 
 
-def test_out_verbosity_and_geometry() -> None:
+def test_out_ids_geom_downgrades_to_bb() -> None:
+    # Overpass quirk: `ids geom` produces bb-only output, not full geometry.
     stmt = _out_stmt("out ids geom;")
     assert stmt.verbosity == OutVerbosity.IDS
+    assert stmt.geom is False
+    assert stmt.bb is True
+
+
+def test_out_tags_geom_downgrades_to_bb() -> None:
+    # Overpass quirk: `tags geom` produces bb-only output, not full geometry.
+    stmt = _out_stmt("out tags geom;")
+    assert stmt.verbosity == OutVerbosity.TAGS
+    assert stmt.geom is False
+    assert stmt.bb is True
+
+
+def test_out_skel_geom_keeps_geom() -> None:
+    stmt = _out_stmt("out skel geom;")
+    assert stmt.verbosity == OutVerbosity.SKEL
     assert stmt.geom is True
+    assert stmt.bb is False
+
+
+def test_out_body_geom_keeps_geom() -> None:
+    stmt = _out_stmt("out body geom;")
+    assert stmt.verbosity == OutVerbosity.BODY
+    assert stmt.geom is True
+    assert stmt.bb is False
+
+
+def test_out_meta_geom_keeps_geom() -> None:
+    stmt = _out_stmt("out meta geom;")
+    assert stmt.verbosity == OutVerbosity.META
+    assert stmt.geom is True
+    assert stmt.bb is False
 
 
 def test_out_verbosity_and_sort() -> None:

@@ -1733,6 +1733,17 @@ class OverpassTransformer(Transformer[Token, Query]):
         if geom_token is not None and bb_token is not None:
             raise QueryError("out geom and bb are mutually exclusive", geom_token)
 
+        # Overpass quirk: `geom` paired with `ids` or `tags` produces bb-only
+        # output. Normalize here so the translator only sees true `geom` with
+        # skel/body/meta/default verbosity.
+        if (
+            geom_token is not None
+            and verbosity_token is not None
+            and str(verbosity_token) in ("ids", "tags")
+        ):
+            bb_token = geom_token
+            geom_token = None
+
         if count_token is not None:
             for conflicting, name in (
                 (verbosity_token, str(verbosity_token) if verbosity_token else None),

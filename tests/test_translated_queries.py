@@ -2158,7 +2158,8 @@ def _overpass_meta(query: str) -> _MetaData:
 
 
 def _qlever_meta(sparql: str) -> _MetaData:
-    """Execute SPARQL out meta query and return (member_data, node_coords, tags, meta)."""
+    """Execute SPARQL out meta query and return
+    (member_data, node_coords, tags, meta)."""
     response = requests.post(
         QLEVER_URL,
         data={"query": sparql},
@@ -2269,3 +2270,224 @@ def test_translated_out_meta_nwr() -> None:
     _assert_node_coords(op_coords, ql_coords)
     assert op_tags == ql_tags
     assert op_meta == ql_meta
+
+
+# ---------------------------------------------------------------------------
+# out geom
+# ---------------------------------------------------------------------------
+
+# (element_key, member_pos) -> list of (lat, lon) along the member's geometry.
+# Node members contribute a single point; way members contribute the full
+# coordinate sequence; sub-relation members are omitted (no geometry attached).
+_GeomMap = dict[tuple[str, int], list[tuple[float, float]]]
+
+_GeomData = tuple[
+    dict[str, list[tuple[int, str, str]]],
+    dict[str, tuple[float, float]],
+    dict[str, dict[str, str]],
+    _GeomMap,
+]
+
+
+def _parse_wkt_coords(wkt: str) -> list[tuple[float, float]]:
+    """Parse WKT POINT/LINESTRING/POLYGON and return [(lat, lon), ...].
+
+    For POLYGON, returns the outer ring; inner rings (holes) are ignored.
+    """
+    s = wkt.strip()
+    if s.startswith("POINT("):
+        return [_parse_wkt_point(s)]
+    if s.startswith("LINESTRING("):
+        body = s.removeprefix("LINESTRING(").removesuffix(")")
+    elif s.startswith("POLYGON("):
+        body = s.removeprefix("POLYGON((").split("))", 1)[0]
+    else:
+        return []
+    result = []
+    for pair in body.split(","):
+        lon_str, lat_str = pair.strip().split()
+        result.append((float(lat_str), float(lon_str)))
+    return result
+
+
+def _overpass_geom(query: str) -> _GeomData:
+    """Execute Overpass out geom and return (members, node_coords, tags, geom)."""
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    members: dict[str, list[tuple[int, str, str]]] = {}
+    coords: dict[str, tuple[float, float]] = {}
+    tags: dict[str, dict[str, str]] = {}
+    geom: _GeomMap = {}
+    for elem in response.json().get("elements", []):
+        eid = f"{elem['type']}/{elem['id']}"
+        if elem["type"] == "node":
+            members[eid] = []
+            coords[eid] = (elem["lat"], elem["lon"])
+        elif elem["type"] == "way":
+            nodes = elem.get("nodes", [])
+            geometry = elem.get("geometry", [])
+            members[eid] = [(i, f"node/{nid}", "") for i, nid in enumerate(nodes)]
+            for i, g in enumerate(geometry):
+                geom[(eid, i)] = [(g["lat"], g["lon"])]
+        elif elem["type"] == "relation":
+            members[eid] = [
+                (i, f"{m['type']}/{m['ref']}", m.get("role", ""))
+                for i, m in enumerate(elem.get("members", []))
+            ]
+            for i, m in enumerate(elem.get("members", [])):
+                if "geometry" in m:
+                    geom[(eid, i)] = [(g["lat"], g["lon"]) for g in m["geometry"]]
+                elif "lat" in m:
+                    geom[(eid, i)] = [(m["lat"], m["lon"])]
+        tags[eid] = elem.get("tags", {})
+    return members, coords, tags, geom
+
+
+def _qlever_geom(sparql: str) -> _GeomData:
+    """Execute SPARQL out geom query and return (members, node_coords, tags, geom)."""
+    response = requests.post(
+        QLEVER_URL,
+        data={"query": sparql},
+        headers={"Accept": "application/sparql-results+json"},
+    )
+    response.raise_for_status()
+    data = response.json()
+    elem_var = data.get("head", {}).get("vars", [""])[0]
+
+    members: dict[str, list[tuple[int, str, str]]] = {}
+    coords: dict[str, tuple[float, float]] = {}
+    tags: dict[str, dict[str, str]] = {}
+    geom: _GeomMap = {}
+    for binding in data.get("results", {}).get("bindings", []):
+        elem_val = binding.get(elem_var, {})
+        if elem_val.get("type") != "uri":
+            continue
+        elem_key = _uri_to_type_id(elem_val["value"])
+        if elem_key is None:
+            continue
+        if elem_key not in members:
+            members[elem_key] = []
+        if elem_key not in tags:
+            tags[elem_key] = {}
+
+        wkt_val = binding.get("wkt")
+        if wkt_val and wkt_val.get("type") == "literal":
+            wkt_str = wkt_val["value"]
+            if wkt_str.startswith("POINT("):
+                coords[elem_key] = _parse_wkt_point(wkt_str)
+
+        member_val = binding.get("member")
+        pos_val = binding.get("pos")
+        if member_val and member_val.get("type") == "uri" and pos_val:
+            member_key = _uri_to_type_id(member_val["value"])
+            if member_key:
+                pos = int(pos_val["value"])
+                role = binding.get("role", {}).get("value", "")
+                members[elem_key].append((pos, member_key, role))
+                member_wkt = binding.get("member_wkt", {})
+                if member_wkt.get("type") == "literal":
+                    member_coords = _parse_wkt_coords(member_wkt["value"])
+                    if member_coords:
+                        geom[(elem_key, pos)] = member_coords
+
+        pred_val = binding.get("p", {})
+        val_val = binding.get("v", {})
+        if pred_val.get("type") == "uri" and val_val.get("type") == "literal":
+            pred_uri = pred_val["value"]
+            if "Key:" in pred_uri:
+                tags[elem_key][pred_uri.split("Key:")[1]] = val_val["value"]
+
+    for elem_members in members.values():
+        elem_members.sort()
+
+    return members, coords, tags, geom
+
+
+def _assert_geom(op: _GeomMap, ql: _GeomMap) -> None:
+    assert set(op) == set(ql), f"geom key mismatch: {set(op) ^ set(ql)}"
+    for key in op:
+        op_coords = op[key]
+        ql_coords = ql[key]
+        assert len(op_coords) == len(ql_coords), (
+            f"{key} coord-count mismatch: op={len(op_coords)} ql={len(ql_coords)}"
+        )
+        for (op_lat, op_lon), (ql_lat, ql_lon) in zip(op_coords, ql_coords):
+            assert op_lat == pytest.approx(ql_lat, abs=1e-6), f"{key} lat mismatch"
+            assert op_lon == pytest.approx(ql_lon, abs=1e-6), f"{key} lon mismatch"
+
+
+def test_translated_out_geom_node() -> None:
+    # node: just a POINT; no members, no member geometries.
+    query = "node(1); out geom;"
+    op_members, op_coords, op_tags, op_geom = _overpass_geom(query)
+    ql_members, ql_coords, ql_tags, ql_geom = _qlever_geom(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    _assert_node_coords(op_coords, ql_coords)
+    assert op_tags == ql_tags
+    _assert_geom(op_geom, ql_geom)
+
+
+def test_translated_out_geom_way_open() -> None:
+    # open way: per-member POINT coords compose into a LINESTRING-shaped path.
+    query = "way(6007783); out geom;"
+    op_members, _, op_tags, op_geom = _overpass_geom(query)
+    ql_members, _, ql_tags, ql_geom = _qlever_geom(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    assert op_tags == ql_tags
+    _assert_geom(op_geom, ql_geom)
+
+
+def test_translated_out_geom_way_closed() -> None:
+    # closed way: first node repeats as last; geometry forms a POLYGON-shaped ring.
+    query = "way(100); out geom;"
+    op_members, _, op_tags, op_geom = _overpass_geom(query)
+    ql_members, _, ql_tags, ql_geom = _qlever_geom(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    assert op_tags == ql_tags
+    _assert_geom(op_geom, ql_geom)
+
+
+def test_translated_out_geom_relation_mixed_members() -> None:
+    # mixed-member relation: one way member (LINESTRING/POLYGON) + one node
+    # member (POINT). Exercises both branches of per-member WKT decoding.
+    query = "relation(18375544); out geom;"
+    op_members, _, op_tags, op_geom = _overpass_geom(query)
+    ql_members, _, ql_tags, ql_geom = _qlever_geom(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    assert op_tags == ql_tags
+    _assert_geom(op_geom, ql_geom)
+
+
+@pytest.mark.xfail(
+    reason=(
+        "Pre-existing role divergence for blank relation member roles: Overpass "
+        "reports '' (empty), QLever/osm2rdf reports 'member'. Unrelated to geom "
+        "translation — the geom assertions in this test would otherwise pass "
+        "(both backends report no per-member geometry for sub-relation members). "
+        "Pending investigation into whether all blank relation roles get "
+        "rewritten to 'member' in osm2rdf, in which case a translator-level "
+        "rewrite back to '' would clash with members whose role is genuinely "
+        "'member'."
+    ),
+    strict=True,
+)
+def test_translated_out_geom_relation_subrelation_members() -> None:
+    # sub-relation-only relation: OPTIONAL member geometry stays unbound; the
+    # member rows must still appear in the result.
+    query = "relation(20513114); out geom;"
+    op_members, _, op_tags, op_geom = _overpass_geom(query)
+    ql_members, _, ql_tags, ql_geom = _qlever_geom(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    assert op_tags == ql_tags
+    _assert_geom(op_geom, ql_geom)
+    assert op_geom == {}, "expected no per-member geometry for sub-relation members"

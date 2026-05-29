@@ -53,7 +53,11 @@ async def listener(request: Request) -> Response:
         content, media_type = await interpreter.initialize(query)
     except Exception as e:
         return Response(str(e), status_code=400)
-    return StreamingResponse(_safe_stream(content), media_type=media_type)
+    return StreamingResponse(
+        _safe_stream(content),
+        media_type=media_type,
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 
 app = Starlette(

@@ -15,6 +15,8 @@ from qloverleaf.exceptions import (
 )
 
 
+# TODO: Refactor this to QueryWarning so it doesn't hide the native class and move it to
+# exceptions.py
 @dataclass
 class Warning:
     message: str

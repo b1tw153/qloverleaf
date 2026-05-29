@@ -1976,3 +1976,296 @@ def test_translated_out_tags_relations() -> None:
 def test_translated_out_tags_nwr() -> None:
     query = "nwr[name=Ocotillo]; out tags;"
     assert _overpass_tags(query) == _qlever_tags(_compose_out_query(query))
+
+
+# ---------------------------------------------------------------------------
+# out body
+# ---------------------------------------------------------------------------
+
+_SkelData = tuple[
+    dict[str, list[tuple[int, str, str]]],
+    dict[str, tuple[float, float]],
+    dict[str, dict[str, str]],
+]
+
+
+def _overpass_body(query: str) -> _SkelData:
+    """Execute Overpass out body and return (member_data, node_coords, tags)."""
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    members: dict[str, list[tuple[int, str, str]]] = {}
+    coords: dict[str, tuple[float, float]] = {}
+    tags: dict[str, dict[str, str]] = {}
+    for elem in response.json().get("elements", []):
+        eid = f"{elem['type']}/{elem['id']}"
+        if elem["type"] == "node":
+            members[eid] = []
+            coords[eid] = (elem["lat"], elem["lon"])
+        elif elem["type"] == "way":
+            members[eid] = [
+                (i, f"node/{nid}", "") for i, nid in enumerate(elem.get("nodes", []))
+            ]
+        elif elem["type"] == "relation":
+            members[eid] = [
+                (i, f"{m['type']}/{m['ref']}", m.get("role", ""))
+                for i, m in enumerate(elem.get("members", []))
+            ]
+        tags[eid] = elem.get("tags", {})
+    return members, coords, tags
+
+
+def _qlever_body(sparql: str) -> _SkelData:
+    """Execute SPARQL out body query and return (member_data, node_coords, tags)."""
+    response = requests.post(
+        QLEVER_URL,
+        data={"query": sparql},
+        headers={"Accept": "application/sparql-results+json"},
+    )
+    response.raise_for_status()
+    data = response.json()
+    elem_var = data.get("head", {}).get("vars", [""])[0]
+
+    members: dict[str, list[tuple[int, str, str]]] = {}
+    coords: dict[str, tuple[float, float]] = {}
+    tags: dict[str, dict[str, str]] = {}
+    for binding in data.get("results", {}).get("bindings", []):
+        elem_val = binding.get(elem_var, {})
+        if elem_val.get("type") != "uri":
+            continue
+        elem_key = _uri_to_type_id(elem_val["value"])
+        if elem_key is None:
+            continue
+        if elem_key not in members:
+            members[elem_key] = []
+        if elem_key not in tags:
+            tags[elem_key] = {}
+
+        wkt_val = binding.get("wkt")
+        if wkt_val and wkt_val.get("type") == "literal":
+            wkt_str = wkt_val["value"]
+            if wkt_str.startswith("POINT("):
+                coords[elem_key] = _parse_wkt_point(wkt_str)
+
+        member_val = binding.get("member")
+        pos_val = binding.get("pos")
+        if member_val and member_val.get("type") == "uri" and pos_val:
+            member_key = _uri_to_type_id(member_val["value"])
+            if member_key:
+                pos = int(pos_val["value"])
+                role = binding.get("role", {}).get("value", "")
+                members[elem_key].append((pos, member_key, role))
+
+        pred_val = binding.get("p", {})
+        val_val = binding.get("v", {})
+        if pred_val.get("type") == "uri" and val_val.get("type") == "literal":
+            pred_uri = pred_val["value"]
+            if "Key:" in pred_uri:
+                tags[elem_key][pred_uri.split("Key:")[1]] = val_val["value"]
+
+    for elem_members in members.values():
+        elem_members.sort()
+
+    return members, coords, tags
+
+
+def test_translated_out_body_nodes() -> None:
+    query = "node[name=Ocotillo]; out body;"
+    op_members, op_coords, op_tags = _overpass_body(query)
+    ql_members, ql_coords, ql_tags = _qlever_body(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    _assert_node_coords(op_coords, ql_coords)
+    assert op_tags == ql_tags
+
+
+def test_translated_out_body_ways() -> None:
+    query = "way[name=Ocotillo]; out body;"
+    op_members, _, op_tags = _overpass_body(query)
+    ql_members, _, ql_tags = _qlever_body(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    assert op_tags == ql_tags
+
+
+def test_translated_out_body_relations() -> None:
+    query = "relation[name=Ocotillo]; out body;"
+    op_members, _, op_tags = _overpass_body(query)
+    ql_members, _, ql_tags = _qlever_body(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    assert op_tags == ql_tags
+
+
+def test_translated_out_body_nwr() -> None:
+    query = "nwr[name=Ocotillo]; out body;"
+    op_members, op_coords, op_tags = _overpass_body(query)
+    ql_members, ql_coords, ql_tags = _qlever_body(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    _assert_node_coords(op_coords, ql_coords)
+    assert op_tags == ql_tags
+
+
+# ---------------------------------------------------------------------------
+# out meta
+# ---------------------------------------------------------------------------
+
+_MetaData = tuple[
+    dict[str, list[tuple[int, str, str]]],
+    dict[str, tuple[float, float]],
+    dict[str, dict[str, str]],
+    dict[str, dict[str, str]],
+]
+
+_META_FIELDS = ("version", "timestamp", "changeset", "uid", "user")
+
+
+def _overpass_meta(query: str) -> _MetaData:
+    """Execute Overpass out meta and return (member_data, node_coords, tags, meta)."""
+    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response.raise_for_status()
+    members: dict[str, list[tuple[int, str, str]]] = {}
+    coords: dict[str, tuple[float, float]] = {}
+    tags: dict[str, dict[str, str]] = {}
+    meta: dict[str, dict[str, str]] = {}
+    for elem in response.json().get("elements", []):
+        eid = f"{elem['type']}/{elem['id']}"
+        if elem["type"] == "node":
+            members[eid] = []
+            coords[eid] = (elem["lat"], elem["lon"])
+        elif elem["type"] == "way":
+            members[eid] = [
+                (i, f"node/{nid}", "") for i, nid in enumerate(elem.get("nodes", []))
+            ]
+        elif elem["type"] == "relation":
+            members[eid] = [
+                (i, f"{m['type']}/{m['ref']}", m.get("role", ""))
+                for i, m in enumerate(elem.get("members", []))
+            ]
+        tags[eid] = elem.get("tags", {})
+        meta[eid] = {
+            "version": str(elem["version"]),
+            "timestamp": elem["timestamp"].rstrip("Z"),
+            "changeset": str(elem["changeset"]),
+            "uid": str(elem["uid"]),
+            "user": elem["user"],
+        }
+    return members, coords, tags, meta
+
+
+def _qlever_meta(sparql: str) -> _MetaData:
+    """Execute SPARQL out meta query and return (member_data, node_coords, tags, meta)."""
+    response = requests.post(
+        QLEVER_URL,
+        data={"query": sparql},
+        headers={"Accept": "application/sparql-results+json"},
+    )
+    response.raise_for_status()
+    data = response.json()
+    elem_var = data.get("head", {}).get("vars", [""])[0]
+
+    members: dict[str, list[tuple[int, str, str]]] = {}
+    coords: dict[str, tuple[float, float]] = {}
+    tags: dict[str, dict[str, str]] = {}
+    meta: dict[str, dict[str, str]] = {}
+    for binding in data.get("results", {}).get("bindings", []):
+        elem_val = binding.get(elem_var, {})
+        if elem_val.get("type") != "uri":
+            continue
+        elem_key = _uri_to_type_id(elem_val["value"])
+        if elem_key is None:
+            continue
+        if elem_key not in members:
+            members[elem_key] = []
+        if elem_key not in tags:
+            tags[elem_key] = {}
+
+        wkt_val = binding.get("wkt")
+        if wkt_val and wkt_val.get("type") == "literal":
+            wkt_str = wkt_val["value"]
+            if wkt_str.startswith("POINT("):
+                coords[elem_key] = _parse_wkt_point(wkt_str)
+
+        member_val = binding.get("member")
+        pos_val = binding.get("pos")
+        if member_val and member_val.get("type") == "uri" and pos_val:
+            member_key = _uri_to_type_id(member_val["value"])
+            if member_key:
+                pos = int(pos_val["value"])
+                role = binding.get("role", {}).get("value", "")
+                members[elem_key].append((pos, member_key, role))
+
+        pred_val = binding.get("p", {})
+        val_val = binding.get("v", {})
+        if pred_val.get("type") == "uri" and val_val.get("type") == "literal":
+            pred_uri = pred_val["value"]
+            if "Key:" in pred_uri:
+                tags[elem_key][pred_uri.split("Key:")[1]] = val_val["value"]
+
+        if elem_key not in meta:
+            row_meta = {}
+            for field in _META_FIELDS:
+                field_val = binding.get(field, {})
+                if field == "changeset" and field_val.get("type") == "uri":
+                    uri = field_val["value"]
+                    if "/changeset/" in uri:
+                        row_meta[field] = uri.split("/changeset/")[1]
+                elif field_val.get("type") == "literal":
+                    row_meta[field] = field_val["value"].rstrip("Z")
+            if row_meta:
+                meta[elem_key] = row_meta
+
+    for elem_members in members.values():
+        elem_members.sort()
+
+    return members, coords, tags, meta
+
+
+def test_translated_out_meta_nodes() -> None:
+    query = "node[name=Ocotillo]; out meta;"
+    op_members, op_coords, op_tags, op_meta = _overpass_meta(query)
+    ql_members, ql_coords, ql_tags, ql_meta = _qlever_meta(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    _assert_node_coords(op_coords, ql_coords)
+    assert op_tags == ql_tags
+    assert op_meta == ql_meta
+
+
+def test_translated_out_meta_ways() -> None:
+    query = "way[name=Ocotillo]; out meta;"
+    op_members, _, op_tags, op_meta = _overpass_meta(query)
+    ql_members, _, ql_tags, ql_meta = _qlever_meta(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    assert op_tags == ql_tags
+    assert op_meta == ql_meta
+
+
+def test_translated_out_meta_relations() -> None:
+    query = "relation[name=Ocotillo]; out meta;"
+    op_members, _, op_tags, op_meta = _overpass_meta(query)
+    ql_members, _, ql_tags, ql_meta = _qlever_meta(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    assert op_tags == ql_tags
+    assert op_meta == ql_meta
+
+
+def test_translated_out_meta_nwr() -> None:
+    query = "nwr[name=Ocotillo]; out meta;"
+    op_members, op_coords, op_tags, op_meta = _overpass_meta(query)
+    ql_members, ql_coords, ql_tags, ql_meta = _qlever_meta(_compose_out_query(query))
+    assert set(op_members) == set(ql_members)
+    for key in op_members:
+        assert op_members[key] == ql_members[key]
+    _assert_node_coords(op_coords, ql_coords)
+    assert op_tags == ql_tags
+    assert op_meta == ql_meta

@@ -68,7 +68,6 @@ class SetInjection:
 class SparqlPattern:
     output_set: SetReference | None
     materialize: bool = False
-    output: bool = False
     prefixes: set[str] = field(default_factory=set)
     select_clause: str | None = None
     distinct: bool = False
@@ -77,6 +76,7 @@ class SparqlPattern:
     where_clauses: list[str] = field(default_factory=list)
     injections: list[SetInjection] = field(default_factory=list)
     limit: int | None = None
+    statements: list[Statement] = field(default_factory=list)
 
     @property
     def result_variable(self) -> str | None:
@@ -242,30 +242,34 @@ def translate(statement: Statement) -> list[SparqlPattern]:
             f"{content_types}"
         )  # see area-handling.md
     if isinstance(statement, QueryStatement):
-        return _translate_query(statement)
-    if isinstance(statement, UnionStatement):
-        return _translate_union(statement)
-    if isinstance(statement, ItemStatement):
-        return _translate_item(statement)
-    if isinstance(statement, OutStatement):
-        return _translate_out(statement)
-    if isinstance(statement, RecurseStatement):
-        return _translate_recurse(statement)
-    if isinstance(statement, IsInStatement):
-        return _translate_is_in(statement)
-    if isinstance(statement, MapToAreaStatement):
-        return _translate_map_to_area(statement)
-    if isinstance(statement, ForeachStatement):
-        return _translate_foreach(statement)
-    if isinstance(statement, ForStatement):
-        return _translate_for(statement)
-    if isinstance(statement, CompleteStatement):
-        return _translate_complete(statement)
-    if isinstance(statement, IfStatement):
-        return _translate_if(statement)
-    raise UnsupportedFeatureError(
-        f"No translator for {type(statement).__name__}", statement.token
-    )
+        patterns = _translate_query(statement)
+    elif isinstance(statement, UnionStatement):
+        patterns = _translate_union(statement)
+    elif isinstance(statement, ItemStatement):
+        patterns = _translate_item(statement)
+    elif isinstance(statement, OutStatement):
+        patterns = _translate_out(statement)
+    elif isinstance(statement, RecurseStatement):
+        patterns = _translate_recurse(statement)
+    elif isinstance(statement, IsInStatement):
+        patterns = _translate_is_in(statement)
+    elif isinstance(statement, MapToAreaStatement):
+        patterns = _translate_map_to_area(statement)
+    elif isinstance(statement, ForeachStatement):
+        patterns = _translate_foreach(statement)
+    elif isinstance(statement, ForStatement):
+        patterns = _translate_for(statement)
+    elif isinstance(statement, CompleteStatement):
+        patterns = _translate_complete(statement)
+    elif isinstance(statement, IfStatement):
+        patterns = _translate_if(statement)
+    else:
+        raise UnsupportedFeatureError(
+            f"No translator for {type(statement).__name__}", statement.token
+        )
+    for pattern in patterns:
+        pattern.statements = [statement]
+    return patterns
 
 
 def _translate_query(statement: QueryStatement) -> list[SparqlPattern]:
@@ -1008,7 +1012,7 @@ def _injection_marker(sparql_var: str, elem_type: ElementType) -> str:
 
 def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
     # OutStatement doesn't produce a set, only outputs an existing one
-    pattern = SparqlPattern(output_set=None, output=True)
+    pattern = SparqlPattern(output_set=None)
 
     input_set = stmt.input_set
     result_variable = f"?{input_set.identifier}"

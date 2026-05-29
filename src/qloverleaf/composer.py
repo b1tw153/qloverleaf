@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from qloverleaf.interpreter import SetState
 
-from qloverleaf.transformer import _AREA, _NWR
+from qloverleaf.transformer import _AREA, _NWR, Statement
 from qloverleaf.translator import SparqlPattern
 
 
@@ -75,6 +75,7 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
     composed_where_clauses = list(pattern.where_clauses)
     composed_prefixes = set(pattern.prefixes)
     composed_distinct = pattern.distinct
+    composed_statements: list[Statement] = []
     remaining_injections = []
 
     # Try to inline each injection
@@ -122,6 +123,9 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
         # carry distinct forward
         composed_distinct = composed_distinct | input_pattern.distinct
 
+        # accumulate source statements
+        composed_statements.extend(input_pattern.statements)
+
         if injection.marker is not None:
             # Site injection: substitute the marker inside the existing where_clause
             # string rather than appending to the flat clause list
@@ -143,7 +147,6 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
     composed_pattern = SparqlPattern(
         pattern.output_set,
         pattern.materialize,  # false
-        pattern.output,
         composed_prefixes,
         pattern.select_clause,  # None
         composed_distinct,
@@ -152,6 +155,7 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
         composed_where_clauses,
         remaining_injections,
         pattern.limit,
+        composed_statements + pattern.statements,
     )
 
     return composed_pattern

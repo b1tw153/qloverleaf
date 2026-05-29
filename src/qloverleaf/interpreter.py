@@ -9,6 +9,7 @@ from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
 from qloverleaf.executor import parse_results, query_qlever
 from qloverleaf.formatter import (
     format_begin,
+    format_debug,
     format_end,
     format_error,
     format_init,
@@ -20,6 +21,7 @@ from qloverleaf.transformer import (
     _AREA,
     _NWR,
     ElementType,
+    OutStatement,
     OverpassTransformer,
 )
 from qloverleaf.translator import (
@@ -285,9 +287,12 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                     else:
                         set_state[pattern.result_set_name].nwr_results = results
 
-                if pattern.output:
-                    yield format_output(data)
-
+                if isinstance(pattern.statements[-1], OutStatement):
+                    stmt = pattern.statements[-1]
+                    if stmt.debug:
+                        yield format_debug(set_state[stmt.input_set.identifier])
+                    else:
+                        yield format_output(data)
 
     except Exception as e:
         yield format_error(e)

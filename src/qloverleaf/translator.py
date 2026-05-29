@@ -284,7 +284,6 @@ def _add_type_filter(
     pattern: SparqlPattern,
 ) -> None:
     if ElementType.AREA in element_types:
-        # BUG: select only closed ways and relations if we're searching for areas
         assert element_types == frozenset({ElementType.AREA})
         element_types = frozenset({ElementType.WAY, ElementType.RELATION})
         pattern.prefixes |= {"osm2rdf"}

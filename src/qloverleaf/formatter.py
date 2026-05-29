@@ -8,7 +8,7 @@ from lark import Token, Tree
 
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 from qloverleaf.executor import QLEVER_ENDPOINT
-from qloverleaf.qlever_results import parse_count
+from qloverleaf.qlever_results import parse_count, parse_elements
 from qloverleaf.query_context import OutputFormat, QueryContext
 from qloverleaf.transformer import OutStatement, Warning
 from qloverleaf.translator import _dump_sparql_pattern
@@ -188,10 +188,18 @@ def format_output(data: dict[str, Any], stmt: OutStatement) -> str:
             return ""
         case OutputFormat.JSON:
             if stmt.count:
-                element = parse_count(data)
-                return f"\n{json.dumps(element, indent=2)}\n"
-            # TODO: return Overpass/GeoJSON output for other verbosity modes
-            return ""
+                elements = [parse_count(data)]
+            else:
+                elements = parse_elements(data, stmt)
+            output = ""
+            for element in elements:
+                global _first_element
+                if _first_element:
+                    _first_element = False
+                else:
+                    output += ","
+                output += f"\n{json.dumps(element, indent=2)}\n"
+            return output
         case OutputFormat.CSV:
             # TODO: return CSV output
             return ""

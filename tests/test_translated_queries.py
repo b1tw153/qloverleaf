@@ -1614,15 +1614,12 @@ def test_translated_if_length_node_absent() -> None:
 
 
 def test_translated_if_is_closed_closed_way() -> None:
-    # building ways are always closed; osm2rdf:area is present
-    # BUG: The bbox filter does not limit the scope of the result scan in QLever. This
-    # is a known limitation. And (if:is_closed()) is a FILTER clause on query results.
-    # The remaining query, way[building] produces too large of a result set which causes
-    # the query to time out. The timeout is not specifically related to is_closed() but
-    # is a condition of the selected test case. Find a test case with a more specific
-    # result set in which is_closed() can be applied.
+    # building ways are always closed, but only some ruins are; osm2rdf:area is present
+    # The bbox filter does not limit the scope of the result scan in QLever. This is a
+    # known limitation. And (if:is_closed()) is a FILTER clause on query results. The
+    # remaining query, must produce a small result set or the query will time out.
     bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
-    statement = f"way[building](if:is_closed()){bbox};"
+    statement = f"way['ruins:building'=yes](if:is_closed()){bbox};"
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}
@@ -1632,15 +1629,12 @@ def test_translated_if_is_closed_closed_way() -> None:
 
 
 def test_translated_if_is_closed_open_way() -> None:
-    # highway ways are typically open; osm2rdf:area is absent
-    # BUG: The bbox filter does not limit the scope of the result scan in QLever. This
-    # is a known limitation. And (if:is_closed()) is a FILTER clause on query results.
-    # The remaining query, highway[secondary] produces too large of a result set which
-    # causes the query to time out. The timeout is not specifically related to
-    # is_closed() but is a condition of the selected test case. Find a test case with a
-    # more specific result set in which is_closed() can be applied.
+    # building ways are always closed, some ruins are not; osm2rdf:area is absent
+    # The bbox filter does not limit the scope of the result scan in QLever. This is a
+    # known limitation. And (if:is_closed()) is a FILTER clause on query results. The
+    # remaining query, must produce a small result set or the query will time out.
     bbox = "(32.58870,-116.14417,32.88870,-115.84417)"
-    statement = f"way[highway=secondary](if:!is_closed()){bbox};"
+    statement = f"way['ruins:building'=yes](if:!is_closed()){bbox};"
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
 
+# TODO: Consider refactoring to avoid circular imports
 if TYPE_CHECKING:
     from qloverleaf.interpreter import SetState
 from qloverleaf.transformer import (
@@ -882,6 +883,7 @@ def _translate_if_filter(
 ) -> None:
     # Deferred import: evaluators.py imports translator.py (SetInjection), so
     # importing evaluators at module level would create a circular dependency.
+    # TODO: Consider refactoring to avoid circular imports
     from qloverleaf.evaluators import translate_evaluator
 
     variable_base = _variable_name(output_set, filter_index=filter_index)

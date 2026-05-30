@@ -204,7 +204,8 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
             execution_queue.extend(patterns)
 
         # Process execution queue
-        async with httpx.AsyncClient(timeout=5) as client:
+        # TODO: Get this timeout from global settings
+        async with httpx.AsyncClient(timeout=30) as client:
             while execution_queue:
                 pattern = execution_queue.pop(0)
 

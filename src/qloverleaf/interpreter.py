@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 from dataclasses import replace
+from enum import Enum
 
 import httpx
 from lark import Token, Tree
@@ -180,6 +181,12 @@ def _apply_global_settings(query: QueryContext) -> None:
         raise UnsupportedFeatureError("Global adiff setting is not supported", token)
 
 
+class OutMode(Enum):
+    OUT = "out"
+    DEBUG = "debug"
+    # None = no output
+
+
 async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     assert query.ir is not None
 
@@ -200,6 +207,16 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
         async with httpx.AsyncClient() as client:
             while execution_queue:
                 pattern = execution_queue.pop(0)
+
+                # Flag out and out debug statements
+                if isinstance(pattern.statements[-1], OutStatement):
+                    stmt = pattern.statements[-1]
+                    if stmt.debug:
+                        out_mode = OutMode.DEBUG
+                    else:
+                        out_mode = OutMode.OUT
+                else:
+                    out_mode = None
 
                 # Create set state entry if pattern produces a set
                 if pattern.result_set_name:
@@ -261,7 +278,10 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                 # Execute the pattern (all dependencies are materialized,
                 # or pattern is hot)
                 sparql = render_query(working_pattern, set_state)
-                data = await query_qlever(sparql, client)
+                if out_mode != OutMode.DEBUG:
+                    data = await query_qlever(sparql, client)
+                else:
+                    data = {}
 
                 # Store results if pattern produces a set; otherwise just yield
                 if pattern.result_set_name:
@@ -279,9 +299,9 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
 
                 if isinstance(pattern.statements[-1], OutStatement):
                     stmt = pattern.statements[-1]
-                    if stmt.debug:
+                    if out_mode == OutMode.DEBUG:
                         yield format_debug(
-                            set_state[stmt.input_set.identifier], pattern
+                            set_state[stmt.input_set.identifier], pattern, sparql
                         )
                     else:
                         yield format_output(data, stmt)

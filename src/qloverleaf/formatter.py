@@ -134,7 +134,9 @@ def format_error(error: Exception) -> str:
             return ""
 
 
-def format_debug(set_state_entry: SetStateEntry, pattern: SparqlPattern) -> str:
+def format_debug(
+    set_state_entry: SetStateEntry, pattern: SparqlPattern, query: str
+) -> str:
     global _output_format
     match _output_format:
         case OutputFormat.XML:
@@ -147,12 +149,14 @@ def format_debug(set_state_entry: SetStateEntry, pattern: SparqlPattern) -> str:
             # TODO: return CSV dump of SetStateEntry
             return ""
         case OutputFormat.RAW:
-            return _format_debug_raw(set_state_entry, pattern)
+            return _format_debug_raw(set_state_entry, pattern, query)
         case _:
             assert False
 
 
-def _format_debug_raw(set_state_entry: SetStateEntry, pattern: SparqlPattern) -> str:
+def _format_debug_raw(
+    set_state_entry: SetStateEntry, pattern: SparqlPattern, query: str
+) -> str:
     lines: list[str] = []
 
     if set_state_entry.pattern:
@@ -178,6 +182,10 @@ def _format_debug_raw(set_state_entry: SetStateEntry, pattern: SparqlPattern) ->
 
     lines.append("output_pattern:")
     for line in _dump_sparql_pattern(pattern).splitlines():
+        lines.append(f"  {line}")
+
+    lines.append("query:")
+    for line in query.splitlines():
         lines.append(f"  {line}")
 
     return "\n".join(lines) + "\n"

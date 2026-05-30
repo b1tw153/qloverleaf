@@ -153,9 +153,10 @@ class LatLon:
 # TODO: Add a constrained field or property to statements, filters, and sets. If the
 # statement or filter will produce an unacceptably large result set on its own, or if
 # the statement or filter will not constrain the scope of index scanning in Qlever it is
-# not constrained. A set is constrained if the statement that assigns to it is
-# constrained. Propagate constrained values during set assignment and warn if a
-# statement with versioned sets is unconstrained.
+# not constrained. The query statement is constrained if any of its filters are
+# constrained. A set is constrained if the statement that assigns to it is constrained.
+# Propagate constrained values during set assignment and warn if a statement with
+# versioned sets is unconstrained.
 class Constrained(Enum):
     YES = "yes"
     NO = "no"

@@ -37,7 +37,7 @@ MEDIA_TYPES = {
     OutputFormat.CSV: "text/csv",
     OutputFormat.CUSTOM: "text/plain",
     OutputFormat.POPUP: "application/html",
-    OutputFormat.RAW: "application/json",
+    OutputFormat.RAW: "text/plain",
 }
 
 

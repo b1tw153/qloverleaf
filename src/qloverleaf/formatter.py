@@ -85,8 +85,8 @@ def format_begin() -> str:
 
 def _format_begin_xml() -> str:
     return (
-        '<?xml version="1.0" encoding="UTF-8"?>\n'
-        f'<osm version="0.6" generator="{_GENERATOR}">\n'
+        '<?xml version="{1.0}" encoding="UTF-8"?>\n'
+        f'<osm version="{_VERSION}" generator="{_GENERATOR}">\n'
         f"<note>{_COPYRIGHT}</note>\n"
         "<meta/>\n\n"
     )
@@ -153,8 +153,14 @@ def format_debug(
             safe = content.replace("]]>", "]]]]><![CDATA[>")
             return f"<debug><![CDATA[\n{safe}]]></debug>\n"
         case OutputFormat.JSON:
-            # TODO: return JSON dump of SetStateEntry
-            return ""
+            global _first_element
+            prefix = "" if _first_element else ","
+            _first_element = False
+            obj = {
+                "type": "debug",
+                "text": _format_debug_raw(set_state_entry, pattern, query),
+            }
+            return f"{prefix}\n{json.dumps(obj, indent=2)}\n"
         case OutputFormat.CSV:
             # TODO: return CSV dump of SetStateEntry
             return ""

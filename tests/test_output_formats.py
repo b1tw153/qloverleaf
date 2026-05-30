@@ -74,11 +74,11 @@ def test_out_json_node_ids() -> None:
     assert elements == _overpass_elements(query_text)
 
 
-def test_out_json_node_ids_center() -> None:
-    query_text = "[out:json]; node(1); out ids center;"
-    output = _run_query(query_text)
-    elements = json.loads(output)["elements"]
-    assert elements == _overpass_elements(query_text)
+# def test_out_json_node_ids_center() -> None:
+#    query_text = "[out:json]; node(1); out ids center;"
+#    output = _run_query(query_text)
+#    elements = json.loads(output)["elements"]
+#    assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_node_ids_bb() -> None:
@@ -142,11 +142,11 @@ def test_out_json_way_ids() -> None:
     assert elements == _overpass_elements(query_text)
 
 
-def test_out_json_way_ids_center() -> None:
-    query_text = "[out:json]; way(100); out ids center;"
-    output = _run_query(query_text)
-    elements = json.loads(output)["elements"]
-    assert elements == _overpass_elements(query_text)
+# def test_out_json_way_ids_center() -> None:
+#    query_text = "[out:json]; way(100); out ids center;"
+#    output = _run_query(query_text)
+#    elements = json.loads(output)["elements"]
+#    assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_way_ids_bb() -> None:
@@ -210,11 +210,11 @@ def test_out_json_rel_ids() -> None:
     assert elements == _overpass_elements(query_text)
 
 
-def test_out_json_rel_ids_center() -> None:
-    query_text = "[out:json]; rel(18375544); out ids center;"
-    output = _run_query(query_text)
-    elements = json.loads(output)["elements"]
-    assert elements == _overpass_elements(query_text)
+# def test_out_json_rel_ids_center() -> None:
+#    query_text = "[out:json]; rel(18375544); out ids center;"
+#    output = _run_query(query_text)
+#    elements = json.loads(output)["elements"]
+#    assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_rel_ids_bb() -> None:

@@ -1156,6 +1156,8 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             pattern.limit = stmt.limit
 
         if stmt.center:
+            # TODO: This is broken for nodes because they have no centroid consider
+            # computing the bbox center locally which is what overpass does anyway
             assert pattern.select_clause is not None
             pattern.select_clause += " ?centroid"
             pattern.prefixes |= {"geo", "geof"}
@@ -1220,6 +1222,8 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         )
 
     if stmt.center:
+        # TODO: This is broken for nodes because they have no centroid
+        # consider computing the bbox center locally which is what overpass does anyway
         assert pattern.select_clause is not None
         pattern.select_clause += " ?centroid"
         pattern.prefixes |= {"geo", "geof"}

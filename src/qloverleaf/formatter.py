@@ -16,6 +16,8 @@ from qloverleaf.transformer import OutStatement
 from qloverleaf.translator import _dump_sparql_pattern
 from qloverleaf.types import SetStateEntry, SparqlPattern
 
+_META_FIELDS = ("version", "timestamp", "changeset", "uid", "user")
+
 _query_context: QueryContext
 _output_format: OutputFormat
 _output_params: Tree[Token] | None
@@ -47,7 +49,7 @@ async def format_init(context: QueryContext) -> None:
 
     match _output_format:
         case OutputFormat.XML:
-            raise UnimplementedFeatureError("XML output is not implemented", None)
+            pass
         case OutputFormat.JSON:
             global _qlever_stats
             async with httpx.AsyncClient() as client:
@@ -68,8 +70,7 @@ def format_begin() -> str:
     global _output_format
     match _output_format:
         case OutputFormat.XML:
-            # TODO: return XML document header
-            return ""
+            return _format_begin_xml()
         case OutputFormat.JSON:
             return _format_begin_json()
         case OutputFormat.CSV:
@@ -80,6 +81,15 @@ def format_begin() -> str:
             return "\n"
         case _:
             assert False
+
+
+def _format_begin_xml() -> str:
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        f'<osm version="0.6" generator="{_GENERATOR}">\n'
+        f"<note>{_COPYRIGHT}</note>\n"
+        "<meta/>\n\n"
+    )
 
 
 def _format_begin_json() -> str:
@@ -102,8 +112,7 @@ def format_warnings(warnings: list[QueryWarning]) -> str:
     for warning in warnings:
         match _output_format:
             case OutputFormat.XML:
-                # TODO: return XML warnings
-                pass
+                _remarks.append(str(warning))
             case OutputFormat.JSON:
                 _remarks.append(str(warning))
             case OutputFormat.CSV:
@@ -120,7 +129,7 @@ def format_error(error: Exception) -> str:
     global _output_format
     match _output_format:
         case OutputFormat.XML:
-            # TODO: return XML errors
+            _remarks.append(str(error))
             return ""
         case OutputFormat.JSON:
             _remarks.append(str(error))
@@ -140,8 +149,9 @@ def format_debug(
     global _output_format
     match _output_format:
         case OutputFormat.XML:
-            # TODO: return XML dump of SetStateEntry
-            return ""
+            content = _format_debug_raw(set_state_entry, pattern, query)
+            safe = content.replace("]]>", "]]]]><![CDATA[>")
+            return f"<debug><![CDATA[\n{safe}]]></debug>\n"
         case OutputFormat.JSON:
             # TODO: return JSON dump of SetStateEntry
             return ""
@@ -195,8 +205,11 @@ def format_output(data: dict[str, Any], stmt: OutStatement) -> str:
     global _output_format
     match _output_format:
         case OutputFormat.XML:
-            # TODO: return Overpass/XML output
-            return ""
+            if stmt.count:
+                elements = [collate_count(data)]
+            else:
+                elements = collate_elements(data, stmt)
+            return "".join(_element_to_xml(elem) for elem in elements)
         case OutputFormat.JSON:
             if stmt.count:
                 elements = [collate_count(data)]
@@ -224,8 +237,7 @@ def format_end() -> str:
     global _output_format
     match _output_format:
         case OutputFormat.XML:
-            # TODO: return XML document footer
-            return ""
+            return _format_end_xml()
         case OutputFormat.JSON:
             return _format_end_json()
         case OutputFormat.CSV:
@@ -246,4 +258,97 @@ def _format_end_json() -> str:
     return f"\n  ]{remark}}}\n"
 
 
-# TODO: Format QLever JSON into Overpass XML and Overpass JSON
+def _format_end_xml() -> str:
+    remarks = "".join(f"\n<remark> {_xml_escape(r)} </remark>" for r in _remarks)
+    return f"{remarks}\n\n</osm>\n"
+
+
+def _xml_escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _xml_attr(value: str) -> str:
+    return (
+        value.replace("&", "&amp;")
+        .replace('"', "&quot;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def _fmt_coord(v: float) -> str:
+    return f"{v:.7f}"
+
+
+def _element_to_xml(elem: dict[str, Any]) -> str:
+    elem_type = elem["type"]
+    elem_id = elem["id"]
+
+    attrs = f' id="{elem_id}"'
+    if "lat" in elem:
+        attrs += f' lat="{_fmt_coord(elem["lat"])}" lon="{_fmt_coord(elem["lon"])}"'
+    for field in _META_FIELDS:
+        if field in elem:
+            val = elem[field]
+            attrs += f' {field}="{val if not isinstance(val, str) else _xml_attr(val)}"'
+
+    children = ""
+
+    if "bounds" in elem:
+        b = elem["bounds"]
+        children += (
+            f'  <bounds minlat="{_fmt_coord(b["minlat"])}"'
+            f' minlon="{_fmt_coord(b["minlon"])}"'
+            f' maxlat="{_fmt_coord(b["maxlat"])}"'
+            f' maxlon="{_fmt_coord(b["maxlon"])}"/>\n'
+        )
+
+    if "center" in elem:
+        c = elem["center"]
+        children += (
+            f'  <center lat="{_fmt_coord(c["lat"])}" lon="{_fmt_coord(c["lon"])}"/>\n'
+        )
+
+    if elem_type == "way" and "nodes" in elem:
+        geometry = elem.get("geometry", [])
+        for i, ref in enumerate(elem["nodes"]):
+            if i < len(geometry):
+                g = geometry[i]
+                children += (
+                    f'  <nd ref="{ref}"'
+                    f' lat="{_fmt_coord(g["lat"])}"'
+                    f' lon="{_fmt_coord(g["lon"])}"/>\n'
+                )
+            else:
+                children += f'  <nd ref="{ref}"/>\n'
+
+    if elem_type == "relation" and "members" in elem:
+        for member in elem["members"]:
+            mtype = member["type"]
+            mref = member["ref"]
+            mrole = _xml_attr(member["role"])
+            mattrs = f' type="{mtype}" ref="{mref}" role="{mrole}"'
+            if "lat" in member:
+                mattrs += (
+                    f' lat="{_fmt_coord(member["lat"])}"'
+                    f' lon="{_fmt_coord(member["lon"])}"'
+                )
+            member_children = ""
+            if "geometry" in member:
+                for g in member["geometry"]:
+                    member_children += (
+                        f'    <nd lat="{_fmt_coord(g["lat"])}"'
+                        f' lon="{_fmt_coord(g["lon"])}"/>\n'
+                    )
+            if member_children:
+                children += f"  <member{mattrs}>\n{member_children}  </member>\n"
+            else:
+                children += f"  <member{mattrs}/>\n"
+
+    if "tags" in elem:
+        for k, v in elem["tags"].items():
+            children += f'  <tag k="{_xml_attr(k)}" v="{_xml_attr(v)}"/>\n'
+
+    if not children:
+        return f"<{elem_type}{attrs}/>\n"
+    return f"<{elem_type}{attrs}>\n{children}</{elem_type}>\n"

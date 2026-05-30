@@ -1038,7 +1038,8 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         has_members = False
 
         for elem_type in _OSM_TYPE_ORDER:
-            if elem_type not in required_types:
+            assert input_set.content_types is not None
+            if elem_type not in input_set.content_types:
                 continue
             marker = _injection_marker(result_variable, elem_type)
 

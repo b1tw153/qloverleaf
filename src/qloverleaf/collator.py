@@ -239,7 +239,7 @@ def _extract_meta(elem: dict[str, Any], binding: dict[str, Any]) -> None:
         elif field_val.get("type") == "literal":
             value = field_val["value"]
             if field == "timestamp":
-                elem[field] = value.rstrip("Z")
+                elem[field] = value + "Z"
             elif field in ("version", "uid"):
                 elem[field] = int(value)
             else:

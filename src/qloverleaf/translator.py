@@ -998,8 +998,8 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             pattern.select_clause = f"{result_variable} ?bb_wkt"
             pattern.where_clauses.append(bb_marker)
             pattern.where_clauses.append(
-                f"OPTIONAL {{ {result_variable} geo:hasGeometry ?bb_geom ."
-                " ?bb_geom geo:asWKT ?bb_wkt . }"
+                f"{result_variable} geo:hasGeometry ?bb_geom ."
+                "?bb_geom geo:asWKT ?bb_wkt ."
             )
             pattern.injections.append(
                 SetInjection(
@@ -1067,8 +1067,8 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     # so ?member is bound — otherwise QLever full-scans
                     # geo:hasGeometry.
                     branch_lines.append(
-                        "OPTIONAL { ?member geo:hasGeometry ?member_geom ."
-                        " ?member_geom geo:asWKT ?member_wkt . }"
+                        "?member geo:hasGeometry ?member_geom ."
+                        "?member_geom geo:asWKT ?member_wkt ."
                     )
                 for v in ["?member", "?pos"]:
                     if v not in select_parts:
@@ -1089,8 +1089,8 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     # come after `?m osmrel:member_id ?member` so ?member is
                     # bound — otherwise QLever full-scans geo:hasGeometry.
                     branch_lines.append(
-                        "OPTIONAL { ?member geo:hasGeometry ?member_geom ."
-                        " ?member_geom geo:asWKT ?member_wkt . }"
+                        "?member geo:hasGeometry ?member_geom ."
+                        "?member_geom geo:asWKT ?member_wkt ."
                     )
                 for v in ["?member", "?pos", "?role"]:
                     if v not in select_parts:

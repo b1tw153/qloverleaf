@@ -1,11 +1,13 @@
 import time
 from collections.abc import AsyncGenerator
+from importlib.resources import files
 from urllib.parse import parse_qs
 
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
-from starlette.routing import Route
+from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 
 from qloverleaf import interpreter
 from qloverleaf.parser import parse
@@ -20,6 +22,10 @@ async def _safe_stream(
             yield chunk
     except Exception as e:
         yield f"\n\n[ERROR: {e}]"
+
+
+async def health(request: Request) -> Response:
+    return Response("ok")
 
 
 async def listener(request: Request) -> Response:
@@ -60,8 +66,12 @@ async def listener(request: Request) -> Response:
     )
 
 
+_static_path = str(files("qloverleaf").joinpath("static"))
+
 app = Starlette(
     routes=[
+        Route("/health", health, methods=["GET"]),
         Route("/api/interpreter", listener, methods=["GET", "POST"]),
+        Mount("/", StaticFiles(directory=_static_path, html=True)),
     ]
 )

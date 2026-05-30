@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QLoverleaf</title>
+</head>
+<body>
+<h1>Qloverleaf POC</h1>
+<p><img alt="QLoverleaf" src="logo.svg" /></p>
+<h2>Overpass QL to QLever Interpreter</h2>
+<p>Qloverleaf is a proof-of-concept interpreter that translates Overpass QL queries to
+QLever queries, executes the queries at <a href="https://qlever.dev">Qlever</a>, and formats the
+results as Overpass GeoJSON or OSM XML output.</p>
+<h2>Proof-of-Concept</h2>
+<p>The current implementation is an incomplete proof-of-concept that demonstrates the
+possiblity of adapting Overpass QL queries to a different back end data source.</p>
+<p>As a proof-of-concept, the project is not and is not intended to be used for
+production use. There are several operational limits to consider when using the
+Qloverleaf interpreter:</p>
+<ul>
+<li>The code is not robust and may fail for operational reasons</li>
+<li>The query translations are not optimized - it is relatively easy to write an
+  Overpass QL query that the interpreter will translate into a QLever query that will
+  fail</li>
+<li>The POC is running on a minimal system with limited processing power and network
+  bandwidth</li>
+<li>Complex queries and queries that return large data sets will likely fail due to
+  query timeouts or resource limitations</li>
+</ul>
+<h2>Unimplemented Features</h2>
+<p>Some aspects of the Overpass QL language have been in the implementation plans but are
+not implemented yet:</p>
+<ul>
+<li>[timeout: ] global setting</li>
+<li>[bbox: ] global setting</li>
+<li>[maxsize: ] global setting</li>
+<li>union statement, e.g., <code>( .a; .b; );</code></li>
+<li>recurse statements, i.e., <code>&gt;; &gt;&gt;; &lt;; &lt;&lt;;</code></li>
+<li>is_in statement</li>
+<li>map_to_area statement</li>
+<li>foreach statement</li>
+<li>for statement</li>
+<li>complete statement</li>
+<li>if statement</li>
+<li>convert statement</li>
+<li>make statement</li>
+<li>derived types</li>
+<li>count_tags() evaluator</li>
+<li>count_members() evaluator</li>
+<li>count_distinct_members() evaluator</li>
+<li>count_by_role() evaluator</li>
+<li>count_distinct_by_role() evaluator</li>
+<li>u() evaluator</li>
+<li>min() evalutor</li>
+<li>max() evaluator</li>
+<li>sum() evaluator</li>
+<li>count() evaluator</li>
+<li>set.val evaluator</li>
+<li>CSV output</li>
+<li>popup output</li>
+<li>custom output</li>
+<li>sets containing both NWR elements and AREA elements</li>
+<li>(if: ) filter evaluators that require SPARQL subqueries (the if filter is supported
+  in other cases)</li>
+</ul>
+<p>The unimplemented features are generally "possible" to implement using QLever and the
+Qloverleaf interpreter, but simply have not been implemented yet. And the relative
+difficulty of implementing these features varies - some are relatively easy, others
+are relatively hard.</p>
+<h2>Unsupported Features</h2>
+<p>Some aspects of Overpass QL do not translate well to SPARQL queries or the QLever RDF
+schema for OSM. In general, QLever does not have OSM history data, so none of the
+Overpass QL operations that rely on attic data can be supported. There is no native
+support in QLever for derived or constructed types, nor have these been implemented in
+the local query interpreter. Some documented Overpass QL features (e.g., noids) are
+broken and the behavior is not reproducible. Individual way vertices are not
+addressible in QLever queries.</p>
+<p>These features are unsupported with no implementation plans at this time:</p>
+<ul>
+<li>[date: ] global setting - no history data</li>
+<li>[diff: ] global setting - no history data</li>
+<li>[adiff: ] global setting - no history data</li>
+<li>retro statement - no history data</li>
+<li>timeline statement - no history data</li>
+<li>local statement - no history data</li>
+<li>compare statement - no history data</li>
+<li>(bbox) filter in out statement - broken in Overpass</li>
+<li>noids mode in out statement - broken in Overpass</li>
+<li>qt sort in out statment - no quad tile index</li>
+<li><code>[~key~regex]</code> filter - no practical query translation</li>
+<li>(changed: ) filter - no history data</li>
+<li>(user_touched: ) filter - no history data</li>
+<li>(uid_touched: ) filter - no history data</li>
+<li>(way_link: ) filter - no practical query translation</li>
+<li><code>t[ ]</code> tag value evaluator with a dynamic key (static keys are supported)</li>
+<li>keys() evaluator - constructed type</li>
+<li><code>::</code> generic tag evaluator - constructed type</li>
+<li>geom() evaluator - constructed type</li>
+<li>center() evaluator - constructed type</li>
+<li>trace() evaluator - constructed type</li>
+<li>hull() evaluator - constructed type</li>
+<li>pt() evaluator - constructed type</li>
+<li>lstr() evaluator - constructed type</li>
+<li>poly() evaluator - constructed type</li>
+<li>per_member() evaluator - not addressable</li>
+<li>per_vertex() evaluator - not addressable</li>
+<li>pos() evaluator - not addressable</li>
+<li>mtype() evaluator - not addressable</li>
+<li>ref() evaluator - not addressable</li>
+<li>role() evaluator - not addressable</li>
+<li>angle() evaluator - not addressable</li>
+<li>set() evaluator - constructed type</li>
+<li>gcat() evaluator - constructed type</li>
+<li>lrs_in() evaluator - constructed type</li>
+<li>lrs_isect() evaluator - constructed type</li>
+<li>lrs_union() evaluator - constructed type</li>
+<li>lrs_min() evaluator - constructed type</li>
+<li>lrs_max() evaluator - constructed type</li>
+</ul>
+<h2>Known Bugs</h2>
+<ul>
+<li>[bbox: ] global setting is not applied</li>
+<li>[timeout: ] global setting is not applied</li>
+<li>[maxsize: ] global setting is not applied</li>
+<li>center out mode fails</li>
+<li>output limit restricts the number of rows returned from QLever instead of limiting
+  the number of OSM elements returned in the result set</li>
+<li>... and certainly many more that are unknown</li>
+</ul>
+<p>If you find behavior that looks like a bug, please report it as an issue in the
+<a href="https://github.com/b1tw153/qloverleaf">Qloverleaf project on GitHub</a>.</p>
+<h2>Enhancements</h2>
+<p>Qloverleaf supports some additional features for debugging and evaluation purposes.</p>
+<ul>
+<li><code>[out:raw]</code> renders the output from QLever as plain text</li>
+<li><code>out debug</code> dumps the state of the selected set and the QLever query that would be
+  used to collect data for the output instead of executing the query. This token can
+  be combined with other <code>out</code> tokens, e.g., <code>out body geom debug;</code></li>
+</ul>
+<h2>Other Quirks</h2>
+<p>There are a number of ways in which Qloverleaf behaves differently than Overpass. The
+grammar is more strict. The parser performs static typing of set and scalar results.
+And in cases where Overpass permits nonsensical query structures, Qloverleaf often
+reports errors.</p>
+<p>Qloverleaf's warnings and errors are reported the same way that Overpass reports
+errors, so you may see them in popups in Overpass Turbo.</p>
+</body>
+</html>

@@ -384,8 +384,8 @@ def _translate_tag_value(
     evaluator: TagValueEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
     key = evaluator.evaluator.value
-    var = _evaluator_variable_name(variable_base, evaluator.token, key)
-    clause = f"OPTIONAL {{ {element_var} osmkey:{key} {var} }}"
+    var = _evaluator_variable_name(variable_base, evaluator.token, "t")
+    clause = f"{element_var} osmkey:{key} {var}"
     return EvaluatorPattern(
         expression=f'COALESCE({var}, "")',
         prefixes={"osmkey"},

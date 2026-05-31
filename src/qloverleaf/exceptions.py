@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from lark import Token
 
 
-class QLoverleafError(Exception):
+class QloverleafError(Exception):
     def __init__(self, message: str, token: Token | None = None) -> None:
         super().__init__(message)
         self.token = token
@@ -15,11 +15,11 @@ class QLoverleafError(Exception):
         return msg
 
 
-class ParseError(QLoverleafError):
+class ParseError(QloverleafError):
     pass
 
 
-class QueryError(QLoverleafError):
+class QueryError(QloverleafError):
     pass
 
 
@@ -35,13 +35,13 @@ class UnimplementedFeatureError(QueryError):
     pass
 
 
-class TranslationError(QLoverleafError):
+class TranslationError(QloverleafError):
     """Translator produced SPARQL that QLever rejected — indicates a translator bug."""
 
     pass
 
 
-class ExecutionError(QLoverleafError):
+class ExecutionError(QloverleafError):
     pass
 
 

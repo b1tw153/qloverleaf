@@ -1,6 +1,6 @@
 # Qloverleaf POC
 
-![QLoverleaf](logo.svg)
+![Qloverleaf](logo.svg)
 
 ## Overpass QL to QLever Interpreter
 

@@ -724,7 +724,7 @@ class ForStatement(Statement):
 class CompleteStatement(Statement):
     input_set: SetReference
     output_set: SetReference
-    max_iterations: int | None
+    max_iterations: int
     body: list[Statement]
 
     def get_output_types(

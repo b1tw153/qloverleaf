@@ -3708,3 +3708,111 @@ def test_count_distinct_by_role_target_set_stamped() -> None:
     assert isinstance(expr, CountByRoleEvaluator)
     assert expr.target_set is not None
     assert expr.target_set.name == "_"
+
+
+# ---------------------------------------------------------------------------
+# constrained
+# ---------------------------------------------------------------------------
+
+
+def test_query_statement_constrained() -> None:
+    result = _transform_query("node(1)(if:1);")
+    assert isinstance(result, Query)
+    assert result.warnings == []
+
+
+def test_query_statement_not_constrained() -> None:
+    result = _transform_query("node[highway](if:1);")
+    assert isinstance(result, Query)
+    assert any("Unconstrained" in w.message for w in result.warnings)
+
+
+def test_foreach_statement_constrained() -> None:
+    result = _transform_query("node(1) -> .a; foreach .a { out; }")
+    assert isinstance(result, Query)
+    assert result.warnings == []
+
+
+def test_foreach_statement_not_constrained() -> None:
+    result = _transform_query("node -> .a; foreach .a { out; }")
+    assert isinstance(result, Query)
+    assert len(result.warnings) == 2
+    assert any("Unconstrained" in w.message for w in result.warnings)
+
+
+def test_for_statement_constrained() -> None:
+    result = _transform_query("node(1) -> .a; for .a (1) { out; }")
+    assert isinstance(result, Query)
+    assert result.warnings == []
+
+
+def test_for_statement_not_constrained() -> None:
+    result = _transform_query("node -> .a; for .a (1) { out; }")
+    assert isinstance(result, Query)
+    assert len(result.warnings) == 2
+    assert any("Unconstrained" in w.message for w in result.warnings)
+
+
+def test_complete_statement_constrained() -> None:
+    result = _transform_query("node(1) -> .a; complete .a { way(100) -> .a; }")
+    assert isinstance(result, Query)
+    assert result.warnings == []
+
+
+def test_complete_statement_not_constrained() -> None:
+    result = _transform_query("node(1) -> .a; complete .a { way -> .a; }")
+    assert isinstance(result, Query)
+    assert len(result.warnings) == 2
+    assert any("Unconstrained" in w.message for w in result.warnings)
+
+
+def test_union_statement_constrained() -> None:
+    result = _transform_query("node(1) -> .a; way(100) -> .b; ( .a; .b; );")
+    assert isinstance(result, Query)
+    assert result.warnings == []
+
+
+def test_union_statement_not_constrained() -> None:
+    result = _transform_query("node(1) -> .a; way -> .b; ( .a; .b; );")
+    assert isinstance(result, Query)
+    assert len(result.warnings) == 3
+    assert any("Unconstrained" in w.message for w in result.warnings)
+
+
+def test_recurse_statement_constrained() -> None:
+    result = _transform_query("node(1) -> .a; .a >;")
+    assert isinstance(result, Query)
+    assert result.warnings == []
+
+
+def test_recurse_statement_not_constrained() -> None:
+    result = _transform_query("node -> .a; .a >;")
+    assert isinstance(result, Query)
+    assert len(result.warnings) == 2
+    assert any("Unconstrained" in w.message for w in result.warnings)
+
+
+def test_is_in_statement_constrained() -> None:
+    result = _transform_query("node(1) -> .a; .a is_in;")
+    assert isinstance(result, Query)
+    assert result.warnings == []
+
+
+def test_is_in_statement_not_constrained() -> None:
+    result = _transform_query("node -> .a; .a is_in;")
+    assert isinstance(result, Query)
+    assert len(result.warnings) == 2
+    assert any("Unconstrained" in w.message for w in result.warnings)
+
+
+def test_map_to_area_statement_constrained() -> None:
+    result = _transform_query("way(100) -> .a; .a map_to_area;")
+    assert isinstance(result, Query)
+    assert result.warnings == []
+
+
+def test_map_to_area_statement_not_constrained() -> None:
+    result = _transform_query("way -> .a; .a map_to_area;")
+    assert isinstance(result, Query)
+    assert len(result.warnings) == 2
+    assert any("Unconstrained" in w.message for w in result.warnings)

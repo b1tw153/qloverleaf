@@ -4,10 +4,13 @@ import xml.etree.ElementTree as ET
 from typing import Any, cast
 
 import httpx
+import pytest
 
 from qloverleaf import interpreter
 from qloverleaf.parser import parse
 from qloverleaf.query_context import QueryContext
+
+pytestmark = pytest.mark.live
 
 OVERPASS_URL = "http://localhost/api/interpreter"
 

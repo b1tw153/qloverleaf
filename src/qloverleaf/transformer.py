@@ -150,13 +150,13 @@ class LatLon:
     token: Token
 
 
-# TODO: Add a constrained field or property to statements, filters, and sets. If the
-# statement or filter will produce an unacceptably large result set on its own, or if
-# the statement or filter will not constrain the scope of index scanning in Qlever it is
-# not constrained. The query statement is constrained if any of its filters are
-# constrained. A set is constrained if the statement that assigns to it is constrained.
-# Propagate constrained values during set assignment and warn if a statement with
-# versioned sets is unconstrained.
+# Filters, statements, and set references carry a constrained value (YES, NO, or None
+# for indeterminate). A filter is constrained if it limits index scanning in QLever to
+# an acceptable scope on its own. A statement is constrained if any of its filters are
+# constrained (QueryStatement), all members are constrained # (UnionStatement), or its
+# input set is constrained (all others). A set reference inherits its constrained value
+# from the statement that assigned to it via _stamp_write. _walk_stmt warns after each
+# statement dispatch if the statement has an output set and is not constrained.
 class Constrained(Enum):
     YES = "yes"
     NO = "no"
@@ -174,6 +174,7 @@ class SetReference:
     # None = set types are indefinite
     required_types: frozenset[ElementType] | None = field(default=None)
     content_types: frozenset[ElementType] | None = field(default=None)
+    constrained: Constrained | None = None
 
     @property
     def identifier(self) -> str:
@@ -428,11 +429,19 @@ class QueryFilter:
     token: Token | None  # None when set_reference is implicit
     output_types: frozenset[ElementType] | None = field(default=None)
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return None
+
 
 @dataclass
 class TagKeyFilter(QueryFilter):
     key: str
     absent: bool
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.NO
 
 
 @dataclass
@@ -442,6 +451,10 @@ class TagValueFilter(QueryFilter):
     value: str
     case_insensitive: bool
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.YES
+
 
 @dataclass
 class BboxFilter(QueryFilter):
@@ -450,16 +463,28 @@ class BboxFilter(QueryFilter):
     north: str
     east: str
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.NO
+
 
 @dataclass
 class IdFilter(QueryFilter):
     ids: list[int]
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.YES
 
 
 @dataclass
 class AroundSetFilter(QueryFilter):
     radius: str
     set_reference: SetReference
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.set_reference.constrained
 
 
 @dataclass
@@ -468,41 +493,73 @@ class AroundPointFilter(QueryFilter):
     lat: str
     lon: str
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.YES
+
 
 @dataclass
 class AroundLineFilter(QueryFilter):
     radius: str
     points: list[LatLon]
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.YES
+
 
 @dataclass
 class PolygonFilter(QueryFilter):
     points: list[LatLon]
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.YES
 
 
 @dataclass
 class NewerFilter(QueryFilter):
     timestamp: datetime
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.NO
+
 
 @dataclass
 class UserFilter(QueryFilter):
     users: list[str]
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.YES
 
 
 @dataclass
 class UidFilter(QueryFilter):
     uids: list[int]
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.YES
+
 
 @dataclass
 class AreaSetFilter(QueryFilter):
     set_reference: SetReference
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.set_reference.constrained
+
 
 @dataclass
 class AreaIdFilter(QueryFilter):
     area_id: int
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.YES
 
 
 @dataclass
@@ -510,6 +567,10 @@ class RecurseFilter(QueryFilter):
     recurse_type: RecurseFilterType
     set_reference: SetReference
     role: str | None
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.set_reference.constrained
 
 
 @dataclass
@@ -519,20 +580,36 @@ class WayCountFilter(QueryFilter):
     max_count: int | None  # None means open upper bound (N-)
     exact: bool  # True if no dash (exact match)
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.set_reference.constrained
+
 
 @dataclass
 class SetFilter(QueryFilter):
     set_reference: SetReference
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.set_reference.constrained
 
 
 @dataclass
 class PivotFilter(QueryFilter):
     set_reference: SetReference
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.set_reference.constrained
+
 
 @dataclass
 class IfFilter(QueryFilter):
     evaluator: Evaluator
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return Constrained.NO
 
 
 # Top Level Classes
@@ -546,6 +623,10 @@ class Statement:
         self,
         warnings: list[QueryWarning],
     ) -> frozenset[ElementType] | None:
+        return None
+
+    @property
+    def constrained(self) -> Constrained | None:
         return None
 
 
@@ -592,6 +673,16 @@ class QueryStatement(Statement):
                 break
         return current_types
 
+    @property
+    def constrained(self) -> Constrained | None:
+        constrained: Constrained | None = Constrained.NO
+        for filter in self.filters:
+            if filter.constrained == Constrained.YES:
+                return Constrained.YES
+            elif filter.constrained is None:
+                constrained = None
+        return constrained
+
 
 # Block Statement Classes
 
@@ -607,6 +698,10 @@ class ForeachStatement(Statement):
     ) -> frozenset[ElementType] | None:
         return self.input_set.content_types
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.input_set.constrained
+
 
 @dataclass
 class ForStatement(Statement):
@@ -619,6 +714,10 @@ class ForStatement(Statement):
         self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         return self.input_set.content_types
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.input_set.constrained
 
 
 @dataclass
@@ -713,6 +812,61 @@ class CompleteStatement(Statement):
         # incoming type until body_final stabilizes (fixed-point iteration).
         return self.input_set.content_types | body_final
 
+    @property
+    def constrained(self) -> Constrained | None:
+        if self.input_set.constrained is None:
+            return None
+        if self.input_set.constrained == Constrained.NO:
+            return Constrained.NO
+
+        accum_name = self.input_set.name
+
+        def merge(a: Constrained | None, b: Constrained | None) -> Constrained | None:
+            if a == Constrained.NO or b == Constrained.NO:
+                return Constrained.NO
+            if a is None or b is None:
+                return None
+            return Constrained.YES
+
+        def walk(
+            statements: list[Statement],
+            current: Constrained | None,
+        ) -> Constrained | None:
+            for statement in statements:
+                if isinstance(statement, (ForeachStatement, ForStatement)):
+                    if statement.output_set.name == accum_name:
+                        # loop exit empties the set; empty is trivially constrained
+                        current = Constrained.YES
+                    else:
+                        current = walk(statement.body, current)
+                elif isinstance(statement, IfStatement):
+                    then_result = walk(statement.then_body, current)
+                    else_result = (
+                        walk(statement.else_body, current)
+                        if statement.else_body
+                        else current
+                    )
+                    current = merge(then_result, else_result)
+                elif isinstance(statement, CompleteStatement):
+                    if statement.output_set.name == accum_name:
+                        current = statement.constrained
+                elif isinstance(statement, UnionStatement):
+                    if statement.output_set.name == accum_name:
+                        current = statement.constrained
+                    else:
+                        current = walk(
+                            [m.statement for m in statement.members], current
+                        )
+                else:
+                    output_set: SetReference | None = getattr(
+                        statement, "output_set", None
+                    )
+                    if output_set is not None and output_set.name == accum_name:
+                        current = statement.constrained
+            return current
+
+        return walk(self.body, self.input_set.constrained)  # YES at this point
+
 
 @dataclass
 class IfStatement(Statement):
@@ -766,6 +920,16 @@ class UnionStatement(Statement):
             )
         return result
 
+    @property
+    def constrained(self) -> Constrained | None:
+        constrained: Constrained | None = Constrained.YES
+        for member in self.members:
+            if member.statement.constrained == Constrained.NO:
+                return Constrained.NO
+            elif member.statement.constrained is None:
+                constrained = None
+        return constrained
+
 
 @dataclass
 class ItemStatement(Statement):
@@ -776,6 +940,10 @@ class ItemStatement(Statement):
         self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         return self.input_set.content_types
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.input_set.constrained
 
 
 @dataclass
@@ -826,6 +994,10 @@ class RecurseStatement(Statement):
                 result |= _RELATION
         return result
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.input_set.constrained
+
 
 @dataclass
 class IsInStatement(Statement):
@@ -839,6 +1011,10 @@ class IsInStatement(Statement):
     ) -> frozenset[ElementType] | None:
         return _AREA
 
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.input_set.constrained
+
 
 @dataclass
 class MapToAreaStatement(Statement):
@@ -849,6 +1025,10 @@ class MapToAreaStatement(Statement):
         self, warnings: list[QueryWarning]
     ) -> frozenset[ElementType] | None:
         return _AREA
+
+    @property
+    def constrained(self) -> Constrained | None:
+        return self.input_set.constrained
 
 
 # Helper Functions
@@ -882,8 +1062,10 @@ def _unquote(token: Token) -> str:
 # Phase 2 — Set Version Assignment
 
 
-_SetState = tuple[int, frozenset[ElementType] | None]
+_SetState = tuple[int, frozenset[ElementType] | None, Constrained | None]
 _State = dict[str, _SetState]
+
+_EMPTY_SET_STATE: _SetState = (0, _NONE, Constrained.YES)
 
 
 def _stamp_read(ref: SetReference, state: _State, warnings: list[QueryWarning]) -> None:
@@ -891,10 +1073,11 @@ def _stamp_read(ref: SetReference, state: _State, warnings: list[QueryWarning]) 
         warnings.append(
             QueryWarning(f"Uninitialized set .{ref.name} contains no data", ref.token)
         )
-        state[ref.name] = (0, _NONE)
-    version, content_types = state[ref.name]
+        state[ref.name] = _EMPTY_SET_STATE
+    version, content_types, constrained = state[ref.name]
     ref.version = version
     ref.content_types = content_types
+    ref.constrained = constrained
     assert content_types is not None
     if ref.required_types is not None and content_types & ref.required_types == _NONE:
         have = [e.name for e in content_types] if content_types else ["nothing"]
@@ -911,11 +1094,13 @@ def _stamp_write(
     ref: SetReference,
     state: _State,
     types: frozenset[ElementType] | None,
+    constrained: Constrained | None,
 ) -> None:
     version = (state[ref.name][0] if ref.name in state else 0) + 1
-    state[ref.name] = (version, types)
+    state[ref.name] = (version, types, constrained)
     ref.version = version
     ref.content_types = types
+    ref.constrained = constrained
     if types is not None and types & _NWR and types & _AREA:
         raise UnimplementedFeatureError(
             f"Set cannot contain both {types & _NWR} and {types & _AREA}", ref.token
@@ -972,7 +1157,17 @@ def _walk_stmt(stmt: Statement, state: _State, warnings: list[QueryWarning]) -> 
                 _stamp_filter_refs(f, state, warnings)
         output_set: SetReference | None = getattr(stmt, "output_set", None)
         if output_set is not None:
-            _stamp_write(output_set, state, stmt.get_output_types(warnings))
+            _stamp_write(
+                output_set, state, stmt.get_output_types(warnings), stmt.constrained
+            )
+    output_set_ref: SetReference | None = getattr(stmt, "output_set", None)
+    if output_set_ref is not None and stmt.constrained != Constrained.YES:
+        warnings.append(
+            QueryWarning(
+                "Unconstrained statement may scan the entire planet",
+                stmt.token,
+            )
+        )
 
 
 def _walk_loop(
@@ -983,9 +1178,11 @@ def _walk_loop(
     _stamp_read(stmt.input_set, state, warnings)
     if isinstance(stmt, ForStatement):
         _stamp_evaluator(stmt.evaluator, state, warnings)
-    _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
+    _stamp_write(
+        stmt.output_set, state, stmt.get_output_types(warnings), stmt.constrained
+    )
     _walk_stmts(stmt.body, state, warnings)
-    _stamp_write(stmt.output_set, state, _NONE)
+    _stamp_write(stmt.output_set, state, _NONE, Constrained.YES)
 
 
 def _walk_complete(
@@ -994,9 +1191,13 @@ def _walk_complete(
     warnings: list[QueryWarning],
 ) -> None:
     _stamp_read(stmt.input_set, state, warnings)
-    _stamp_write(stmt.output_set, state, stmt.input_set.content_types)
+    _stamp_write(
+        stmt.output_set, state, stmt.input_set.content_types, stmt.input_set.constrained
+    )
     _walk_stmts(stmt.body, state, warnings)
-    _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
+    _stamp_write(
+        stmt.output_set, state, stmt.get_output_types(warnings), stmt.constrained
+    )
 
 
 def _walk_union(
@@ -1004,7 +1205,9 @@ def _walk_union(
 ) -> None:
     for member in stmt.members:
         _walk_stmt(member.statement, state, warnings)
-    _stamp_write(stmt.output_set, state, stmt.get_output_types(warnings))
+    _stamp_write(
+        stmt.output_set, state, stmt.get_output_types(warnings), stmt.constrained
+    )
 
 
 def _walk_if(stmt: IfStatement, state: _State, warnings: list[QueryWarning]) -> None:
@@ -1015,17 +1218,26 @@ def _walk_if(stmt: IfStatement, state: _State, warnings: list[QueryWarning]) -> 
     _walk_stmts(stmt.else_body or [], else_state, warnings)
 
     def _written(branch: _State) -> set[str]:
-        return {n for n in branch if branch[n][0] > state.get(n, (0, _NONE))[0]}
+        return {n for n in branch if branch[n][0] > state.get(n, _EMPTY_SET_STATE)[0]}
 
     written = _written(then_state) | _written(else_state)
     for name in written:
-        then_types = then_state.get(name, state.get(name, (0, _NONE)))[1]
-        else_types = else_state.get(name, state.get(name, (0, _NONE)))[1]
+        then_entry = then_state.get(name, state.get(name, _EMPTY_SET_STATE))
+        else_entry = else_state.get(name, state.get(name, _EMPTY_SET_STATE))
+        then_types, else_types = then_entry[1], else_entry[1]
         if then_types is None or else_types is None:
             merged_types: frozenset[ElementType] | None = None
         else:
             merged_types = then_types | else_types
-        state[name] = (state.get(name, (0, _NONE))[0] + 1, merged_types)
+        then_constrained, else_constrained = then_entry[2], else_entry[2]
+        if then_constrained == Constrained.NO or else_constrained == Constrained.NO:
+            merged_constrained: Constrained | None = Constrained.NO
+        elif then_constrained is None or else_constrained is None:
+            merged_constrained = None
+        else:
+            merged_constrained = Constrained.YES
+        version = state.get(name, _EMPTY_SET_STATE)[0] + 1
+        state[name] = (version, merged_types, merged_constrained)
 
 
 def _resolve_types(query: Query) -> None:
@@ -1575,7 +1787,7 @@ class OverpassTransformer(Transformer[Token, Query]):
     def complete_stmt(self, children: list[Any]) -> CompleteStatement:
         input_set = SetReference(name="_", token=None)
         output_set = SetReference(name="_", token=None)
-        max_iterations = None
+        max_iterations = 4096
         body: list[Any] = []
         for child in children:
             if isinstance(child, SetReference):

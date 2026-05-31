@@ -560,7 +560,7 @@ def test_resolve_types_complete_output_set_versioned_in_body() -> None:
         "node(1) -> .a;"
         "complete .a -> .b {"
         "  .b out ids;"
-        "  way -> .b;"
+        "  way(100) -> .b;"
         "  .b out ids;"
         "}"
         ".b out ids;"
@@ -713,7 +713,7 @@ def test_resolve_types_complete_named_input() -> None:
 
 def test_resolve_types_required_types_match_no_warning() -> None:
     # area_set_filter requires {area}; map_to_area produces {area} — no warning
-    query = _transform_query("way -> .a; .a map_to_area -> ._; node(area._);")
+    query = _transform_query("way(100) -> .a; .a map_to_area -> ._; node(area._);")
     assert not query.warnings
 
 
@@ -1066,7 +1066,7 @@ def test_bbox_filter_values_area() -> None:
 def test_bbox_filter_inverted_warns() -> None:
     transformer = OverpassTransformer()
     transformer.transform(parse("node(51.6,-0.2,51.5,-0.1);"))
-    assert len(transformer.warnings) == 1
+    assert len(transformer.warnings) == 2
     assert "south >= north" in transformer.warnings[0].message
 
 
@@ -1799,7 +1799,7 @@ def test_for_get_output_types_unassigned() -> None:
 
 
 def test_for_get_output_types_assigned() -> None:
-    query = _transform_query("node -> .x; for .x -> .a (1) { .a out; }")
+    query = _transform_query("node(1) -> .x; for .x -> .a (1) { .a out; }")
     assert not query.warnings
     stmt = query.statements[1]
     assert stmt.input_set.content_types == _NODE
@@ -1840,7 +1840,7 @@ def test_complete_max_iterations() -> None:
 
 def test_complete_no_max_iterations() -> None:
     stmt = _complete_stmt("complete { node; }")
-    assert stmt.max_iterations is None
+    assert stmt.max_iterations == 4096
 
 
 def test_complete_body() -> None:
@@ -1866,7 +1866,7 @@ def test_complete_get_output_types_input_unassigned() -> None:
 
 
 def test_complete_get_output_types_input_assigned() -> None:
-    query = _transform_query("way; complete { node; }")
+    query = _transform_query("way(100); complete { node(1); }")
     assert not query.warnings
     stmt = query.statements[1]
     assert isinstance(stmt, CompleteStatement)
@@ -2465,41 +2465,6 @@ def test_out_count_with_sort_raises() -> None:
 def test_out_count_with_limit_raises() -> None:
     with pytest.raises(QueryError):
         _out_stmt("out count 5;")
-
-
-def test_out_count_with_debug_raises() -> None:
-    with pytest.raises(QueryError):
-        _out_stmt("out count debug;")
-
-
-def test_out_debug_with_verbosity_raises() -> None:
-    with pytest.raises(QueryError):
-        _out_stmt("out debug body;")
-
-
-def test_out_debug_with_geom_raises() -> None:
-    with pytest.raises(QueryError):
-        _out_stmt("out debug geom;")
-
-
-def test_out_debug_with_bb_raises() -> None:
-    with pytest.raises(QueryError):
-        _out_stmt("out debug bb;")
-
-
-def test_out_debug_with_center_raises() -> None:
-    with pytest.raises(QueryError):
-        _out_stmt("out debug center;")
-
-
-def test_out_debug_with_sort_raises() -> None:
-    with pytest.raises(QueryError):
-        _out_stmt("out debug qt;")
-
-
-def test_out_debug_with_limit_raises() -> None:
-    with pytest.raises(QueryError):
-        _out_stmt("out debug 5;")
 
 
 def test_out_noids_raises() -> None:

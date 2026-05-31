@@ -259,7 +259,7 @@ def _add_type_filter(
     pattern.prefixes |= {"rdf", "osm"}
     if len(osm_types) == 1:
         pattern.where_clauses.append(f"{result_variable} rdf:type osm:{osm_types[0]} .")
-    else:
+    elif len(osm_types) == 2:
         union = " UNION ".join(
             f"{{ {result_variable} rdf:type osm:{t} }}" for t in osm_types
         )

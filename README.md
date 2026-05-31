@@ -158,13 +158,13 @@ These features are unsupported with no implementation plans at this time:
 
 ## Known Bugs
 
-- `[out:xml]` combined with `out geom` is not working - try `[out:json]` instead
 - [bbox: ] global setting is not applied
 - [timeout: ] global setting is not applied
 - [maxsize: ] global setting is not applied
 - center out mode fails
 - output limit restricts the number of rows returned from QLever instead of limiting
   the number of OSM elements returned in the result set
+- the logo on this page is not rendering correctly
 - ... and certainly many more that are unknown
 
 If you find behavior that looks like a bug, please report it as an issue in the

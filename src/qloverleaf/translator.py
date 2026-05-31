@@ -78,6 +78,7 @@ SPARQL_PREFIXES: dict[str, str] = {
     "xsd": "http://www.w3.org/2001/XMLSchema#",
     "osm": "https://www.openstreetmap.org/",
     "osmkey": "https://www.openstreetmap.org/wiki/Key:",
+    "osmn": "http://www.openstreetmap.org/node/",
     "osmnode": "https://www.openstreetmap.org/node/",
     "osmway": "https://www.openstreetmap.org/way/",
     "osmrel": "https://www.openstreetmap.org/relation/",
@@ -415,6 +416,8 @@ def _translate_id_filter(
     osm_types = [t for t in _OSM_TYPE_ORDER if t in f.output_types]
     for t in osm_types:
         pattern.prefixes.add(_OSM_TYPE_PREFIXES[t])
+        if t is ElementType.NODE:
+            pattern.prefixes.add("osmn")
     uris: list[str] = []
     for t in osm_types:
         for id_ in f.ids:
@@ -423,7 +426,7 @@ def _translate_id_filter(
                 # osm2rdf stores untagged nodes under http:// and tagged nodes
                 # under https://; emit both forms so the VALUES set matches
                 # whichever scheme the node actually lives at.
-                uris.append(f"<http://www.openstreetmap.org/node/{id_}>")
+                uris.append(f"osmn:{id_}")
     pattern.where_clauses.append(f"VALUES {result_variable} {{ {' '.join(uris)} }}")
 
 

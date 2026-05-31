@@ -1072,6 +1072,16 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     f"{result_variable} geo:hasGeometry ?geom .",
                     "?geom geo:asWKT ?wkt .",
                 ]
+                if include_meta:
+                    branch_lines.extend(
+                        [
+                            f"{result_variable} osmeta:version ?version .",
+                            f"{result_variable} osmeta:timestamp ?timestamp .",
+                            f"{result_variable} osmeta:changeset ?changeset .",
+                            f"{result_variable} osmeta:uid ?uid .",
+                            f"{result_variable} osmeta:user ?user .",
+                        ]
+                    )
                 if "?wkt" not in select_parts:
                     select_parts.append("?wkt")
             elif elem_type == ElementType.WAY:
@@ -1082,6 +1092,16 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     "?m osmway:member_id ?member .",
                     "?m osmway:member_pos ?pos .",
                 ]
+                if include_meta:
+                    branch_lines.extend(
+                        [
+                            f"{result_variable} osmeta:version ?version .",
+                            f"{result_variable} osmeta:timestamp ?timestamp .",
+                            f"{result_variable} osmeta:changeset ?changeset .",
+                            f"{result_variable} osmeta:uid ?uid .",
+                            f"{result_variable} osmeta:user ?user .",
+                        ]
+                    )
                 if include_member_wkt:
                     # Per-member node WKT (POINT). OPTIONAL guards against
                     # missing geometry, though in practice every node should
@@ -1105,6 +1125,16 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     "?m osmrel:member_pos ?pos .",
                     "?m osmrel:member_role ?role .",
                 ]
+                if include_meta:
+                    branch_lines.extend(
+                        [
+                            f"{result_variable} osmeta:version ?version .",
+                            f"{result_variable} osmeta:timestamp ?timestamp .",
+                            f"{result_variable} osmeta:changeset ?changeset .",
+                            f"{result_variable} osmeta:uid ?uid .",
+                            f"{result_variable} osmeta:user ?user .",
+                        ]
+                    )
                 if include_member_wkt:
                     # Per-member WKT: POINT for node members, LINESTRING/POLYGON
                     # for way members, unbound for sub-relation members. Must
@@ -1158,17 +1188,6 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
 
         pattern.select_clause = " ".join(select_parts)
         pattern.where_clauses.append("\nUNION\n".join(branches))
-
-        if include_meta:
-            pattern.where_clauses.extend(
-                [
-                    f"{result_variable} osmeta:version ?version .",
-                    f"{result_variable} osmeta:timestamp ?timestamp .",
-                    f"{result_variable} osmeta:changeset ?changeset .",
-                    f"{result_variable} osmeta:uid ?uid .",
-                    f"{result_variable} osmeta:user ?user .",
-                ]
-            )
 
         if not stmt.count:
             order_by = result_variable

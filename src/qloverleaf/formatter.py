@@ -85,7 +85,7 @@ def format_begin() -> str:
 
 def _format_begin_xml() -> str:
     return (
-        '<?xml version="{1.0}" encoding="UTF-8"?>\n'
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<osm version="{_VERSION}" generator="{_GENERATOR}">\n'
         f"<note>{_COPYRIGHT}</note>\n"
         "<meta/>\n\n"

@@ -1031,9 +1031,35 @@ def test_tag_filter_not_regex_case_insensitive_area() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_tag_filter_key_regex_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _first_filter('node[~"name"~"cafe"];')
+def test_tag_filter_key_regex() -> None:
+    filter = _first_filter('nwr[~"name"~"cafe"];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "name"
+    assert filter.op == TagFilterOp.KEY_REGEX
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+    assert filter.output_types == _NWR
+
+
+def test_tag_filter_key_regex_area() -> None:
+    filter = _first_filter('area[~"name"~"cafe"];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.key == "name"
+    assert filter.op == TagFilterOp.KEY_REGEX
+    assert filter.value == "cafe"
+    assert filter.case_insensitive is False
+    assert filter.token is not None
+    assert filter.output_types == _AREA
+
+
+def test_tag_filter_key_regex_case_insensitive() -> None:
+    filter = _first_filter('nwr[~"name"~"cafe",i];')
+    assert isinstance(filter, TagValueFilter)
+    assert filter.op == TagFilterOp.KEY_REGEX
+    assert filter.case_insensitive is True
+    assert filter.token is not None
+    assert filter.output_types == _NWR
 
 
 # ---------------------------------------------------------------------------

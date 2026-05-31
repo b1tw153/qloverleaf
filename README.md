@@ -126,7 +126,6 @@ These features are unsupported with no implementation plans at this time:
 - (bbox) filter in out statement - broken in Overpass
 - noids mode in out statement - broken in Overpass
 - qt sort in out statment - no quad tile index
-- `[~key~regex]` filter - no practical query translation
 - (changed: ) filter - no history data
 - (user_touched: ) filter - no history data
 - (uid_touched: ) filter - no history data

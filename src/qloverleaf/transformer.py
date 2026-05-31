@@ -31,6 +31,7 @@ class TagFilterOp(Enum):
     NEQ = "!="
     REGEX = "~"
     NOT_REGEX = "!~"
+    KEY_REGEX = "~~"
 
 
 class RecurseFilterType(Enum):
@@ -453,7 +454,10 @@ class TagValueFilter(QueryFilter):
 
     @property
     def constrained(self) -> Constrained | None:
-        return Constrained.YES
+        if self.op == TagFilterOp.EQ:
+            return Constrained.YES
+        else:
+            return Constrained.NO
 
 
 @dataclass
@@ -1449,10 +1453,15 @@ class OverpassTransformer(Transformer[Token, Query]):
             output_types=_NWRA,
         )
 
-    def tag_filter_key_regex(self, children: list[Any]) -> None:
-        # best known translation forces a full scan over all triples and times out
-        raise UnsupportedFeatureError(
-            "Key regex filter [~key~value] is not supported", children[0]
+    def tag_filter_key_regex(self, children: list[Any]) -> TagValueFilter:
+        case_insensitive = len(children) > 2 and children[2] is True
+        return TagValueFilter(
+            key=_unquote(children[0]),
+            op=TagFilterOp.KEY_REGEX,
+            value=_unquote(children[1]),
+            case_insensitive=case_insensitive,
+            token=children[0],
+            output_types=_NWRA,
         )
 
     def bbox_filter(self, children: list[Any]) -> BboxFilter:

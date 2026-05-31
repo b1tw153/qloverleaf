@@ -366,7 +366,7 @@ def _translate_tag_value_filter(
         pattern.where_clauses.append(
             f"FILTER NOT EXISTS {{ {result_variable} {predicate} {literal} }}"
         )
-    else:
+    elif f.op == TagFilterOp.REGEX or f.op == TagFilterOp.NOT_REGEX:
         value_var = _variable_name(
             output_set, filter_index=filter_index, intermediate="v"
         )
@@ -380,6 +380,20 @@ def _translate_tag_value_filter(
             pattern.where_clauses.append(
                 f"FILTER(!REGEX({value_var}, {literal}{flags}))"
             )
+    else:  # f.op == TagFilterOp.KEY_REGEX
+        value_var = _variable_name(
+            output_set, filter_index=filter_index, intermediate="v"
+        )
+        predicate_var = _variable_name(
+            output_set, filter_index=filter_index, intermediate="p"
+        )
+        pattern.where_clauses.append(f"{result_variable} {predicate_var} {value_var} .")
+        flags = ', "i"' if f.case_insensitive else ""
+        key_regex = _sparql_literal(SPARQL_PREFIXES["osmkey"] + f.key)
+        pattern.where_clauses.append(
+            f"FILTER(REGEX(STR({predicate_var}), {key_regex}{flags}))"
+        )
+        pattern.where_clauses.append(f"FILTER(REGEX({value_var}, {literal}{flags}))")
 
 
 def _translate_bbox_filter(

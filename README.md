@@ -8,6 +8,18 @@ Qloverleaf is a proof-of-concept interpreter that translates Overpass QL queries
 QLever queries, executes the queries at [Qlever](https://qlever.dev), and formats the
 results as Overpass GeoJSON or OSM XML output.
 
+## How to Use the Interpreter
+
+Qloverleaf provides the same HTTP query interface as Overpass. Use the <http://qloverleaf.fly.dev/api> or
+<http://qloverleaf.fly.dev/api/interpreter> URL anywhere that you would normally use the
+URL for Overpass.
+
+You can also make direct queries to the Qloverleaf interpreter:
+
+```bash
+curl -i 'http://qloverleaf.fly.dev/api/interpreter' --data-urlencode 'data=[out:json]; node(1); out;'
+```
+
 ## Proof-of-Concept
 
 The current implementation is an incomplete proof-of-concept that demonstrates the

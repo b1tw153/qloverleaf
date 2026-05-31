@@ -3,7 +3,7 @@ import json
 import xml.etree.ElementTree as ET
 from typing import Any, cast
 
-import requests
+import httpx
 
 from qloverleaf import interpreter
 from qloverleaf.parser import parse
@@ -38,7 +38,7 @@ def _round_floats(obj: Any, places: int = 6) -> Any:
 
 
 def _overpass_elements(query_text: str) -> list[dict[str, Any]]:
-    response = requests.post(OVERPASS_URL, data={"data": query_text})
+    response = httpx.post(OVERPASS_URL, data={"data": query_text})
     response.raise_for_status()
     return cast(list[dict[str, Any]], _round_floats(response.json()["elements"]))
 
@@ -130,7 +130,7 @@ def _parse_xml_elements(xml_text: str) -> list[dict[str, Any]]:
 
 
 def _overpass_elements_xml(query_text: str) -> list[dict[str, Any]]:
-    response = requests.post(OVERPASS_URL, data={"data": query_text})
+    response = httpx.post(OVERPASS_URL, data={"data": query_text})
     response.raise_for_status()
     return _parse_xml_elements(response.text)
 

@@ -1,5 +1,5 @@
 import pytest
-import requests
+import httpx
 
 from qloverleaf.composer import compose
 from qloverleaf.parser import parse
@@ -28,7 +28,7 @@ def _translate_query(text: str) -> list[SparqlPattern]:
 def _execute_overpass(statement: str) -> list[str]:
     """Execute query against Overpass and return element IDs as 'type/id' strings."""
     query = "[out:json];" + statement + "out ids;"
-    response = requests.post(OVERPASS_URL, data={"data": query})
+    response = httpx.post(OVERPASS_URL, data={"data": query})
     response.raise_for_status()
     result = response.json()
     return [f"{elem['type']}/{elem['id']}" for elem in result.get("elements", [])]
@@ -36,7 +36,7 @@ def _execute_overpass(statement: str) -> list[str]:
 
 def _execute_qlever(sparql: str) -> list[str]:
     """Execute SPARQL against QLever and return element IDs as 'type/id' strings."""
-    response = requests.post(
+    response = httpx.post(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
@@ -1650,7 +1650,7 @@ def test_translated_if_is_closed_open_way() -> None:
 
 def _execute_overpass_with_out(query: str) -> list[str]:
     """Execute a complete Overpass query that already includes an out statement."""
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     return [f"{e['type']}/{e['id']}" for e in response.json().get("elements", [])]
 
@@ -1708,7 +1708,7 @@ def _parse_wkt_point(wkt: str) -> tuple[float, float]:
 
 def _overpass_center_coords(query: str) -> dict[str, tuple[float, float]]:
     """Execute Overpass and return {type/id: (lat, lon)} from center or lat/lon."""
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     result = {}
     for elem in response.json().get("elements", []):
@@ -1722,7 +1722,7 @@ def _overpass_center_coords(query: str) -> dict[str, tuple[float, float]]:
 
 def _qlever_centroid_coords(sparql: str) -> dict[str, tuple[float, float]]:
     """Execute SPARQL and return {type/id: (lat, lon)} from ?centroid WKT bindings."""
-    response = requests.post(
+    response = httpx.post(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
@@ -1808,7 +1808,7 @@ def _overpass_skel(
     member_data: {element_key: [(pos, member_key, role)]}
     node_coords: {node_key: (lat, lon)}
     """
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     members: dict[str, list[tuple[int, str, str]]] = {}
     coords: dict[str, tuple[float, float]] = {}
@@ -1837,7 +1837,7 @@ def _qlever_skel(
     member_data: {element_key: [(pos, member_key, role)]}
     node_coords: {node_key: (lat, lon)} parsed from ?wkt POINT bindings
     """
-    response = requests.post(
+    response = httpx.post(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
@@ -1940,7 +1940,7 @@ def test_translated_out_skel_nwr() -> None:
 
 def _overpass_tags(query: str) -> dict[str, dict[str, str]]:
     """Execute Overpass out tags and return {element_key: {tag_key: tag_value}}."""
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     result: dict[str, dict[str, str]] = {}
     for elem in response.json().get("elements", []):
@@ -1951,7 +1951,7 @@ def _overpass_tags(query: str) -> dict[str, dict[str, str]]:
 
 def _qlever_tags(sparql: str) -> dict[str, dict[str, str]]:
     """Execute SPARQL out tags query and return {element_key: {tag_key: tag_value}}."""
-    response = requests.post(
+    response = httpx.post(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
@@ -2015,7 +2015,7 @@ _SkelData = tuple[
 
 def _overpass_body(query: str) -> _SkelData:
     """Execute Overpass out body and return (member_data, node_coords, tags)."""
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     members: dict[str, list[tuple[int, str, str]]] = {}
     coords: dict[str, tuple[float, float]] = {}
@@ -2040,7 +2040,7 @@ def _overpass_body(query: str) -> _SkelData:
 
 def _qlever_body(sparql: str) -> _SkelData:
     """Execute SPARQL out body query and return (member_data, node_coords, tags)."""
-    response = requests.post(
+    response = httpx.post(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
@@ -2150,7 +2150,7 @@ _META_FIELDS = ("version", "timestamp", "changeset", "uid", "user")
 
 def _overpass_meta(query: str) -> _MetaData:
     """Execute Overpass out meta and return (member_data, node_coords, tags, meta)."""
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     members: dict[str, list[tuple[int, str, str]]] = {}
     coords: dict[str, tuple[float, float]] = {}
@@ -2184,7 +2184,7 @@ def _overpass_meta(query: str) -> _MetaData:
 def _qlever_meta(sparql: str) -> _MetaData:
     """Execute SPARQL out meta query and return
     (member_data, node_coords, tags, meta)."""
-    response = requests.post(
+    response = httpx.post(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
@@ -2336,7 +2336,7 @@ def _parse_wkt_coords(wkt: str) -> list[tuple[float, float]]:
 
 def _overpass_geom(query: str) -> _GeomData:
     """Execute Overpass out geom and return (members, node_coords, tags, geom)."""
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     members: dict[str, list[tuple[int, str, str]]] = {}
     coords: dict[str, tuple[float, float]] = {}
@@ -2369,7 +2369,7 @@ def _overpass_geom(query: str) -> _GeomData:
 
 def _qlever_geom(sparql: str) -> _GeomData:
     """Execute SPARQL out geom query and return (members, node_coords, tags, geom)."""
-    response = requests.post(
+    response = httpx.post(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
@@ -2537,7 +2537,7 @@ def _bounds_from_coords(
 
 def _overpass_bb_ids(query: str) -> tuple[dict[str, tuple[float, float]], _BoundsMap]:
     """Execute Overpass `out ids bb` and return (node_coords, bounds)."""
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     coords: dict[str, tuple[float, float]] = {}
     bounds: _BoundsMap = {}
@@ -2558,7 +2558,7 @@ def _qlever_bb_ids(sparql: str) -> tuple[dict[str, tuple[float, float]], _Bounds
     and relations, the LINESTRING/POLYGON WKT is reduced to its min/max
     coordinates to form a bounds tuple.
     """
-    response = requests.post(
+    response = httpx.post(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
@@ -2636,7 +2636,7 @@ def test_translated_out_bb_ids_relation() -> None:
 def _overpass_bb_tags(
     query: str,
 ) -> tuple[dict[str, tuple[float, float]], _BoundsMap, dict[str, dict[str, str]]]:
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     coords: dict[str, tuple[float, float]] = {}
     bounds: _BoundsMap = {}
@@ -2655,7 +2655,7 @@ def _overpass_bb_tags(
 def _qlever_bb_tags(
     sparql: str,
 ) -> tuple[dict[str, tuple[float, float]], _BoundsMap, dict[str, dict[str, str]]]:
-    response = requests.post(
+    response = httpx.post(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
@@ -2734,7 +2734,7 @@ def test_translated_out_bb_body_relation() -> None:
 
     # Compute bounds from per-member coords on both sides and compare against
     # the Overpass top-level bounds.
-    response = requests.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
+    response = httpx.post(OVERPASS_URL, data={"data": f"[out:json];{query}"})
     response.raise_for_status()
     op_top_bounds: _BoundsMap = {}
     for elem in response.json().get("elements", []):

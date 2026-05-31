@@ -244,11 +244,11 @@ def _add_type_filter(
     result_variable: str,
     pattern: SparqlPattern,
 ) -> None:
+    assert pattern.output_set is not None
     if ElementType.AREA in element_types:
         assert element_types == frozenset({ElementType.AREA})
         element_types = frozenset({ElementType.WAY, ElementType.RELATION})
         pattern.prefixes |= {"osm2rdf"}
-        assert pattern.output_set is not None
         area_var = _variable_name(
             pattern.output_set, filter_index=0, intermediate="area"
         )
@@ -264,6 +264,11 @@ def _add_type_filter(
             f"{{ {result_variable} rdf:type osm:{t} }}" for t in osm_types
         )
         pattern.where_clauses.append(union)
+    else:
+        type_var = _variable_name(
+            pattern.output_set, filter_index=0, intermediate="type"
+        )
+        pattern.where_clauses.append(f"{result_variable} rdf:type {type_var}")
 
 
 def _add_query_filter(

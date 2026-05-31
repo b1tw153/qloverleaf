@@ -2429,6 +2429,9 @@ class OverpassTransformer(Transformer[Token, Query]):
         if not isinstance(evaluator, LiteralEvaluator):
             # the best known translation forces a complete scan over all triples and
             # times out (see tag-filters.md)
+            # TODO: Revisit this.
+            # ?_1 ?p ?v with
+            # FILTER(STR(?_1·f1·p) = STR(evaluator)) should be possible
             raise UnsupportedFeatureError(
                 "t[...] with a dynamic key expression is not supported", token
             )

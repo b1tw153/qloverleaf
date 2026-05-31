@@ -10,14 +10,14 @@ results as Overpass GeoJSON or OSM XML output.
 
 ## How to Use the Interpreter
 
-Qloverleaf provides the same HTTP query interface as Overpass. Use the <http://qloverleaf.fly.dev/api> or
-<http://qloverleaf.fly.dev/api/interpreter> URL anywhere that you would normally use the
-URL for Overpass.
+Qloverleaf provides the same HTTP query interface as Overpass. Use the <https://qloverleaf.fly.dev/api/> or
+<https://qloverleaf.fly.dev/api/interpreter> URL anywhere that you would normally use the
+URL for Overpass such as Overpass Turbo or JOSM.
 
 You can also make direct queries to the Qloverleaf interpreter:
 
 ```bash
-curl -i 'http://qloverleaf.fly.dev/api/interpreter' --data-urlencode 'data=[out:json]; node(1); out;'
+curl -i 'https://qloverleaf.fly.dev/api/interpreter' --data-urlencode 'data=[out:json]; node(1); out;'
 ```
 
 ### Query Tips
@@ -38,11 +38,11 @@ resolved.
 
 ### Sample Queries
 
-- [`[out:json]; node(id:1,2,3); out meta;`](http://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20node%28id%3A1%2C2%2C3%29%3B%20out%20meta%3B)
+- [`[out:json]; node(id:1,2,3); out meta;`](htts://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20node%28id%3A1%2C2%2C3%29%3B%20out%20meta%3B)
 
-- [`[out:json]; nwr[leisure=golf_course]; nwr(around:0)[office=yes]; out ids;`](http://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20nwr%5Bleisure%3Dgolf_course%5D%3B%20nwr%28around%3A0%29%5Boffice%3Dyes%5D%3B%20out%20ids%3B)
+- [`[out:json]; nwr[leisure=golf_course]; nwr(around:0)[office=yes]; out ids;`](https://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20nwr%5Bleisure%3Dgolf_course%5D%3B%20nwr%28around%3A0%29%5Boffice%3Dyes%5D%3B%20out%20ids%3B)
 
-- [`[out:json]; rel(18375544); out geom;`](http://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20rel%2818375544%29%3B%20out%20geom%3B)
+- [`[out:json]; rel(18375544); out geom;`](https://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20rel%2818375544%29%3B%20out%20geom%3B)
 
 ## Proof-of-Concept
 
@@ -158,6 +158,7 @@ These features are unsupported with no implementation plans at this time:
 
 ## Known Bugs
 
+- `[out:xml]` combined with `out geom` is not working - try `[out:json]` instead
 - [bbox: ] global setting is not applied
 - [timeout: ] global setting is not applied
 - [maxsize: ] global setting is not applied

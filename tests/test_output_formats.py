@@ -303,63 +303,63 @@ def test_out_json_way_geom_meta() -> None:
 
 
 def test_out_json_rel_ids() -> None:
-    query_text = "[out:json]; rel(18375544); out ids;"
+    query_text = "[out:json]; rel(13904654); out ids;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 # def test_out_json_rel_ids_center() -> None:
-#    query_text = "[out:json]; rel(18375544); out ids center;"
+#    query_text = "[out:json]; rel(13904654); out ids center;"
 #    output = _run_query(query_text)
 #    elements = _round_floats(json.loads(output)["elements"])
 #    assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_rel_ids_bb() -> None:
-    query_text = "[out:json]; rel(11837554400); out ids bb;"
+    query_text = "[out:json]; rel(13904654); out ids bb;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_rel_tags() -> None:
-    query_text = "[out:json]; rel(18375544); out tags;"
+    query_text = "[out:json]; rel(13904654); out tags;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_rel_skel() -> None:
-    query_text = "[out:json]; rel(18375544); out skel;"
+    query_text = "[out:json]; rel(13904654); out skel;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_rel_body() -> None:
-    query_text = "[out:json]; rel(18375544); out body;"
+    query_text = "[out:json]; rel(13904654); out body;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_rel_meta() -> None:
-    query_text = "[out:json]; rel(18375544); out meta;"
+    query_text = "[out:json]; rel(13904654); out meta;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_rel_geom() -> None:
-    query_text = "[out:json]; rel(18375544); out geom;"
+    query_text = "[out:json]; rel(13904654); out geom;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_rel_geom_meta() -> None:
-    query_text = "[out:json]; rel(18375544); out geom meta;"
+    query_text = "[out:json]; rel(13904654); out geom meta;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
@@ -509,7 +509,7 @@ def test_out_xml_way_geom_meta() -> None:
 
 
 def test_out_xml_rel_ids() -> None:
-    query_text = "[out:xml]; rel(18375544); out ids;"
+    query_text = "[out:xml]; rel(13904654); out ids;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
@@ -517,56 +517,56 @@ def test_out_xml_rel_ids() -> None:
 
 # TODO: Fix center/centroid query and/or post processing before running this test
 # def test_out_xml_rel_ids_center() -> None:
-#    query_text = "[out:xml]; rel(18375544); out ids center;"
+#    query_text = "[out:xml]; rel(13904654); out ids center;"
 #    output = _run_query(query_text)
 #    elements = _parse_xml_elements(output)
 #    assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_rel_ids_bb() -> None:
-    query_text = "[out:xml]; rel(11837554400); out ids bb;"
+    query_text = "[out:xml]; rel(13904654); out ids bb;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_rel_tags() -> None:
-    query_text = "[out:xml]; rel(18375544); out tags;"
+    query_text = "[out:xml]; rel(13904654); out tags;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_rel_skel() -> None:
-    query_text = "[out:xml]; rel(18375544); out skel;"
+    query_text = "[out:xml]; rel(13904654); out skel;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_rel_body() -> None:
-    query_text = "[out:xml]; rel(18375544); out body;"
+    query_text = "[out:xml]; rel(13904654); out body;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_rel_meta() -> None:
-    query_text = "[out:xml]; rel(18375544); out meta;"
+    query_text = "[out:xml]; rel(13904654); out meta;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_rel_geom() -> None:
-    query_text = "[out:xml]; rel(18375544); out geom;"
+    query_text = "[out:xml]; rel(13904654); out geom;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_rel_geom_meta() -> None:
-    query_text = "[out:xml]; rel(18375544); out geom meta;"
+    query_text = "[out:xml]; rel(13904654); out geom meta;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)

@@ -3,6 +3,7 @@ from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureE
 from qloverleaf.transformer import (
     _AREA,
     _NWR,
+    _WR,
     AreaIdFilter,
     AreaSetFilter,
     AroundLineFilter,
@@ -780,7 +781,11 @@ def _translate_recurse_filter(
             # all four leaves share the same where_clause string here.
             input_values_marker = f"VALUES {input_var} {{ }}"
             pattern.injections[-1].marker = input_values_marker
-            input_type = f"{input_var} rdf:type osm:node ."
+            assert f.set_reference.content_types is not None
+            if len(f.set_reference.content_types & _WR) > 0:
+                input_type = f"{input_var} rdf:type osm:node ."
+            else:
+                input_type = ""
             http_bind = (
                 f'BIND(IRI(REPLACE(STR({input_var}), "^https://", "http://"))'
                 f" AS {http_var})"

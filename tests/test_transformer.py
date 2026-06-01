@@ -5,6 +5,7 @@ import pytest
 from lark import Token, Tree
 
 from qloverleaf.exceptions import (
+    ParseError,
     QueryError,
     QueryWarning,
     UnimplementedFeatureError,
@@ -42,6 +43,7 @@ from qloverleaf.transformer import (
     CountMembersEvaluator,
     CountTagsEvaluator,
     CountType,
+    DifferenceStatement,
     ElementType,
     Evaluator,
     ForeachStatement,
@@ -502,12 +504,12 @@ def test_resolve_types_union_for_if() -> None:
     union = query.statements[0]
     assert isinstance(union, UnionStatement)
     m0, m1, m2 = union.members
-    assert isinstance(m0.statement, QueryStatement)
-    assert isinstance(m1.statement, QueryStatement)
-    assert isinstance(m2.statement, QueryStatement)
-    assert m0.statement.output_set.version == 1
-    assert m1.statement.output_set.version == 2
-    assert m2.statement.output_set.version == 3
+    assert isinstance(m0, QueryStatement)
+    assert isinstance(m1, QueryStatement)
+    assert isinstance(m2, QueryStatement)
+    assert m0.output_set.version == 1
+    assert m1.output_set.version == 2
+    assert m2.output_set.version == 3
     assert union.output_set.version == 1
     assert union.output_set.content_types == _NODE
 
@@ -2128,17 +2130,10 @@ def test_union_members() -> None:
     assert len(stmt.members) == 3
 
 
-def test_union_member_difference() -> None:
-    stmt = _union_stmt("( node(1); node(2); - node(3); );")
-    assert stmt.members[0].difference is False
-    assert stmt.members[1].difference is False
-    assert stmt.members[2].difference is True
-
-
 def test_union_member_statement_and_token() -> None:
     stmt = _union_stmt("( node(1); node(2); );")
-    assert isinstance(stmt.members[0].statement, QueryStatement)
-    assert stmt.token is stmt.members[0].statement.token
+    assert isinstance(stmt.members[0], QueryStatement)
+    assert stmt.token is stmt.members[0].token
 
 
 def test_union_output_set() -> None:
@@ -2184,7 +2179,7 @@ def test_union_stmt_output_types_empty() -> None:
 
 def test_union_stmt_output_types_indefinite_member() -> None:
     stmt = _union_stmt("( node.a; );")
-    member_stmt = stmt.members[0].statement
+    member_stmt = stmt.members[0]
     assert isinstance(member_stmt, QueryStatement)
     set_filter = next(f for f in member_stmt.filters if isinstance(f, SetFilter))
     set_filter.set_reference.content_types = None
@@ -2209,55 +2204,86 @@ def test_union_stmt_output_types_member_assigned() -> None:
     assert stmt.output_set.content_types == _NODE
 
 
-def test_union_stmt_output_types_difference_excluded() -> None:
-    stmt = _union_stmt("( node(1); - way(1); );")
+def _difference_stmt(text: str) -> DifferenceStatement:
+    stmt = _transform_query(text).statements[0]
+    assert isinstance(stmt, DifferenceStatement)
+    return stmt
+
+
+def test_difference_stmt_left_right() -> None:
+    stmt = _difference_stmt("( node(1); - way(1); );")
+    assert isinstance(stmt.left_statement, QueryStatement)
+    assert isinstance(stmt.right_statement, QueryStatement)
+
+
+def test_difference_stmt_token() -> None:
+    stmt = _difference_stmt("( node(1); - way(1); );")
+    assert stmt.token is stmt.left_statement.token
+
+
+def test_difference_stmt_output_set() -> None:
+    stmt = _difference_stmt("( node(1); - way(1); ) -> .x;")
+    assert stmt.output_set.name == "x"
+    assert stmt.output_set.token is not None
+
+
+def test_difference_stmt_no_output_set() -> None:
+    stmt = _difference_stmt("( node(1); - way(1); );")
+    assert stmt.output_set.name == "_"
+    assert stmt.output_set.token is None
+
+
+def test_difference_stmt_output_types_excluded() -> None:
+    # Right side types do not appear in the output
+    stmt = _difference_stmt("( node(1); - way(1); );")
     warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NODE
     assert not warnings
 
 
-def test_union_stmt_output_types_difference_indefinite() -> None:
-    stmt = _union_stmt("( node(1); - node.a; );")
-    diff_stmt = stmt.members[1].statement
-    assert isinstance(diff_stmt, QueryStatement)
-    set_filter = next(f for f in diff_stmt.filters if isinstance(f, SetFilter))
+def test_difference_stmt_output_types_indefinite() -> None:
+    # None from right propagates: output is unknown if right types are unresolved
+    stmt = _difference_stmt("( node(1); - node.a; );")
+    right_stmt = stmt.right_statement
+    assert isinstance(right_stmt, QueryStatement)
+    set_filter = next(f for f in right_stmt.filters if isinstance(f, SetFilter))
     set_filter.set_reference.content_types = None
     warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
-    assert output_types == _NODE
+    assert output_types is None
     assert not warnings
 
 
-def test_union_stmt_output_types_difference_unassigned() -> None:
+def test_difference_stmt_output_types_unassigned() -> None:
+    # Unassigned right set warns; output types are still determined by left
     query = _transform_query("( node(1); - node.a; );")
     assert query.warnings
     stmt = query.statements[0]
-    assert isinstance(stmt, UnionStatement)
+    assert isinstance(stmt, DifferenceStatement)
     assert stmt.output_set.content_types == _NODE
 
 
-def test_union_stmt_output_types_difference_assigned() -> None:
+def test_difference_stmt_output_types_assigned() -> None:
     stmts = _transform_query("node -> .a; ( node(1); - node.a; );").statements
     stmt = stmts[1]
-    assert isinstance(stmt, UnionStatement)
+    assert isinstance(stmt, DifferenceStatement)
     assert stmt.output_set.content_types == _NODE
 
 
-def test_union_stmt_output_types_difference_warning() -> None:
-    stmt = _union_stmt("( node(1); - area(uid:1); );")
+def test_difference_stmt_output_types_warning() -> None:
+    # Warning propagates from right when right generates one (empty right union)
+    stmt = _difference_stmt("( node(1); - (); );")
     warnings: list[QueryWarning] = []
     output_types = stmt.get_output_types(warnings)
     assert output_types == _NODE
     assert warnings
 
 
-def test_union_stmt_output_types_all_difference() -> None:
-    stmt = _union_stmt("( - node(1); );")
-    warnings: list[QueryWarning] = []
-    output_types = stmt.get_output_types(warnings)
-    assert output_types == _NONE
-    assert warnings
+def test_difference_stmt_syntax_error() -> None:
+    # Leading minus requires a left-hand statement
+    with pytest.raises(ParseError):
+        _difference_stmt("( - node(1); );")
 
 
 # ---------------------------------------------------------------------------

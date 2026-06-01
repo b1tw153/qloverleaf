@@ -11,6 +11,7 @@ from qloverleaf.transformer import (
     AroundSetFilter,
     BboxFilter,
     CompleteStatement,
+    DifferenceStatement,
     ElementType,
     ForeachStatement,
     ForStatement,
@@ -203,6 +204,8 @@ def translate(statement: Statement) -> list[SparqlPattern]:
         patterns = _translate_query(statement)
     elif isinstance(statement, UnionStatement):
         patterns = _translate_union(statement)
+    elif isinstance(statement, DifferenceStatement):
+        patterns = _translate_difference(statement)
     elif isinstance(statement, ItemStatement):
         patterns = _translate_item(statement)
     elif isinstance(statement, OutStatement):
@@ -955,6 +958,13 @@ def _translate_if_filter(
 def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
     raise UnimplementedFeatureError(
         "UnionStatement translation is not yet implemented",
+        stmt.token,
+    )
+
+
+def _translate_difference(stmt: DifferenceStatement) -> list[SparqlPattern]:
+    raise UnimplementedFeatureError(
+        "DifferenceStatement translation is not yet implemented",
         stmt.token,
     )
 

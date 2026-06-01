@@ -787,12 +787,24 @@ class CompleteStatement(Statement):
                     else:
                         # union -> other set: propagates inner ._ as a side effect;
                         # walk members to determine the final value of the input set
-                        union_result = walk(
-                            [m.statement for m in statement.members], current
-                        )
+                        union_result = walk(statement.members, current)
                         if union_result is None:
                             return None
                         current = union_result
+                elif isinstance(statement, DifferenceStatement):
+                    if statement.output_set.name == accum_name:
+                        types = statement.get_output_types(warnings)
+                        if types is None:
+                            return None
+                        current = types
+                    else:
+                        diff_result = walk(
+                            [statement.left_statement, statement.right_statement],
+                            current,
+                        )
+                        if diff_result is None:
+                            return None
+                        current = diff_result
 
                 else:
                     output_set: SetReference | None = getattr(
@@ -858,8 +870,14 @@ class CompleteStatement(Statement):
                     if statement.output_set.name == accum_name:
                         current = statement.constrained
                     else:
+                        current = walk(statement.members, current)
+                elif isinstance(statement, DifferenceStatement):
+                    if statement.output_set.name == accum_name:
+                        current = statement.constrained
+                    else:
                         current = walk(
-                            [m.statement for m in statement.members], current
+                            [statement.left_statement, statement.right_statement],
+                            current,
                         )
                 else:
                     output_set: SetReference | None = getattr(
@@ -888,14 +906,8 @@ class IfStatement(Statement):
 
 
 @dataclass
-class UnionMember:
-    difference: bool
-    statement: Statement
-
-
-@dataclass
 class UnionStatement(Statement):
-    members: list[UnionMember]
+    members: list[Statement]
     output_set: SetReference
 
     def get_output_types(
@@ -905,13 +917,11 @@ class UnionStatement(Statement):
         result = _NONE
         for member in self.members:
             if isinstance(
-                member.statement,
+                member,
                 (OutStatement, ForeachStatement, ForStatement, IfStatement),
             ):
                 continue
-            member_output_types = member.statement.get_output_types(warnings)
-            if member.difference:
-                continue
+            member_output_types = member.get_output_types(warnings)
             if member_output_types is None:
                 return None
             result = result | member_output_types
@@ -928,11 +938,41 @@ class UnionStatement(Statement):
     def constrained(self) -> Constrained | None:
         constrained: Constrained | None = Constrained.YES
         for member in self.members:
-            if member.statement.constrained == Constrained.NO:
+            if member.constrained == Constrained.NO:
                 return Constrained.NO
-            elif member.statement.constrained is None:
+            elif member.constrained is None:
                 constrained = None
         return constrained
+
+
+@dataclass
+class DifferenceStatement(Statement):
+    left_statement: Statement
+    right_statement: Statement
+    output_set: SetReference
+
+    def get_output_types(
+        self,
+        warnings: list[QueryWarning],
+    ) -> frozenset[ElementType] | None:
+        # propagate None if Phase 2 did not resolve output_types
+        if self.right_statement.get_output_types(warnings) is None:
+            return None
+        return self.left_statement.get_output_types(warnings)
+
+    @property
+    def constrained(self) -> Constrained | None:
+        if (
+            self.left_statement.constrained == Constrained.NO
+            or self.right_statement.constrained == Constrained.NO
+        ):
+            return Constrained.NO
+        if (
+            self.left_statement.constrained is None
+            or self.right_statement.constrained is None
+        ):
+            return None
+        return Constrained.YES
 
 
 @dataclass
@@ -1152,6 +1192,8 @@ def _walk_stmt(stmt: Statement, state: _State, warnings: list[QueryWarning]) -> 
         _walk_complete(stmt, state, warnings)
     elif isinstance(stmt, UnionStatement):
         _walk_union(stmt, state, warnings)
+    elif isinstance(stmt, DifferenceStatement):
+        _walk_difference(stmt, state, warnings)
     else:
         input_set: SetReference | None = getattr(stmt, "input_set", None)
         if input_set is not None:
@@ -1208,7 +1250,17 @@ def _walk_union(
     stmt: UnionStatement, state: _State, warnings: list[QueryWarning]
 ) -> None:
     for member in stmt.members:
-        _walk_stmt(member.statement, state, warnings)
+        _walk_stmt(member, state, warnings)
+    _stamp_write(
+        stmt.output_set, state, stmt.get_output_types(warnings), stmt.constrained
+    )
+
+
+def _walk_difference(
+    stmt: DifferenceStatement, state: _State, warnings: list[QueryWarning]
+) -> None:
+    _walk_stmt(stmt.left_statement, state, warnings)
+    _walk_stmt(stmt.right_statement, state, warnings)
     _stamp_write(
         stmt.output_set, state, stmt.get_output_types(warnings), stmt.constrained
     )
@@ -1290,7 +1342,10 @@ def _walk_stmt_element_context(stmt: Statement) -> None:
             _walk_stmt_element_context(s)
     elif isinstance(stmt, UnionStatement):
         for member in stmt.members:
-            _walk_stmt_element_context(member.statement)
+            _walk_stmt_element_context(member)
+    elif isinstance(stmt, DifferenceStatement):
+        _walk_stmt_element_context(stmt.left_statement)
+        _walk_stmt_element_context(stmt.right_statement)
 
 
 def _resolve_element_contexts(query: Query) -> None:
@@ -1838,15 +1893,6 @@ class OverpassTransformer(Transformer[Token, Query]):
 
     # Other Statement Transforms
 
-    def union_member(self, children: list[Any]) -> UnionMember:
-        if isinstance(children[0], Token):
-            assert children[0].type == "NEGATE_OP"
-            return UnionMember(difference=True, statement=children[1])
-        return UnionMember(difference=False, statement=children[0])
-
-    def union_body(self, children: list[Any]) -> list[UnionMember]:
-        return list(children)
-
     def union_stmt(self, children: list[Any]) -> UnionStatement:
         # All statement types are permitted as union members. out and if are allowed
         # because syntax and semantics permit them, unlike the legacy implementation.
@@ -1854,19 +1900,34 @@ class OverpassTransformer(Transformer[Token, Query]):
         # assignments do not contribute to the union but modified sets may. complete is
         # allowed, consistent with the legacy implementation, but we will not reproduce
         # the input set bug. All other statements are allowed.
-        members: list[UnionMember] = children[0]
+        members = [c for c in children if isinstance(c, Statement)]
         output_set = SetReference(name="_", token=None)
-        if len(children) == 2:
-            assert isinstance(children[1], SetAssignment)
-            output_set = children[1].set_reference
+        if children and isinstance(children[-1], SetAssignment):
+            output_set = children[-1].set_reference
         if members:
-            token = members[0].statement.token
+            token = members[0].token
         else:
             token = output_set.token
         return UnionStatement(
             members=members,
             output_set=output_set,
             token=token,
+        )
+
+    def difference_stmt(self, children: list[Any]) -> DifferenceStatement:
+        left_statement = children[0]
+        right_statement = children[1]
+        assert isinstance(left_statement, Statement)
+        assert isinstance(right_statement, Statement)
+        output_set = SetReference(name="_", token=None)
+        if len(children) == 3:
+            assert isinstance(children[2], SetAssignment)
+            output_set = children[2].set_reference
+        return DifferenceStatement(
+            left_statement=left_statement,
+            right_statement=right_statement,
+            output_set=output_set,
+            token=left_statement.token,
         )
 
     def item_stmt(self, children: list[Any]) -> ItemStatement:

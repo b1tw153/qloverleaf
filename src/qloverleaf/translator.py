@@ -1103,11 +1103,11 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                         ]
                     )
                 if include_member_wkt:
-                    # Per-member node WKT (POINT). OPTIONAL guards against
-                    # missing geometry, though in practice every node should
-                    # have one. Must come after `?m osmway:member_id ?member`
-                    # so ?member is bound — otherwise QLever full-scans
+                    # Per-member node WKT (POINT). Must come after `?m osmway:member_id
+                    # ?member` so ?member is bound — otherwise QLever full-scans
                     # geo:hasGeometry.
+                    # TODO: Fix this to return the way's WKT instead of collecting
+                    # individual node WKTs
                     branch_lines.append(
                         "?member geo:hasGeometry ?member_geom ."
                         "?member_geom geo:asWKT ?member_wkt ."

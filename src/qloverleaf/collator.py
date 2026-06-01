@@ -26,9 +26,11 @@ def parse_wkt_point(wkt: str) -> tuple[float, float]:
 
 
 def parse_wkt_coords(wkt: str) -> list[tuple[float, float]]:
-    """Parse WKT POINT/LINESTRING/POLYGON and return [(lat, lon), ...].
+    """Parse WKT and return [(lat, lon), ...].
 
-    For POLYGON, returns the outer ring only.
+    Handles POINT, LINESTRING, POLYGON (outer ring only), and any other
+    geometry type (MULTIPOLYGON, GEOMETRYCOLLECTION, etc.) by flattening
+    all nesting and extracting every coordinate pair.
     """
     s = wkt.strip()
     if s.startswith("POINT("):
@@ -38,7 +40,17 @@ def parse_wkt_coords(wkt: str) -> list[tuple[float, float]]:
     elif s.startswith("POLYGON("):
         body = s.removeprefix("POLYGON((").split("))", 1)[0]
     else:
-        return []
+        # MULTIPOLYGON, GEOMETRYCOLLECTION, etc. — only used for bbox accumulation,
+        # not ordered geometry output. WKT structure is entirely parentheses and
+        # commas; stripping all parens leaves a flat comma-separated list of
+        # "lon lat" tokens, which is all we need to fit a bounding box.
+        flat = s[s.index("("):].replace("(", "").replace(")", "")
+        result = []
+        for token in flat.split(","):
+            parts = token.strip().split()
+            if len(parts) == 2:
+                result.append((float(parts[1]), float(parts[0])))
+        return result
     result = []
     for pair in body.split(","):
         lon_str, lat_str = pair.strip().split()
@@ -117,9 +129,11 @@ def collate_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str,
         OutVerbosity.META,
     )
     include_meta = stmt.verbosity == OutVerbosity.META
-    # ids/tags + bb uses a dedicated ?bb_wkt column; skel/body/meta + bb derives
-    # bounds from the per-member WKTs that are already collected for geom
-    bb_via_wkt = stmt.bb and stmt.verbosity in (OutVerbosity.IDS, OutVerbosity.TAGS)
+    # ids/tags + bb/center uses a dedicated ?bb_wkt column; skel/body/meta derives
+    # bounds from the per-member WKTs that are already collected for geom/bb/center
+    bb_via_wkt = (stmt.bb or stmt.center) and stmt.verbosity in (
+        OutVerbosity.IDS, OutVerbosity.TAGS
+    )
 
     accum: dict[str, dict[str, Any]] = {}
 
@@ -139,7 +153,7 @@ def collate_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str,
                 elem["tags"] = {}
             if include_members and elem_type != "node":
                 elem["_members"] = []  # [(pos, type, ref, role), ...]
-            if (stmt.geom or stmt.bb) and elem_type != "node":
+            if (stmt.geom or stmt.bb or stmt.center) and elem_type != "node":
                 elem["_bounds_acc"] = [math.inf, math.inf, -math.inf, -math.inf]
             if stmt.geom and elem_type != "node":
                 elem["_geom"] = {}  # pos → [(lat, lon), ...]
@@ -182,7 +196,7 @@ def collate_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str,
                     if coords:
                         if stmt.geom:
                             elem["_geom"][pos] = coords
-                        if stmt.geom or stmt.bb:
+                        if stmt.geom or stmt.bb or stmt.center:
                             for lat, lon in coords:
                                 _update_bounds(elem["_bounds_acc"], lat, lon)
 
@@ -197,7 +211,7 @@ def collate_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str,
             if coords:
                 if stmt.geom:
                     elem["_way_geom"] = coords
-                if stmt.geom or stmt.bb:
+                if stmt.geom or stmt.bb or stmt.center:
                     for lat, lon in coords:
                         _update_bounds(elem["_bounds_acc"], lat, lon)
 
@@ -214,18 +228,7 @@ def collate_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str,
         if include_meta and not elem["_meta_done"]:
             _extract_meta(elem, binding)
 
-        # Center: nodes get lat/lon inline; ways/relations get center{}
-        if stmt.center:
-            centroid_val = binding.get("centroid")
-            if centroid_val and centroid_val.get("type") == "literal":
-                lat, lon = parse_wkt_point(centroid_val["value"])
-                if elem_type == "node":
-                    elem["lat"] = lat
-                    elem["lon"] = lon
-                else:
-                    elem["center"] = {"lat": lat, "lon": lon}
-
-        # ids/tags + bb: element's own WKT → lat/lon (node) or bounds (way/relation)
+        # ids/tags + bb/center: ?bb_wkt → lat/lon (node) or bounds (way/relation)
         if bb_via_wkt:
             bb_wkt_val = binding.get("bb_wkt")
             if bb_wkt_val and bb_wkt_val.get("type") == "literal":
@@ -311,14 +314,17 @@ def _finalize(elem: dict[str, Any], stmt: OutStatement) -> dict[str, Any]:
         if field in elem:
             out[field] = elem[field]
 
-    # Bounds (geom or bb, ways/relations only)
     if "_bounds_acc" in elem:
         acc = elem["_bounds_acc"]
         if acc[0] != math.inf:
-            out["bounds"] = _bounds_dict(acc)
-
-    # Center (ways/relations only; nodes use lat/lon inline)
-    if "center" in elem:
-        out["center"] = elem["center"]
+            # Bounds (ways/relations only)
+            if stmt.bb or stmt.geom:
+                out["bounds"] = _bounds_dict(acc)
+            # Center: bbox midpoint (ways/relations only; nodes use lat/lon inline)
+            if stmt.center:
+                out["center"] = {
+                    "lat": (acc[0] + acc[2]) / 2,
+                    "lon": (acc[1] + acc[3]) / 2,
+                }
 
     return out

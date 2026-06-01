@@ -173,11 +173,11 @@ def test_out_json_node_ids() -> None:
     assert elements == _overpass_elements(query_text)
 
 
-# def test_out_json_node_ids_center() -> None:
-#    query_text = "[out:json]; node(1); out ids center;"
-#    output = _run_query(query_text)
-#    elements = _round_floats(json.loads(output)["elements"])
-#    assert elements == _overpass_elements(query_text)
+def test_out_json_node_ids_center() -> None:
+    query_text = "[out:json]; node(1); out ids center;"
+    output = _run_query(query_text)
+    elements = _round_floats(json.loads(output)["elements"])
+    assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_node_ids_bb() -> None:
@@ -241,11 +241,11 @@ def test_out_json_way_ids() -> None:
     assert elements == _overpass_elements(query_text)
 
 
-# def test_out_json_way_ids_center() -> None:
-#    query_text = "[out:json]; way(414876262); out ids center;"
-#    output = _run_query(query_text)
-#    elements = _round_floats(json.loads(output)["elements"])
-#    assert elements == _overpass_elements(query_text)
+def test_out_json_way_ids_center() -> None:
+    query_text = "[out:json]; way(414876262); out ids center;"
+    output = _run_query(query_text)
+    elements = _round_floats(json.loads(output)["elements"])
+    assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_way_ids_bb() -> None:
@@ -309,11 +309,11 @@ def test_out_json_rel_ids() -> None:
     assert elements == _overpass_elements(query_text)
 
 
-# def test_out_json_rel_ids_center() -> None:
-#    query_text = "[out:json]; rel(13904654); out ids center;"
-#    output = _run_query(query_text)
-#    elements = _round_floats(json.loads(output)["elements"])
-#    assert elements == _overpass_elements(query_text)
+def test_out_json_rel_ids_center() -> None:
+    query_text = "[out:json]; rel(13904654); out ids center;"
+    output = _run_query(query_text)
+    elements = _round_floats(json.loads(output)["elements"])
+    assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_rel_ids_bb() -> None:
@@ -377,12 +377,11 @@ def test_out_xml_node_ids() -> None:
     assert elements == _overpass_elements_xml(query_text)
 
 
-# TODO: Fix center/centroid query and/or post processing before running this test
-# def test_out_xml_node_ids_center() -> None:
-#    query_text = "[out:xml]; node(1); out ids center;"
-#    output = _run_query(query_text)
-#    elements = _parse_xml_elements(output)
-#    assert elements == _overpass_elements_xml(query_text)
+def test_out_xml_node_ids_center() -> None:
+    query_text = "[out:xml]; node(1); out ids center;"
+    output = _run_query(query_text)
+    elements = _parse_xml_elements(output)
+    assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_node_ids_bb() -> None:
@@ -446,12 +445,11 @@ def test_out_xml_way_ids() -> None:
     assert elements == _overpass_elements_xml(query_text)
 
 
-# TODO: Fix center/centroid query and/or post processing before running this test
-# def test_out_xml_way_ids_center() -> None:
-#    query_text = "[out:xml]; way(414876262); out ids center;"
-#    output = _run_query(query_text)
-#    elements = _parse_xml_elements(output)
-#    assert elements == _overpass_elements_xml(query_text)
+def test_out_xml_way_ids_center() -> None:
+    query_text = "[out:xml]; way(414876262); out ids center;"
+    output = _run_query(query_text)
+    elements = _parse_xml_elements(output)
+    assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_way_ids_bb() -> None:
@@ -515,12 +513,11 @@ def test_out_xml_rel_ids() -> None:
     assert elements == _overpass_elements_xml(query_text)
 
 
-# TODO: Fix center/centroid query and/or post processing before running this test
-# def test_out_xml_rel_ids_center() -> None:
-#    query_text = "[out:xml]; rel(13904654); out ids center;"
-#    output = _run_query(query_text)
-#    elements = _parse_xml_elements(output)
-#    assert elements == _overpass_elements_xml(query_text)
+def test_out_xml_rel_ids_center() -> None:
+    query_text = "[out:xml]; rel(13904654); out ids center;"
+    output = _run_query(query_text)
+    elements = _parse_xml_elements(output)
+    assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_rel_ids_bb() -> None:

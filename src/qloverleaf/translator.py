@@ -1009,12 +1009,13 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         # ORDER BY / LIMIT don't apply to count
     elif stmt.verbosity == OutVerbosity.IDS:
         pattern.distinct = True
-        if stmt.bb:
-            # ids + bb: emit element URIs plus the element's own WKT so the
-            # formatter can derive bounds (ways/relations) or lat/lon (nodes).
-            # Use a site-injection marker so the input bindings land before the
-            # OPTIONAL; otherwise QLever evaluates `OPTIONAL { ?x geo:hasGeometry
-            # ... }` against the unbound ?x and full-scans the dataset.
+        if stmt.bb or stmt.center:
+            # ids + bb: emit element URIs plus the element's own WKT so the formatter
+            # can derive bounds (ways/relations) or lat/lon (nodes). Use a
+            # site-injection marker so the input bindings land before geo:hasGeometry;
+            # otherwise QLever evaluates `?x geo:hasGeometry ... }` against the unbound
+            # ?x and full-scans the dataset.
+            # ids + center: emit the same WKT to calculate the bbox center
             pattern.prefixes.add("geo")
             bb_marker = f"VALUES {result_variable} {{ }}"
             pattern.select_clause = f"{result_variable} ?bb_wkt"
@@ -1049,7 +1050,7 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         # the union of member coordinates in the formatter. For nodes the
         # element's own ?wkt POINT from the NODE branch is already sufficient,
         # so bb adds nothing there.
-        include_member_wkt = stmt.geom or stmt.bb
+        include_member_wkt = stmt.geom or stmt.bb or stmt.center
         pattern.prefixes |= {"rdf", "osm", "osmway", "osmrel", "geo"}
         if include_tags:
             pattern.prefixes.add("osmkey")
@@ -1227,25 +1228,16 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             pattern.order_by = order_by
             pattern.limit = stmt.limit
 
-        if stmt.center:
-            # TODO: This is broken for nodes because they have no centroid consider
-            # computing the bbox center locally which is what overpass does anyway
-            assert pattern.select_clause is not None
-            pattern.select_clause += " ?centroid"
-            pattern.prefixes |= {"geo", "geof"}
-            pattern.where_clauses.append(f"{result_variable} geo:hasGeometry ?geom .")
-            pattern.where_clauses.append("?geom geo:asWKT ?wkt .")
-            pattern.where_clauses.append("BIND(geof:centroid(?wkt) AS ?centroid)")
-
         return [pattern]
     elif stmt.verbosity == OutVerbosity.TAGS:
-        if stmt.bb:
-            # tags + bb: two-branch UNION. Tag rows carry ?p/?v; bb rows carry
-            # the element's own ?bb_wkt. Mirrors the body design of separating
-            # tag rows from skel rows to avoid repeating WKT on every tag row.
-            # Each branch puts its marker first so the input substitution binds
-            # ?_1 before the subsequent triple patterns — otherwise QLever
-            # full-scans the dataset (?p/?v unbound; geo:hasGeometry unbound).
+        if stmt.bb or stmt.center:
+            # tags + bb: two-branch UNION. Tag rows carry ?p/?v; bb rows carry the
+            # element's own ?bb_wkt. Mirrors the body design of separating tag rows
+            # from skel rows to avoid repeating WKT on every tag row. Each branch puts
+            # its marker first so the input substitution binds ?_1 before the subsequent
+            # triple patterns — otherwise QLever full-scans the dataset (?p/?v unbound;
+            # geo:hasGeometry unbound).
+            # tags + center: same two-branch UNION
             pattern.prefixes.add("geo")
             tags_marker = f"VALUES {result_variable}·tags {{ }}"
             bb_marker = f"VALUES {result_variable}·bb {{ }}"
@@ -1292,16 +1284,6 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             f"out {stmt.verbosity.value} not yet implemented",
             stmt.token,
         )
-
-    if stmt.center:
-        # TODO: This is broken for nodes because they have no centroid
-        # consider computing the bbox center locally which is what overpass does anyway
-        assert pattern.select_clause is not None
-        pattern.select_clause += " ?centroid"
-        pattern.prefixes |= {"geo", "geof"}
-        pattern.where_clauses.append(f"{result_variable} geo:hasGeometry ?geom .")
-        pattern.where_clauses.append("?geom geo:asWKT ?wkt .")
-        pattern.where_clauses.append("BIND(geof:centroid(?wkt) AS ?centroid)")
 
     if not stmt.count:
         pattern.order_by = result_variable

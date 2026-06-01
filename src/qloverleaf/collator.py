@@ -44,7 +44,7 @@ def parse_wkt_coords(wkt: str) -> list[tuple[float, float]]:
         # not ordered geometry output. WKT structure is entirely parentheses and
         # commas; stripping all parens leaves a flat comma-separated list of
         # "lon lat" tokens, which is all we need to fit a bounding box.
-        flat = s[s.index("("):].replace("(", "").replace(")", "")
+        flat = s[s.index("(") :].replace("(", "").replace(")", "")
         result = []
         for token in flat.split(","):
             parts = token.strip().split()
@@ -132,7 +132,8 @@ def collate_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str,
     # ids/tags + bb/center uses a dedicated ?bb_wkt column; skel/body/meta derives
     # bounds from the per-member WKTs that are already collected for geom/bb/center
     bb_via_wkt = (stmt.bb or stmt.center) and stmt.verbosity in (
-        OutVerbosity.IDS, OutVerbosity.TAGS
+        OutVerbosity.IDS,
+        OutVerbosity.TAGS,
     )
 
     accum: dict[str, dict[str, Any]] = {}
@@ -286,8 +287,7 @@ def _finalize(elem: dict[str, Any], stmt: OutStatement) -> dict[str, Any]:
             out["nodes"] = [ref for _, _, ref, _ in members_sorted]
             if stmt.geom:
                 out["geometry"] = [
-                    {"lat": lat, "lon": lon}
-                    for lat, lon in elem.get("_way_geom", [])
+                    {"lat": lat, "lon": lon} for lat, lon in elem.get("_way_geom", [])
                 ]
         elif elem_type == "relation":
             rel_members: list[dict[str, Any]] = []

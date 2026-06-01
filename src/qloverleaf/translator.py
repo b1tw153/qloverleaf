@@ -1059,19 +1059,25 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         branches: list[str] = []
         has_members = False
 
+        assert input_set.content_types is not None
+        multiple_types = len(input_set.content_types) > 1
+
         for elem_type in _OSM_TYPE_ORDER:
-            assert input_set.content_types is not None
             if elem_type not in input_set.content_types:
                 continue
             marker = _injection_marker(result_variable, elem_type)
 
             if elem_type == ElementType.NODE:
-                branch_lines = [
-                    f"{result_variable} rdf:type osm:node .",
-                    marker,
-                    f"{result_variable} geo:hasGeometry ?geom .",
-                    "?geom geo:asWKT ?wkt .",
-                ]
+                branch_lines = (
+                    [f"{result_variable} rdf:type osm:node ."] if multiple_types else []
+                )
+                branch_lines.extend(
+                    [
+                        marker,
+                        f"{result_variable} geo:hasGeometry ?node_geom .",
+                        "?node_geom geo:asWKT ?wkt .",
+                    ]
+                )
                 if include_meta:
                     branch_lines.extend(
                         [
@@ -1085,13 +1091,17 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                 if "?wkt" not in select_parts:
                     select_parts.append("?wkt")
             elif elem_type == ElementType.WAY:
-                branch_lines = [
-                    f"{result_variable} rdf:type osm:way .",
-                    marker,
-                    f"{result_variable} osmway:member ?m .",
-                    "?m osmway:member_id ?member .",
-                    "?m osmway:member_pos ?pos .",
-                ]
+                branch_lines = (
+                    [f"{result_variable} rdf:type osm:way ."] if multiple_types else []
+                )
+                branch_lines.extend(
+                    [
+                        marker,
+                        f"{result_variable} osmway:member ?m .",
+                        "?m osmway:member_id ?member .",
+                        "?m osmway:member_pos ?pos .",
+                    ]
+                )
                 if include_meta:
                     branch_lines.extend(
                         [
@@ -1102,29 +1112,25 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                             f"{result_variable} osmeta:user ?user .",
                         ]
                     )
-                if include_member_wkt:
-                    # Per-member node WKT (POINT). Must come after `?m osmway:member_id
-                    # ?member` so ?member is bound — otherwise QLever full-scans
-                    # geo:hasGeometry.
-                    # TODO: Fix this to return the way's WKT instead of collecting
-                    # individual node WKTs
-                    branch_lines.append(
-                        "?member geo:hasGeometry ?member_geom ."
-                        "?member_geom geo:asWKT ?member_wkt ."
-                    )
                 for v in ["?member", "?pos"]:
                     if v not in select_parts:
                         select_parts.append(v)
                 has_members = True
             else:  # RELATION
-                branch_lines = [
-                    f"{result_variable} rdf:type osm:relation .",
-                    marker,
-                    f"{result_variable} osmrel:member ?m .",
-                    "?m osmrel:member_id ?member .",
-                    "?m osmrel:member_pos ?pos .",
-                    "?m osmrel:member_role ?role .",
-                ]
+                branch_lines = (
+                    [f"{result_variable} rdf:type osm:relation ."]
+                    if multiple_types
+                    else []
+                )
+                branch_lines.extend(
+                    [
+                        marker,
+                        f"{result_variable} osmrel:member ?m .",
+                        "?m osmrel:member_id ?member .",
+                        "?m osmrel:member_pos ?pos .",
+                        "?m osmrel:member_role ?role .",
+                    ]
+                )
                 if include_meta:
                     branch_lines.extend(
                         [
@@ -1140,10 +1146,14 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     # for way members, unbound for sub-relation members. Must
                     # come after `?m osmrel:member_id ?member` so ?member is
                     # bound — otherwise QLever full-scans geo:hasGeometry.
-                    branch_lines.append(
-                        "?member geo:hasGeometry ?member_geom ."
-                        "?member_geom geo:asWKT ?member_wkt ."
+                    branch_lines.extend(
+                        [
+                            "?member geo:hasGeometry ?member_geom .",
+                            "?member_geom geo:asWKT ?wkt .",
+                        ]
                     )
+                    if "?wkt" not in select_parts:
+                        select_parts.append("?wkt")
                 for v in ["?member", "?pos", "?role"]:
                     if v not in select_parts:
                         select_parts.append(v)
@@ -1156,6 +1166,30 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
                     set_name=input_set.identifier,
                     required_types=frozenset({elem_type}),
                     marker=marker,
+                )
+            )
+
+        if include_member_wkt and ElementType.WAY in input_set.content_types:
+            way_geom_marker = f"VALUES {result_variable}·way_geom {{ }}"
+            way_geom_branch_lines = (
+                [f"{result_variable} rdf:type osm:way ."] if multiple_types else []
+            )
+            way_geom_branch_lines.extend(
+                [
+                    way_geom_marker,
+                    f"{result_variable} geo:hasGeometry ?way_geom .",
+                    "?way_geom geo:asWKT ?member_wkt .",
+                ]
+            )
+            if "?member_wkt" not in select_parts:
+                select_parts.append("?member_wkt")
+            branches.append("{\n  " + "\n  ".join(way_geom_branch_lines) + "\n}")
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=result_variable,
+                    set_name=input_set.identifier,
+                    required_types=required_types,
+                    marker=way_geom_marker,
                 )
             )
 
@@ -1178,9 +1212,6 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             for v in ["?p", "?v"]:
                 if v not in select_parts:
                     select_parts.append(v)
-
-        if include_member_wkt and has_members:
-            select_parts.append("?member_wkt")
 
         if include_meta:
             for v in ["?version", "?timestamp", "?changeset", "?uid", "?user"]:

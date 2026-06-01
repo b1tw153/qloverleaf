@@ -176,15 +176,30 @@ def collate_elements(data: dict[str, Any], stmt: OutStatement) -> list[dict[str,
                 role = binding.get("role", {}).get("value", "")
                 elem["_members"].append((pos, member_type, member_ref, role))
 
-                member_wkt_val = binding.get("member_wkt")
-                if member_wkt_val and member_wkt_val.get("type") == "literal":
-                    coords = parse_wkt_coords(member_wkt_val["value"])
+                # Relation member WKT is projected as ?wkt (same column as node geom)
+                if wkt_val and wkt_val.get("type") == "literal":
+                    coords = parse_wkt_coords(wkt_val["value"])
                     if coords:
                         if stmt.geom:
                             elem["_geom"][pos] = coords
                         if stmt.geom or stmt.bb:
                             for lat, lon in coords:
                                 _update_bounds(elem["_bounds_acc"], lat, lon)
+
+        # Way geometry: whole-way WKT from a dedicated branch (no ?member/?pos)
+        member_wkt_val = binding.get("member_wkt")
+        if (
+            member_wkt_val
+            and member_wkt_val.get("type") == "literal"
+            and elem_type == "way"
+        ):
+            coords = parse_wkt_coords(member_wkt_val["value"])
+            if coords:
+                if stmt.geom:
+                    elem["_way_geom"] = coords
+                if stmt.geom or stmt.bb:
+                    for lat, lon in coords:
+                        _update_bounds(elem["_bounds_acc"], lat, lon)
 
         # Tags
         if include_tags:
@@ -269,8 +284,7 @@ def _finalize(elem: dict[str, Any], stmt: OutStatement) -> dict[str, Any]:
             if stmt.geom:
                 out["geometry"] = [
                     {"lat": lat, "lon": lon}
-                    for pos, _, _, _ in members_sorted
-                    for lat, lon in geom.get(pos, [])
+                    for lat, lon in elem.get("_way_geom", [])
                 ]
         elif elem_type == "relation":
             rel_members: list[dict[str, Any]] = []

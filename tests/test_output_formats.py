@@ -235,35 +235,35 @@ def test_out_json_node_geom_meta() -> None:
 
 
 def test_out_json_way_ids() -> None:
-    query_text = "[out:json]; way(100); out ids;"
+    query_text = "[out:json]; way(414876262); out ids;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 # def test_out_json_way_ids_center() -> None:
-#    query_text = "[out:json]; way(100); out ids center;"
+#    query_text = "[out:json]; way(414876262); out ids center;"
 #    output = _run_query(query_text)
 #    elements = _round_floats(json.loads(output)["elements"])
 #    assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_way_ids_bb() -> None:
-    query_text = "[out:json]; way(100); out ids bb;"
+    query_text = "[out:json]; way(414876262); out ids bb;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_way_tags() -> None:
-    query_text = "[out:json]; way(100); out tags;"
+    query_text = "[out:json]; way(414876262); out tags;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_way_skel() -> None:
-    query_text = "[out:json]; way(100); out skel;"
+    query_text = "[out:json]; way(414876262); out skel;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
@@ -277,21 +277,21 @@ def test_out_json_way_body() -> None:
 
 
 def test_out_json_way_meta() -> None:
-    query_text = "[out:json]; way(100); out meta;"
+    query_text = "[out:json]; way(414876262); out meta;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_way_geom() -> None:
-    query_text = "[out:json]; way(100); out geom;"
+    query_text = "[out:json]; way(414876262); out geom;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
 
 
 def test_out_json_way_geom_meta() -> None:
-    query_text = "[out:json]; way(100); out geom meta;"
+    query_text = "[out:json]; way(414876262); out geom meta;"
     output = _run_query(query_text)
     elements = _round_floats(json.loads(output)["elements"])
     assert elements == _overpass_elements(query_text)
@@ -440,7 +440,7 @@ def test_out_xml_node_geom_meta() -> None:
 
 
 def test_out_xml_way_ids() -> None:
-    query_text = "[out:xml]; way(100); out ids;"
+    query_text = "[out:xml]; way(414876262); out ids;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
@@ -448,14 +448,14 @@ def test_out_xml_way_ids() -> None:
 
 # TODO: Fix center/centroid query and/or post processing before running this test
 # def test_out_xml_way_ids_center() -> None:
-#    query_text = "[out:xml]; way(100); out ids center;"
+#    query_text = "[out:xml]; way(414876262); out ids center;"
 #    output = _run_query(query_text)
 #    elements = _parse_xml_elements(output)
 #    assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_way_ids_bb() -> None:
-    query_text = "[out:xml]; way(100); out ids bb;"
+    query_text = "[out:xml]; way(414876262); out ids bb;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
@@ -469,35 +469,35 @@ def test_out_xml_way_tags() -> None:
 
 
 def test_out_xml_way_skel() -> None:
-    query_text = "[out:xml]; way(100); out skel;"
+    query_text = "[out:xml]; way(414876262); out skel;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_way_body() -> None:
-    query_text = "[out:xml]; way(100); out body;"
+    query_text = "[out:xml]; way(414876262); out body;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_way_meta() -> None:
-    query_text = "[out:xml]; way(100); out meta;"
+    query_text = "[out:xml]; way(414876262); out meta;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_way_geom() -> None:
-    query_text = "[out:xml]; way(100); out geom;"
+    query_text = "[out:xml]; way(414876262); out geom;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
 
 
 def test_out_xml_way_geom_meta() -> None:
-    query_text = "[out:xml]; way(100); out geom meta;"
+    query_text = "[out:xml]; way(414876262); out geom meta;"
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)

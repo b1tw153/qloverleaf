@@ -269,7 +269,7 @@ def _add_type_filter(
         type_var = _variable_name(
             pattern.output_set, filter_index=0, intermediate="type"
         )
-        pattern.where_clauses.append(f"{result_variable} rdf:type {type_var}")
+        pattern.where_clauses.append(f"{result_variable} rdf:type {type_var} .")
 
 
 def _add_query_filter(

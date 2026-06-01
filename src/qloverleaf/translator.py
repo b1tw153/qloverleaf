@@ -983,6 +983,219 @@ def _injection_marker(sparql_var: str, elem_type: ElementType) -> str:
     return f"VALUES {sparql_var}{_BRANCH_SUFFIX[elem_type]} {{ }}"
 
 
+def _meta_branch_lines(result_variable: str) -> list[str]:
+    return [
+        f"{result_variable} osmeta:version ?version .",
+        f"{result_variable} osmeta:timestamp ?timestamp .",
+        f"{result_variable} osmeta:changeset ?changeset .",
+        f"{result_variable} osmeta:uid ?uid .",
+        f"{result_variable} osmeta:user ?user .",
+    ]
+
+
+def _node_branch(
+    result_variable: str,
+    marker: str,
+    multiple_types: bool,
+    include_meta: bool,
+) -> tuple[list[str], list[str]]:
+    lines = [f"{result_variable} rdf:type osm:node ."] if multiple_types else []
+    lines.extend(
+        [
+            marker,
+            f"{result_variable} geo:hasGeometry ?node_geom .",
+            "?node_geom geo:asWKT ?wkt .",
+        ]
+    )
+    if include_meta:
+        lines.extend(_meta_branch_lines(result_variable))
+    return lines, ["?wkt"]
+
+
+def _way_branch(
+    result_variable: str,
+    marker: str,
+    multiple_types: bool,
+    include_meta: bool,
+) -> tuple[list[str], list[str]]:
+    lines = [f"{result_variable} rdf:type osm:way ."] if multiple_types else []
+    lines.extend(
+        [
+            marker,
+            f"{result_variable} osmway:member ?m .",
+            "?m osmway:member_id ?member .",
+            "?m osmway:member_pos ?pos .",
+        ]
+    )
+    if include_meta:
+        lines.extend(_meta_branch_lines(result_variable))
+    return lines, ["?member", "?pos"]
+
+
+def _relation_branch(
+    result_variable: str,
+    marker: str,
+    multiple_types: bool,
+    include_meta: bool,
+    include_member_wkt: bool,
+) -> tuple[list[str], list[str]]:
+    lines = [f"{result_variable} rdf:type osm:relation ."] if multiple_types else []
+    lines.extend(
+        [
+            marker,
+            f"{result_variable} osmrel:member ?m .",
+            "?m osmrel:member_id ?member .",
+            "?m osmrel:member_pos ?pos .",
+            "?m osmrel:member_role ?role .",
+        ]
+    )
+    if include_meta:
+        lines.extend(_meta_branch_lines(result_variable))
+    new_vars = ["?member", "?pos", "?role"]
+    if include_member_wkt:
+        # Per-member WKT: POINT for node members, LINESTRING/POLYGON for way
+        # members, unbound for sub-relation members. Must come after
+        # `?m osmrel:member_id ?member` so ?member is bound — otherwise
+        # QLever full-scans geo:hasGeometry.
+        lines.extend(
+            [
+                "?member geo:hasGeometry ?member_geom .",
+                "?member_geom geo:asWKT ?wkt .",
+            ]
+        )
+        new_vars.append("?wkt")
+    return lines, new_vars
+
+
+def _build_skel_body_meta_pattern(
+    stmt: OutStatement,
+    pattern: SparqlPattern,
+    input_set: SetReference,
+    result_variable: str,
+    required_types: frozenset[ElementType],
+) -> None:
+    """Build the SPARQL pattern for skel/body/meta verbosities.
+
+    Nodes get geometry; ways/relations get ordered member lists. Body adds a
+    UNION branch for tags — each row is either a skel row or a tag row, never
+    both, and the formatter combines them per element. Meta adds flat osmeta:
+    triples inside each type branch. All three use one branch per element type
+    with an injection marker so cold clauses land inside the branch (Option 2)
+    and hot sets get type-filtered VALUES inside the branch (Option 1).
+    """
+    include_tags = stmt.verbosity in (OutVerbosity.BODY, OutVerbosity.META)
+    include_meta = stmt.verbosity == OutVerbosity.META
+    # bb/center/geom reuse the per-member-WKT collection path: bounds and center
+    # are derived from the union of member coordinates in the formatter. For
+    # nodes the element's own ?wkt POINT from the NODE branch is sufficient.
+    include_member_wkt = stmt.geom or stmt.bb or stmt.center
+    pattern.prefixes |= {"rdf", "osm", "osmway", "osmrel", "geo"}
+    if include_tags:
+        pattern.prefixes.add("osmkey")
+    if include_meta:
+        pattern.prefixes.add("osmeta")
+    select_parts = [result_variable]
+    branches: list[str] = []
+    has_members = False
+
+    assert input_set.content_types is not None
+    multiple_types = len(input_set.content_types) > 1
+
+    for elem_type in _OSM_TYPE_ORDER:
+        if elem_type not in input_set.content_types:
+            continue
+        marker = _injection_marker(result_variable, elem_type)
+
+        if elem_type == ElementType.NODE:
+            branch_lines, new_vars = _node_branch(
+                result_variable, marker, multiple_types, include_meta
+            )
+        elif elem_type == ElementType.WAY:
+            branch_lines, new_vars = _way_branch(
+                result_variable, marker, multiple_types, include_meta
+            )
+            has_members = True
+        else:
+            branch_lines, new_vars = _relation_branch(
+                result_variable,
+                marker,
+                multiple_types,
+                include_meta,
+                include_member_wkt,
+            )
+            has_members = True
+
+        for v in new_vars:
+            if v not in select_parts:
+                select_parts.append(v)
+        branches.append("{\n  " + "\n  ".join(branch_lines) + "\n}")
+        pattern.injections.append(
+            SetInjection(
+                sparql_var=result_variable,
+                set_name=input_set.identifier,
+                required_types=frozenset({elem_type}),
+                marker=marker,
+            )
+        )
+
+    if include_member_wkt and ElementType.WAY in input_set.content_types:
+        way_geom_marker = f"VALUES {result_variable}·way_geom {{ }}"
+        way_geom_branch_lines = (
+            [f"{result_variable} rdf:type osm:way ."] if multiple_types else []
+        )
+        way_geom_branch_lines.extend(
+            [
+                way_geom_marker,
+                f"{result_variable} geo:hasGeometry ?way_geom .",
+                "?way_geom geo:asWKT ?member_wkt .",
+            ]
+        )
+        if "?member_wkt" not in select_parts:
+            select_parts.append("?member_wkt")
+        branches.append("{\n  " + "\n  ".join(way_geom_branch_lines) + "\n}")
+        pattern.injections.append(
+            SetInjection(
+                sparql_var=result_variable,
+                set_name=input_set.identifier,
+                required_types=required_types,
+                marker=way_geom_marker,
+            )
+        )
+
+    if include_tags:
+        tags_marker = f"VALUES {result_variable}·tags {{ }}"
+        tags_branch_lines = [
+            tags_marker,
+            f"{result_variable} ?p ?v .",
+            'FILTER(STRSTARTS(STR(?p), "https://www.openstreetmap.org/wiki/Key:"))',
+        ]
+        branches.append("{\n  " + "\n  ".join(tags_branch_lines) + "\n}")
+        pattern.injections.append(
+            SetInjection(
+                sparql_var=result_variable,
+                set_name=input_set.identifier,
+                required_types=required_types,
+                marker=tags_marker,
+            )
+        )
+        for v in ["?p", "?v"]:
+            if v not in select_parts:
+                select_parts.append(v)
+
+    if include_meta:
+        for v in ["?version", "?timestamp", "?changeset", "?uid", "?user"]:
+            select_parts.append(v)
+
+    pattern.select_clause = " ".join(select_parts)
+    pattern.where_clauses.append("\nUNION\n".join(branches))
+
+    order_by = result_variable
+    if has_members:
+        order_by += " ?pos"
+    pattern.order_by = order_by
+    pattern.limit = stmt.limit
+
+
 def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
     # OutStatement doesn't produce a set, only outputs an existing one
     pattern = SparqlPattern(output_set=None)
@@ -1035,200 +1248,6 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         else:
             pattern.injections.append(_flat_injection())
             pattern.select_clause = result_variable
-    elif stmt.verbosity in (OutVerbosity.SKEL, OutVerbosity.BODY, OutVerbosity.META):
-        # Skeleton: nodes get geometry, ways/relations get ordered member lists.
-        # Body adds a fourth UNION branch for tags; each row is either a skel row
-        # or a tag row — never both — and the formatter combines them per element.
-        # Meta adds flat osmeta: triples after the UNION block, joining on the
-        # element variable so every row carries the full metadata for that element.
-        # All three use one branch per element type with an injection marker so
-        # cold clauses land inside the branch (Option 2) and hot sets get
-        # type-filtered VALUES inside the branch (Option 1).
-        include_tags = stmt.verbosity in (OutVerbosity.BODY, OutVerbosity.META)
-        include_meta = stmt.verbosity == OutVerbosity.META
-        # bb reuses the per-member-WKT collection path: bounds is derived from
-        # the union of member coordinates in the formatter. For nodes the
-        # element's own ?wkt POINT from the NODE branch is already sufficient,
-        # so bb adds nothing there.
-        include_member_wkt = stmt.geom or stmt.bb or stmt.center
-        pattern.prefixes |= {"rdf", "osm", "osmway", "osmrel", "geo"}
-        if include_tags:
-            pattern.prefixes.add("osmkey")
-        if include_meta:
-            pattern.prefixes.add("osmeta")
-        select_parts = [result_variable]
-        branches: list[str] = []
-        has_members = False
-
-        assert input_set.content_types is not None
-        multiple_types = len(input_set.content_types) > 1
-
-        for elem_type in _OSM_TYPE_ORDER:
-            if elem_type not in input_set.content_types:
-                continue
-            marker = _injection_marker(result_variable, elem_type)
-
-            if elem_type == ElementType.NODE:
-                branch_lines = (
-                    [f"{result_variable} rdf:type osm:node ."] if multiple_types else []
-                )
-                branch_lines.extend(
-                    [
-                        marker,
-                        f"{result_variable} geo:hasGeometry ?node_geom .",
-                        "?node_geom geo:asWKT ?wkt .",
-                    ]
-                )
-                if include_meta:
-                    branch_lines.extend(
-                        [
-                            f"{result_variable} osmeta:version ?version .",
-                            f"{result_variable} osmeta:timestamp ?timestamp .",
-                            f"{result_variable} osmeta:changeset ?changeset .",
-                            f"{result_variable} osmeta:uid ?uid .",
-                            f"{result_variable} osmeta:user ?user .",
-                        ]
-                    )
-                if "?wkt" not in select_parts:
-                    select_parts.append("?wkt")
-            elif elem_type == ElementType.WAY:
-                branch_lines = (
-                    [f"{result_variable} rdf:type osm:way ."] if multiple_types else []
-                )
-                branch_lines.extend(
-                    [
-                        marker,
-                        f"{result_variable} osmway:member ?m .",
-                        "?m osmway:member_id ?member .",
-                        "?m osmway:member_pos ?pos .",
-                    ]
-                )
-                if include_meta:
-                    branch_lines.extend(
-                        [
-                            f"{result_variable} osmeta:version ?version .",
-                            f"{result_variable} osmeta:timestamp ?timestamp .",
-                            f"{result_variable} osmeta:changeset ?changeset .",
-                            f"{result_variable} osmeta:uid ?uid .",
-                            f"{result_variable} osmeta:user ?user .",
-                        ]
-                    )
-                for v in ["?member", "?pos"]:
-                    if v not in select_parts:
-                        select_parts.append(v)
-                has_members = True
-            else:  # RELATION
-                branch_lines = (
-                    [f"{result_variable} rdf:type osm:relation ."]
-                    if multiple_types
-                    else []
-                )
-                branch_lines.extend(
-                    [
-                        marker,
-                        f"{result_variable} osmrel:member ?m .",
-                        "?m osmrel:member_id ?member .",
-                        "?m osmrel:member_pos ?pos .",
-                        "?m osmrel:member_role ?role .",
-                    ]
-                )
-                if include_meta:
-                    branch_lines.extend(
-                        [
-                            f"{result_variable} osmeta:version ?version .",
-                            f"{result_variable} osmeta:timestamp ?timestamp .",
-                            f"{result_variable} osmeta:changeset ?changeset .",
-                            f"{result_variable} osmeta:uid ?uid .",
-                            f"{result_variable} osmeta:user ?user .",
-                        ]
-                    )
-                if include_member_wkt:
-                    # Per-member WKT: POINT for node members, LINESTRING/POLYGON
-                    # for way members, unbound for sub-relation members. Must
-                    # come after `?m osmrel:member_id ?member` so ?member is
-                    # bound — otherwise QLever full-scans geo:hasGeometry.
-                    branch_lines.extend(
-                        [
-                            "?member geo:hasGeometry ?member_geom .",
-                            "?member_geom geo:asWKT ?wkt .",
-                        ]
-                    )
-                    if "?wkt" not in select_parts:
-                        select_parts.append("?wkt")
-                for v in ["?member", "?pos", "?role"]:
-                    if v not in select_parts:
-                        select_parts.append(v)
-                has_members = True
-
-            branches.append("{\n  " + "\n  ".join(branch_lines) + "\n}")
-            pattern.injections.append(
-                SetInjection(
-                    sparql_var=result_variable,
-                    set_name=input_set.identifier,
-                    required_types=frozenset({elem_type}),
-                    marker=marker,
-                )
-            )
-
-        if include_member_wkt and ElementType.WAY in input_set.content_types:
-            way_geom_marker = f"VALUES {result_variable}·way_geom {{ }}"
-            way_geom_branch_lines = (
-                [f"{result_variable} rdf:type osm:way ."] if multiple_types else []
-            )
-            way_geom_branch_lines.extend(
-                [
-                    way_geom_marker,
-                    f"{result_variable} geo:hasGeometry ?way_geom .",
-                    "?way_geom geo:asWKT ?member_wkt .",
-                ]
-            )
-            if "?member_wkt" not in select_parts:
-                select_parts.append("?member_wkt")
-            branches.append("{\n  " + "\n  ".join(way_geom_branch_lines) + "\n}")
-            pattern.injections.append(
-                SetInjection(
-                    sparql_var=result_variable,
-                    set_name=input_set.identifier,
-                    required_types=required_types,
-                    marker=way_geom_marker,
-                )
-            )
-
-        if include_tags:
-            tags_marker = f"VALUES {result_variable}·tags {{ }}"
-            tags_branch_lines = [
-                tags_marker,
-                f"{result_variable} ?p ?v .",
-                'FILTER(STRSTARTS(STR(?p), "https://www.openstreetmap.org/wiki/Key:"))',
-            ]
-            branches.append("{\n  " + "\n  ".join(tags_branch_lines) + "\n}")
-            pattern.injections.append(
-                SetInjection(
-                    sparql_var=result_variable,
-                    set_name=input_set.identifier,
-                    required_types=required_types,
-                    marker=tags_marker,
-                )
-            )
-            for v in ["?p", "?v"]:
-                if v not in select_parts:
-                    select_parts.append(v)
-
-        if include_meta:
-            for v in ["?version", "?timestamp", "?changeset", "?uid", "?user"]:
-                select_parts.append(v)
-
-        pattern.select_clause = " ".join(select_parts)
-        pattern.where_clauses.append("\nUNION\n".join(branches))
-
-        if not stmt.count:
-            order_by = result_variable
-            if has_members:
-                order_by += " ?pos"
-            pattern.order_by = order_by
-            pattern.limit = stmt.limit
-
-        return [pattern]
     elif stmt.verbosity == OutVerbosity.TAGS:
         if stmt.bb or stmt.center:
             # tags + bb: two-branch UNION. Tag rows carry ?p/?v; bb rows carry the
@@ -1279,6 +1298,11 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             pattern.where_clauses.append(
                 'FILTER(STRSTARTS(STR(?p), "https://www.openstreetmap.org/wiki/Key:"))'
             )
+    elif stmt.verbosity in (OutVerbosity.SKEL, OutVerbosity.BODY, OutVerbosity.META):
+        _build_skel_body_meta_pattern(
+            stmt, pattern, input_set, result_variable, required_types
+        )
+        return [pattern]
     else:
         raise UnimplementedFeatureError(
             f"out {stmt.verbosity.value} not yet implemented",

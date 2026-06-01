@@ -1478,7 +1478,7 @@ def test_recurse_filter_r_statement_type() -> None:
 
 def test_recurse_filter_bn_statement_type() -> None:
     # bn recurse outputs ways+relations; nwr ∩ {way,relation} = {way,relation}
-    stmts = _transform_query("node(375832907) -> .a; nwr(bn.a);").statements
+    stmts = _transform_query("node(150935187) -> .a; nwr(bn.a);").statements
     assert isinstance(stmts[1], QueryStatement)
     assert stmts[1].output_set.content_types == _WR
 
@@ -1492,7 +1492,7 @@ def test_recurse_filter_bw_statement_type() -> None:
 
 def test_recurse_filter_br_statement_type() -> None:
     # br recurse outputs relations; nwr ∩ {relation} = {relation}
-    stmts = _transform_query("rel(18375544) -> .a; nwr(br.a);").statements
+    stmts = _transform_query("rel(9712655) -> .a; nwr(br.a);").statements
     assert isinstance(stmts[1], QueryStatement)
     assert stmts[1].output_set.content_types == _RELATION
 

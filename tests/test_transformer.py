@@ -1462,6 +1462,41 @@ def test_recurse_filter_role() -> None:
     assert filter.role == "member"
 
 
+def test_recurse_filter_w_statement_type() -> None:
+    # w recurse outputs nodes; nwr ∩ {node} = {node}
+    stmts = _transform_query("way(33178232) -> .a; nwr(w.a);").statements
+    assert isinstance(stmts[1], QueryStatement)
+    assert stmts[1].output_set.content_types == _NODE
+
+
+def test_recurse_filter_r_statement_type() -> None:
+    # r recurse outputs nwr; nwr ∩ {node,way,relation} = {node,way,relation}
+    stmts = _transform_query("rel(18375544) -> .a; nwr(r.a);").statements
+    assert isinstance(stmts[1], QueryStatement)
+    assert stmts[1].output_set.content_types == _NWR
+
+
+def test_recurse_filter_bn_statement_type() -> None:
+    # bn recurse outputs ways+relations; nwr ∩ {way,relation} = {way,relation}
+    stmts = _transform_query("node(375832907) -> .a; nwr(bn.a);").statements
+    assert isinstance(stmts[1], QueryStatement)
+    assert stmts[1].output_set.content_types == _WR
+
+
+def test_recurse_filter_bw_statement_type() -> None:
+    # bw recurse outputs relations; nwr ∩ {relation} = {relation}
+    stmts = _transform_query("way(33178232) -> .a; nwr(bw.a);").statements
+    assert isinstance(stmts[1], QueryStatement)
+    assert stmts[1].output_set.content_types == _RELATION
+
+
+def test_recurse_filter_br_statement_type() -> None:
+    # br recurse outputs relations; nwr ∩ {relation} = {relation}
+    stmts = _transform_query("rel(18375544) -> .a; nwr(br.a);").statements
+    assert isinstance(stmts[1], QueryStatement)
+    assert stmts[1].output_set.content_types == _RELATION
+
+
 # ---------------------------------------------------------------------------
 # OverpassTransformer.way_count_filter
 # ---------------------------------------------------------------------------

@@ -7,7 +7,11 @@ from qloverleaf.exceptions import (
 )
 from qloverleaf.transformer import (
     _AREA,
+    _NODE,
+    _NW,
     _NWR,
+    _RELATION,
+    _WAY,
     _WR,
     AreaIdFilter,
     AreaSetFilter,
@@ -33,6 +37,7 @@ from qloverleaf.transformer import (
     PolygonFilter,
     QueryFilter,
     QueryStatement,
+    RecurseDir,
     RecurseFilter,
     RecurseFilterType,
     RecurseStatement,
@@ -133,7 +138,15 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
             if injection.required_types is None or injection.required_types & _AREA:
                 uris += entry.area_results or []
             if injection.required_types is None or injection.required_types & _NWR:
-                uris += entry.nwr_results or []
+                nwr = entry.nwr_results or []
+                rt = injection.required_types
+                if rt is not None and rt & _NWR and rt & _NWR != _NWR:
+                    # required_types is a strict subset of NWR — trim hot injections
+                    # to matching types only (performance; cold queries rely on
+                    # in-clause type guards for correctness)
+                    uris += [(t, u) for t, u in nwr if t in rt]
+                else:
+                    uris += nwr
         uri_list = " ".join(f"<{u}>" for _, u in uris)
         filled = f"VALUES {injection.sparql_var} {{ {uri_list} }}"
         if injection.marker is not None:
@@ -1359,10 +1372,180 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
 
 
 def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
-    raise UnimplementedFeatureError(
-        "RecurseStatement translation is not yet implemented",
-        stmt.token,
-    )
+    pattern = SparqlPattern(output_set=stmt.output_set, distinct=True)
+    result_var = f"?{stmt.output_set.identifier}"
+    input_set = stmt.input_set
+    assert input_set.content_types is not None
+    input_types = input_set.content_types
+    branches: list[str] = []
+
+    def _leaf(*lines: str) -> str:
+        return "{\n  " + "\n  ".join(lines) + "\n}"
+
+    def _add_input_branch(
+        ivar: str,
+        required_types: frozenset[ElementType],
+        *clauses: str,
+    ) -> None:
+        marker = f"VALUES {ivar} {{ }}"
+        pattern.injections.append(
+            SetInjection(
+                sparql_var=ivar,
+                set_name=input_set.identifier,
+                required_types=required_types,
+                marker=marker,
+            )
+        )
+        branches.append(_leaf(marker, *clauses))
+
+    def _add_passthrough_branch(marker_suffix: str) -> None:
+        # Input relations pass through to the output unchanged.
+        marker = f"VALUES {result_var}·{marker_suffix} {{ }}"
+        pattern.injections.append(
+            SetInjection(
+                sparql_var=result_var,
+                set_name=input_set.identifier,
+                required_types=_RELATION,
+                marker=marker,
+            )
+        )
+        branches.append(_leaf(marker, f"{result_var} rdf:type osm:relation ."))
+
+    # Intermediate variable names, all scoped to the output set identifier.
+    iw = _variable_name(stmt.output_set, intermediate="iw")    # way input
+    ir = _variable_name(stmt.output_set, intermediate="ir")    # relation input
+    ir2 = _variable_name(stmt.output_set, intermediate="ir2")  # relation (2nd branch)
+    inw = _variable_name(stmt.output_set, intermediate="inw")  # node-or-way input
+    inn = _variable_name(stmt.output_set, intermediate="in")   # node-only input
+    in2 = _variable_name(stmt.output_set, intermediate="in2")  # node-only (2nd branch)
+    wm = _variable_name(stmt.output_set, intermediate="wm")
+    wm2 = _variable_name(stmt.output_set, intermediate="wm2")
+    rm = _variable_name(stmt.output_set, intermediate="rm")
+    rm2 = _variable_name(stmt.output_set, intermediate="rm2")
+    w = _variable_name(stmt.output_set, intermediate="w")
+    nm = _variable_name(stmt.output_set, intermediate="nm")
+
+    match stmt.recurse_dir:
+        case RecurseDir.DOWN:
+            # > expands ways to their member nodes, and relations to their direct
+            # node/way members (sub-relations excluded) plus the member nodes of
+            # those ways. Nodes contribute nothing.
+            pattern.prefixes |= {"osmway", "osmrel", "rdf", "osm"}
+            if ElementType.WAY in input_types:
+                _add_input_branch(
+                    iw, _WAY,
+                    f"{iw} osmway:member {wm} .",
+                    f"{wm} osmway:member_id {result_var} .",
+                )
+            if ElementType.RELATION in input_types:
+                # Branch 1: direct node/way members; rdf:type UNION excludes sub-rels
+                _add_input_branch(
+                    ir, _RELATION,
+                    f"{{ {result_var} rdf:type osm:node }}"
+                    f" UNION {{ {result_var} rdf:type osm:way }}",
+                    f"{ir} osmrel:member {rm} .",
+                    f"{rm} osmrel:member_id {result_var} .",
+                )
+                # Branch 2: nodes of direct way members (two-hop)
+                _add_input_branch(
+                    ir2, _RELATION,
+                    f"{ir2} osmrel:member {rm2} .",
+                    f"{rm2} osmrel:member_id {w} .",
+                    f"{w} osmway:member {nm} .",
+                    f"{nm} osmway:member_id {result_var} .",
+                )
+
+        case RecurseDir.DOWN_RELATIONS:
+            # >> recurses through the full relation hierarchy downward.
+            # Input relations pass through to the output; the way branch is
+            # unchanged from >. Separate osmrel and osmway branches avoid a
+            # combined transitive path over osmway:member (~7B triples).
+            pattern.prefixes |= {"osmway", "osmrel", "rdf", "osm"}
+            if ElementType.RELATION in input_types:
+                _add_passthrough_branch("pass")
+                _add_input_branch(
+                    ir, _RELATION,
+                    f"{ir} (osmrel:member/osmrel:member_id)+ {result_var} .",
+                )
+                # Nodes of descendant ways (transitive path reaches ways at any depth)
+                _add_input_branch(
+                    ir2, _RELATION,
+                    f"{ir2} (osmrel:member/osmrel:member_id)+ {w} .",
+                    f"{w} osmway:member {nm} .",
+                    f"{nm} osmway:member_id {result_var} .",
+                )
+            if ElementType.WAY in input_types:
+                _add_input_branch(
+                    iw, _WAY,
+                    f"{iw} osmway:member {wm} .",
+                    f"{wm} osmway:member_id {result_var} .",
+                )
+
+        case RecurseDir.UP:
+            # < finds direct containers of elements in the current set.
+            # Nodes contribute three branches; ways contribute only the shared branch.
+            # Input relations pass through unchanged.
+            pattern.prefixes |= {"osmway", "osmrel", "rdf", "osm"}
+            if ElementType.NODE in input_types or ElementType.WAY in input_types:
+                # Shared: relations directly containing input nodes or ways.
+                # rdf:type UNION guards against relation URIs reaching this branch.
+                _add_input_branch(
+                    inw, input_types & _NW,
+                    f"{{ {inw} rdf:type osm:node }} UNION {{ {inw} rdf:type osm:way }}",
+                    f"{rm} osmrel:member_id {inw} .",
+                    f"{result_var} osmrel:member {rm} .",
+                )
+            if ElementType.NODE in input_types:
+                # Node-only: parent ways of input nodes
+                _add_input_branch(
+                    inn, _NODE,
+                    f"{wm} osmway:member_id {inn} .",
+                    f"{result_var} osmway:member {wm} .",
+                )
+                # Node-only: relations containing parent ways (two-hop)
+                _add_input_branch(
+                    in2, _NODE,
+                    f"{wm2} osmway:member_id {in2} .",
+                    f"{w} osmway:member {wm2} .",
+                    f"{rm2} osmrel:member_id {w} .",
+                    f"{result_var} osmrel:member {rm2} .",
+                )
+            if ElementType.RELATION in input_types:
+                _add_passthrough_branch("pass")
+
+        case RecurseDir.UP_RELATIONS:
+            # << recurses through the full relation hierarchy upward. Same branch
+            # shapes as <, with single-hop relation lookups replaced by transitive
+            # paths. osmrel:member (~161M triples) is feasible for anchored
+            # transitive paths; osmway:member (~7B) is kept in its own branch.
+            pattern.prefixes |= {"osmway", "osmrel", "rdf", "osm"}
+            if ElementType.NODE in input_types or ElementType.WAY in input_types:
+                # Shared: all relation ancestors of input nodes or ways (transitive).
+                # rdf:type UNION guards against relation URIs reaching this branch.
+                _add_input_branch(
+                    inw, input_types & _NW,
+                    f"{{ {inw} rdf:type osm:node }} UNION {{ {inw} rdf:type osm:way }}",
+                    f"{result_var} (osmrel:member/osmrel:member_id)+ {inw} .",
+                )
+            if ElementType.NODE in input_types:
+                # Node-only: parent ways of input nodes (unchanged from <)
+                _add_input_branch(
+                    inn, _NODE,
+                    f"{wm} osmway:member_id {inn} .",
+                    f"{result_var} osmway:member {wm} .",
+                )
+                # Node-only: relation ancestors via parent ways (transitive)
+                _add_input_branch(
+                    in2, _NODE,
+                    f"{wm2} osmway:member_id {in2} .",
+                    f"{w} osmway:member {wm2} .",
+                    f"{result_var} (osmrel:member/osmrel:member_id)+ {w} .",
+                )
+            if ElementType.RELATION in input_types:
+                _add_passthrough_branch("pass")
+
+    pattern.where_clauses.append("\nUNION\n".join(branches))
+    return [pattern]
 
 
 def _translate_is_in(stmt: IsInStatement) -> list[SparqlPattern]:

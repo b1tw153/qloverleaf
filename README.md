@@ -64,11 +64,9 @@ Qloverleaf interpreter:
 Some aspects of the Overpass QL language have been in the implementation plans but are
 not implemented yet:
 
-- [timeout: ] global setting
 - [bbox: ] global setting
 - [maxsize: ] global setting
 - difference statement, e.g., `( .a; - .b; );`
-- recurse statements, i.e., `>; >>; <; <<;`
 - is_in statement
 - map_to_area statement
 - foreach statement

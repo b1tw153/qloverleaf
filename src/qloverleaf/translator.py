@@ -769,18 +769,6 @@ def _translate_recurse_filter(
             #     { ... BIND ?http ... rel: member_id ?http ... }
             #   }
             # }
-            http_var = _variable_name(
-                output_set, filter_index=filter_index, intermediate="http"
-            )
-            way_blank_http = _variable_name(
-                output_set, filter_index=filter_index, intermediate="mwh"
-            )
-            rel_blank = _variable_name(
-                output_set, filter_index=filter_index, intermediate="mr"
-            )
-            rel_blank_http = _variable_name(
-                output_set, filter_index=filter_index, intermediate="mrh"
-            )
             pattern.prefixes.update({"osm", "rdf", "osmway", "osmrel"})
             # The input VALUES must live inside each UNION leaf (QLever does not
             # push an outer VALUES through UNION). Use the marker mechanism so a
@@ -794,11 +782,6 @@ def _translate_recurse_filter(
                 input_type = f"{input_var} rdf:type osm:node ."
             else:
                 input_type = ""
-            http_bind = (
-                f'BIND(IRI(REPLACE(STR({input_var}), "^https://", "http://"))'
-                f" AS {http_var})"
-            )
-            http_type = f"{http_var} rdf:type osm:node ."
 
             def _leaf(*lines: str) -> str:
                 return "{ " + " ".join(lines) + " }"
@@ -806,33 +789,14 @@ def _translate_recurse_filter(
             way_leaf = _leaf(
                 input_values_marker,
                 input_type,
-                f"{blank_var} osmway:member_id {input_var} .",
-                f"{result_variable} osmway:member {blank_var} .",
-            )
-            way_http_leaf = _leaf(
-                input_values_marker,
-                http_bind,
-                http_type,
-                f"{way_blank_http} osmway:member_id {http_var} .",
-                f"{result_variable} osmway:member {way_blank_http} .",
+                f"{result_variable} (osmway:member/osmway:member_id) {input_var} .",
             )
             rel_leaf = _leaf(
                 input_values_marker,
                 input_type,
-                f"{rel_blank} osmrel:member_id {input_var} .",
-                f"{result_variable} osmrel:member {rel_blank} .",
+                f"{result_variable} (osmrel:member/osmrel:member_id) {input_var} .",
             )
-            rel_http_leaf = _leaf(
-                input_values_marker,
-                http_bind,
-                http_type,
-                f"{rel_blank_http} osmrel:member_id {http_var} .",
-                f"{result_variable} osmrel:member {rel_blank_http} .",
-            )
-            pattern.where_clauses.append(
-                f"{{ {way_leaf} UNION {way_http_leaf} }}"
-                f" UNION {{ {rel_leaf} UNION {rel_http_leaf} }}"
-            )
+            pattern.where_clauses.append(f"{{ {way_leaf} UNION {rel_leaf} }}")
 
         case RecurseFilterType.BW:
             # way → parent relations (upward)

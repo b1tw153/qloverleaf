@@ -25,11 +25,8 @@ URL for Overpass such as Overpass Turbo or JOSM.</p>
 <li>Bounding boxes and (if: ) filters without other constraints cause QLever to perform
   a full scan of the index - which typically fails by running out of memory or timing
   out. These filters are safe to use when combined with other restrictive filters.</li>
-<li>Simpler output formats work better. Using <code>out ids;</code> is the simplest. Using
-  <code>out geom</code> can cause queries to time out or run out of memory because it has to
-  traverse member relationships and pull in many attributes to collect the data set.</li>
-<li>The recursion filter <code>(n)</code>, <code>(w)</code>, <code>(r)</code>, <code>(bn)</code>, <code>(bw)</code>, <code>(br)</code> can also be
-  problematic as it traverses element relationships before the result set is built.</li>
+<li>Use the area filter whenever possible instead of using bbox. The <code>nwr(area.a)</code> form
+  is exceptionally efficient in QLever -- use it whenever possible!</li>
 </ul>
 <p>Some of these issues are mismatches between the QLever and Overpass data models. Other
 issues are query composition and optimization challenges that have not yet been
@@ -154,11 +151,11 @@ addressible in QLever queries.</p>
 <h2>Known Bugs</h2>
 <ul>
 <li>[bbox: ] global setting is not applied</li>
-<li>[timeout: ] global setting is not applied</li>
 <li>[maxsize: ] global setting is not applied</li>
 <li>output limit restricts the number of rows returned from QLever instead of limiting
   the number of OSM elements returned in the result set</li>
 <li>the way_cnt filter does not work inside a union statement</li>
+<li>output is sorted by ID in lexical order rather than numerical order</li>
 <li>the logo on this page is not rendering correctly</li>
 <li>... and certainly many more that are unknown</li>
 </ul>

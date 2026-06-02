@@ -26,11 +26,8 @@ curl -i 'https://qloverleaf.fly.dev/api/interpreter' --data-urlencode 'data=[out
 - Bounding boxes and (if: ) filters without other constraints cause QLever to perform
   a full scan of the index - which typically fails by running out of memory or timing
   out. These filters are safe to use when combined with other restrictive filters.
-- Simpler output formats work better. Using `out ids;` is the simplest. Using
-  `out geom` can cause queries to time out or run out of memory because it has to
-  traverse member relationships and pull in many attributes to collect the data set.
-- The recursion filter `(n)`, `(w)`, `(r)`, `(bn)`, `(bw)`, `(br)` can also be
-  problematic as it traverses element relationships before the result set is built.
+- Use the area filter whenever possible instead of using bbox. The `nwr(area.a)` form
+  is exceptionally efficient in QLever -- use it whenever possible!
 
 Some of these issues are mismatches between the QLever and Overpass data models. Other
 issues are query composition and optimization challenges that have not yet been
@@ -158,11 +155,11 @@ These features are unsupported with no implementation plans at this time:
 ## Known Bugs
 
 - [bbox: ] global setting is not applied
-- [timeout: ] global setting is not applied
 - [maxsize: ] global setting is not applied
 - output limit restricts the number of rows returned from QLever instead of limiting
   the number of OSM elements returned in the result set
 - the way_cnt filter does not work inside a union statement
+- output is sorted by ID in lexical order rather than numerical order
 - the logo on this page is not rendering correctly
 - ... and certainly many more that are unknown
 

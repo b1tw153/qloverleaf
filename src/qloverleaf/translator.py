@@ -982,21 +982,16 @@ def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
             if inj.set_name in member_outputs:
                 # Intra-union pipeline: reads from a previous member's output.
                 # That result is already folded into a UNION leaf and never stored
-                # in set_state, so inline the previous member's WHERE clauses directly
-                # in place of the marker to keep each UNION branch self-contained.
-                if inj.marker is None:
-                    raise UnimplementedFeatureError(
-                        "flat intra-union pipeline injection is not yet supported",
-                        member.token,
-                    )
+                # in set_state, so the previous member's WHERE clauses must be
+                # inlined directly to keep each UNION branch self-contained.
                 prev_mp = member_outputs[inj.set_name]
                 prev_old_var = prev_mp.result_variable
                 assert prev_old_var is not None
                 pattern.prefixes |= prev_mp.prefixes
 
-                if prev_mp.where_clauses:
-                    # General case: inline the previous member's WHERE clauses in place
-                    # of the marker.  Rename prev result variable → this input variable.
+                if inj.marker is not None and prev_mp.where_clauses:
+                    # Site injection, prev has WHERE clauses: inline in place of marker.
+                    # Rename prev result variable → this injection's input variable.
                     inline_clauses = [
                         _substitute_variable(c, prev_old_var, new_sparql_var)
                         for c in prev_mp.where_clauses
@@ -1016,21 +1011,20 @@ def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
                                 marker=prev_inj.marker,
                             )
                         )
-                else:
-                    # Pass-through (e.g. item statement ._ ): the previous member has
-                    # no WHERE clauses — it is a pure alias from its injected source.
-                    # We cannot use the general-case path here: inlining empty clauses
-                    # would replace the current marker with nothing (destroying the
-                    # constraint), and lifting the flat alias injection would append its
-                    # substituted clauses to the outer WHERE clause rather than inside
-                    # the UNION branch.  Instead, re-point the current site marker
-                    # directly at each source injection's set so the composer can
-                    # resolve it in-place.
+
+                elif inj.marker is not None:
+                    # Site injection, prev has no WHERE clauses: pass-through
+                    # (e.g. item statement ._).  The previous member is a pure alias
+                    # from its injected source.  We cannot inline empty clauses here:
+                    # that would replace the marker with nothing (destroying the
+                    # constraint), and lifting the flat alias injection would append
+                    # its clauses to the outer WHERE rather than inside the branch.
+                    # Instead, re-point the current site marker to the source set.
                     for prev_inj in prev_mp.injections:
                         if prev_inj.marker is None:
-                            # Flat source: bind the current marker (already in the leaf)
-                            # to the upstream set, using this injection's variable and
-                            # required_types (not prev_inj's, which names the wrong var)
+                            # Flat source: bind current marker to the upstream set.
+                            # Use this injection's sparql_var and required_types —
+                            # prev_inj's name the alias variable, not the right var.
                             pattern.injections.append(
                                 SetInjection(
                                     sparql_var=new_sparql_var,
@@ -1051,6 +1045,57 @@ def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
                                     marker=prev_inj.marker,
                                 )
                             )
+
+                elif prev_mp.where_clauses:
+                    # Flat injection, prev has WHERE clauses: arises when an item
+                    # statement (._) follows a member that has WHERE clauses, e.g.
+                    # ( >; ._; ).  Item statements produce flat injections (no site
+                    # marker), so there is no placeholder to replace in the leaf.
+                    # Instead, prepend the previous member's WHERE clauses directly.
+                    # Intermediate variables (e.g. ?_2·ir) must be renamed with a
+                    # leaf-specific suffix so their marker strings are unique — the
+                    # composer fills each marker exactly once, and the same marker
+                    # text in two UNION branches would leave the second one unfilled.
+                    renamed_clauses = list(prev_mp.where_clauses)
+                    renamed_prev_injections: list[SetInjection] = []
+                    for prev_inj in prev_mp.injections:
+                        if prev_inj.marker is None:
+                            raise UnimplementedFeatureError(
+                                "flat injection in flat intra-union"
+                                " pipeline is not yet supported",
+                                member.token,
+                            )
+                        old_ivar = prev_inj.sparql_var
+                        new_ivar = f"{old_ivar}·l{leaf_idx}"
+                        renamed_clauses = [
+                            _substitute_variable(c, old_ivar, new_ivar)
+                            for c in renamed_clauses
+                        ]
+                        renamed_prev_injections.append(
+                            SetInjection(
+                                sparql_var=new_ivar,
+                                set_name=prev_inj.set_name,
+                                required_types=prev_inj.required_types,
+                                must_materialize=prev_inj.must_materialize,
+                                marker=_substitute_variable(
+                                    prev_inj.marker, old_ivar, new_ivar
+                                ),
+                            )
+                        )
+                    inline_clauses = [
+                        _substitute_variable(c, prev_old_var, new_sparql_var)
+                        for c in renamed_clauses
+                    ]
+                    leaf_clauses = inline_clauses + leaf_clauses
+                    for renamed_inj in renamed_prev_injections:
+                        pattern.injections.append(renamed_inj)
+
+                else:
+                    raise UnimplementedFeatureError(
+                        "chained pass-through in flat intra-union"
+                        " pipeline is not yet supported",
+                        member.token,
+                    )
 
             elif inj.marker is not None:
                 # Already a site injection: the marker is embedded in leaf_clauses via

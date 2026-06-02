@@ -2900,6 +2900,15 @@ def test_translated_union_intra_pipeline_item_then_recurse_down() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
+def test_translated_union_intra_pipeline_recurse_then_item() -> None:
+    # ( >; ._; ) — > recurses from ._, then ._ (item) re-adds that output.
+    # The ._ leaf inlines the > clauses with renamed intermediate variables.
+    query = "rel(13127616); ( >; ._; );"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
 # ---------------------------------------------------------------------------
 # RecurseStatement
 # ---------------------------------------------------------------------------

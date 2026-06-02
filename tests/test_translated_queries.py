@@ -2811,6 +2811,14 @@ def test_translated_union_invalid_complete_member() -> None:
         _translate("( node(id:1); complete { node(id:2); }; );")
 
 
+def test_translated_union_empty() -> None:
+    # empty union always returns the empty set
+    query = "( );"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
 def test_translated_union_one_member() -> None:
     # single-member union: same result as the unwrapped query
     query = "( node[geological=meteor_crater]; );"

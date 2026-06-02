@@ -998,10 +998,9 @@ def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
         leaves.append("{\n  " + "\n  ".join(leaf_clauses) + "\n}")
 
     if not leaves:
-        raise UnsupportedFeatureError(
-            "UnionStatement has no translatable members",
-            stmt.token,
-        )
+        # Empty union ( ) always produces an empty set
+        pattern.where_clauses.append(f"VALUES {result_variable} {{ }}")
+        return [pattern]
 
     pattern.where_clauses.append("\nUNION\n".join(leaves))
     return [pattern]

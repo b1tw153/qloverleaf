@@ -2,6 +2,7 @@ from typing import Any
 
 import httpx
 
+from qloverleaf.exceptions import BackendError, NetworkError, TimeoutError
 from qloverleaf.transformer import ElementType
 
 QLEVER_ENDPOINT = "https://qlever.dev/api/osm-planet"
@@ -31,12 +32,22 @@ def parse_results(data: dict[str, Any], var_name: str) -> list[tuple[ElementType
     return results
 
 
-async def query_qlever(sparql: str, client: httpx.AsyncClient) -> dict[str, Any]:
-    response = await client.post(
-        QLEVER_ENDPOINT,
-        data={"query": sparql},
-        headers={"Accept": "application/sparql-results+json"},
-    )
-    response.raise_for_status()
+async def query_qlever(
+    sparql: str, client: httpx.AsyncClient, timeout: float
+) -> dict[str, Any]:
+    try:
+        response = await client.post(
+            QLEVER_ENDPOINT,
+            data={"query": sparql},
+            headers={"Accept": "application/sparql-results+json"},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+    except httpx.TimeoutException as e:
+        raise TimeoutError("QLever did not respond in time", None) from e
+    except httpx.HTTPStatusError as e:
+        raise BackendError(f"QLever returned {e.response.status_code}", None) from e
+    except httpx.RequestError as e:
+        raise NetworkError(f"Network error connecting to QLever: {e}", None) from e
     result: dict[str, Any] = response.json()
     return result

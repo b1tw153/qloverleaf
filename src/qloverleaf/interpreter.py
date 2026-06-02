@@ -1,3 +1,4 @@
+import time
 from collections.abc import AsyncGenerator
 from dataclasses import replace
 from enum import Enum
@@ -6,7 +7,12 @@ import httpx
 from lark import Token, Tree
 
 from qloverleaf.composer import compose
-from qloverleaf.exceptions import QueryError, UnsupportedFeatureError
+from qloverleaf.exceptions import (
+    QueryError,
+    QueryTimeoutError,
+    TimeoutError,
+    UnsupportedFeatureError,
+)
 from qloverleaf.executor import parse_results, query_qlever
 from qloverleaf.formatter import (
     format_begin,
@@ -187,6 +193,10 @@ class OutMode(Enum):
     # None = no output
 
 
+def _remaining_time(query: QueryContext) -> float:
+    return query.timeout - (time.time() - query.stats.start_time)
+
+
 async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
     assert query.ir is not None
 
@@ -205,8 +215,15 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
 
         # Process execution queue
         # TODO: Get this timeout from global settings
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient() as client:
             while execution_queue:
+                if _remaining_time(query) < 0:
+                    execution_time = time.perf_counter() - query.stats.start_time
+                    raise QueryTimeoutError(
+                        f"Query execution timed out after {execution_time} seconds",
+                        None,
+                    )
+
                 pattern = execution_queue.pop(0)
 
                 # Flag out and out debug statements
@@ -280,7 +297,17 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                 # or pattern is hot)
                 sparql = render_query(working_pattern, set_state)
                 if out_mode != OutMode.DEBUG:
-                    data = await query_qlever(sparql, client)
+                    try:
+                        data = await query_qlever(
+                            sparql, client, _remaining_time(query)
+                        )
+                    except TimeoutError:
+                        if _remaining_time(query) <= 0:
+                            raise QueryTimeoutError(
+                                f"Query exceeded timeout of {query.timeout} seconds",
+                                None,
+                            )
+                        raise
                 else:
                     data = {}
 

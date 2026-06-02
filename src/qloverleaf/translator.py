@@ -1063,8 +1063,7 @@ def _node_branch(
     lines.extend(
         [
             marker,
-            f"{result_variable} geo:hasGeometry ?node_geom .",
-            "?node_geom geo:asWKT ?wkt .",
+            f"{result_variable} geo:hasGeometry/geo:asWKT ?wkt .",
         ]
     )
     if include_meta:
@@ -1119,8 +1118,7 @@ def _relation_branch(
         # QLever full-scans geo:hasGeometry.
         lines.extend(
             [
-                "?member geo:hasGeometry ?member_geom .",
-                "?member_geom geo:asWKT ?wkt .",
+                "?member geo:hasGeometry/geo:asWKT ?wkt .",
             ]
         )
         new_vars.append("?wkt")
@@ -1206,8 +1204,7 @@ def _build_skel_body_meta_pattern(
         way_geom_branch_lines.extend(
             [
                 way_geom_marker,
-                f"{result_variable} geo:hasGeometry ?way_geom .",
-                "?way_geom geo:asWKT ?member_wkt .",
+                f"{result_variable} geo:hasGeometry/geo:asWKT ?member_wkt .",
             ]
         )
         if "?member_wkt" not in select_parts:
@@ -1294,8 +1291,7 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             pattern.select_clause = f"{result_variable} ?bb_wkt"
             pattern.where_clauses.append(bb_marker)
             pattern.where_clauses.append(
-                f"{result_variable} geo:hasGeometry ?bb_geom ."
-                "?bb_geom geo:asWKT ?bb_wkt ."
+                f"{result_variable} geo:hasGeometry/geo:asWKT ?bb_wkt ."
             )
             pattern.injections.append(
                 SetInjection(
@@ -1330,8 +1326,8 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
             bb_branch = (
                 "{\n  "
                 + bb_marker
-                + f"\n  {result_variable} geo:hasGeometry ?bb_geom ."
-                + "\n  ?bb_geom geo:asWKT ?bb_wkt .\n}"
+                + f"\n  {result_variable} geo:hasGeometry/geo:asWKT ?bb_wkt ."
+                + "\n}"
             )
             pattern.select_clause = f"{result_variable} ?p ?v ?bb_wkt"
             pattern.where_clauses.append(tags_branch + "\nUNION\n" + bb_branch)

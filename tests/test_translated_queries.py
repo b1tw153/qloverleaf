@@ -2793,22 +2793,22 @@ def test_translated_union_invalid_out_member() -> None:
 
 def test_translated_union_invalid_foreach_member() -> None:
     with pytest.raises(QueryError):
-        _translate("( node(id:1); foreach { node(id:2); }; );")
+        _translate("( node(id:1); foreach { node(id:2); } );")
 
 
 def test_translated_union_invalid_for_member() -> None:
     with pytest.raises(QueryError):
-        _translate('( node(id:1); for (t["name"]) { node(id:2); }; );')
+        _translate('( node(id:1); for (t["name"]) { node(id:2); } );')
 
 
 def test_translated_union_invalid_if_member() -> None:
     with pytest.raises(QueryError):
-        _translate("( node(id:1); if (1 == 1) { node(id:2); }; );")
+        _translate("( node(id:1); if (1 == 1) { node(id:2); } );")
 
 
 def test_translated_union_invalid_complete_member() -> None:
     with pytest.raises(QueryError):
-        _translate("( node(id:1); complete { node(id:2); }; );")
+        _translate("( node(id:1); complete { node(id:2); } );")
 
 
 def test_translated_union_empty() -> None:

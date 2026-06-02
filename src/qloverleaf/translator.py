@@ -727,57 +727,26 @@ def _translate_recurse_filter(
             )
             if f.role is not None:
                 pattern.where_clauses.append(
-                    f'{blank_var} osmrel:member_role "{f.role}" .'
+                    f"{blank_var} osmrel:member_role {_sparql_literal(f.role)} ."
                 )
 
         case RecurseFilterType.BN:
             # node → parent ways and/or relations (upward).
-            # osmway:member_id and osmrel:member_id store node URIs using http://
-            # for untagged nodes and https:// for tagged nodes. Both schemes must
-            # be covered. The input variable carries the https:// form (osmnode:
-            # prefix), so we derive the http:// form with BIND inside each leaf
-            # that needs it.
+            # Uses reverse property paths for the membership lookup
+            # (?result osmway:member/osmway:member_id ?input) rather than
+            # explicit blank-node triples. The prior query returns the correct
+            # URI scheme for each node (http:// for untagged, https:// for
+            # tagged), so no dual-scheme handling is needed here.
             #
-            # In QLever each UNION block is executed and produces results before
-            # the outer clauses are applied. If a leaf is not constrained by the
-            # input set the query can time out or run out of memory. So we inline
-            # VALUES (via a marker substituted at render time) and the input
-            # rdf:type clause into every leaf, and the BIND into the leaves that
-            # use ?http.
-            #
-            # The generated query has this shape:
-            #
-            # SELECT DISTINCT ?_1 WHERE {
-            #   ?_1 rdf:type osm:way .
-            #   {
-            #     {
-            #       VALUES ?_1·f0·input { osmnode:3843108154 }
-            #       ?_1·f0·input rdf:type osm:node .
-            #       ?_1·f0·m osmway:member_id ?_1·f0·input .
-            #       ?_1 osmway:member ?_1·f0·m .
-            #     } UNION {
-            #       VALUES ?_1·f0·input { osmnode:3843108154 }
-            #       BIND(IRI(REPLACE(STR(?_1·f0·input), "^https://", "http://"))
-            #            AS ?_1·f0·http)
-            #       ?_1·f0·http rdf:type osm:node .
-            #       ?_1·f0·mwh osmway:member_id ?_1·f0·http .
-            #       ?_1 osmway:member ?_1·f0·mwh .
-            #     }
-            #   } UNION {
-            #     { ... rel: member_id ?input ... }
-            #     UNION
-            #     { ... BIND ?http ... rel: member_id ?http ... }
-            #   }
-            # }
+            # The input VALUES must live inside each UNION leaf (QLever does not push
+            # an outer VALUES through UNION). The marker mechanism fills every leaf from
+            # the same injection at render time.
             pattern.prefixes.update({"osm", "rdf", "osmway", "osmrel"})
-            # The input VALUES must live inside each UNION leaf (QLever does not
-            # push an outer VALUES through UNION). Use the marker mechanism so a
-            # single injection fills every leaf — both render_query and the
-            # composer substitute every occurrence in the matched clause, and
-            # all four leaves share the same where_clause string here.
             input_values_marker = f"VALUES {input_var} {{ }}"
             pattern.injections[-1].marker = input_values_marker
             assert f.set_reference.content_types is not None
+            # If the source set is mixed (contains ways or relations alongside nodes),
+            # pin the input variable to nodes so only the node members are followed.
             if len(f.set_reference.content_types & _WR) > 0:
                 input_type = f"{input_var} rdf:type osm:node ."
             else:
@@ -798,16 +767,10 @@ def _translate_recurse_filter(
             )
             pattern.where_clauses.append(f"{{ {way_leaf} UNION {rel_leaf} }}")
 
-        case RecurseFilterType.BW:
-            # way → parent relations (upward)
-            pattern.prefixes.add("osmrel")
-            pattern.where_clauses.append(f"{blank_var} osmrel:member_id {input_var} .")
-            pattern.where_clauses.append(
-                f"{result_variable} osmrel:member {blank_var} ."
-            )
-
-        case RecurseFilterType.BR:
-            # relation → parent relations (upward)
+        case RecurseFilterType.BW | RecurseFilterType.BR:
+            # way or relation → parent relations (upward).
+            # Both produce identical triple patterns; the distinction is in the
+            # input URI prefix (osmway: vs osmrel:), which comes from the input set.
             pattern.prefixes.add("osmrel")
             pattern.where_clauses.append(f"{blank_var} osmrel:member_id {input_var} .")
             pattern.where_clauses.append(

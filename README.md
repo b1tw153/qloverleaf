@@ -70,7 +70,7 @@ not implemented yet:
 - [timeout: ] global setting
 - [bbox: ] global setting
 - [maxsize: ] global setting
-- union statement, e.g., `( .a; .b; );`
+- difference statement, e.g., `( .a; - .b; );`
 - recurse statements, i.e., `>; >>; <; <<;`
 - is_in statement
 - map_to_area statement
@@ -162,6 +162,7 @@ These features are unsupported with no implementation plans at this time:
 - [maxsize: ] global setting is not applied
 - output limit restricts the number of rows returned from QLever instead of limiting
   the number of OSM elements returned in the result set
+- the way_cnt filter does not work inside a union statement
 - the logo on this page is not rendering correctly
 - ... and certainly many more that are unknown
 

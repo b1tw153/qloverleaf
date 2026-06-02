@@ -2,6 +2,7 @@ import httpx
 import pytest
 
 from qloverleaf.composer import compose
+from qloverleaf.exceptions import QueryError
 from qloverleaf.parser import parse
 from qloverleaf.transformer import ElementType, OverpassTransformer
 from qloverleaf.translator import render_query, translate
@@ -2757,3 +2758,117 @@ def test_translated_out_bb_body_relation() -> None:
             ql_bounds[elem_key] = b
 
     _assert_bounds(op_top_bounds, ql_bounds)
+
+
+# ---------------------------------------------------------------------------
+# UnionStatement
+# ---------------------------------------------------------------------------
+
+
+def _compose_union_query(query: str) -> tuple[str, list[str]]:
+    """Translate a query ending in a union statement.
+
+    Setup statements (before the union) are composed into set_state without
+    execution. Returns (rendered_sparql, overpass_ids).
+    """
+    overpass_ids = _execute_overpass(query)
+    patterns = _translate_query(query)
+    set_state: SetState = {}
+    composed = None
+    for pattern in patterns:
+        composed = compose(pattern, set_state)
+        assert composed is not None
+        if composed.result_set_name is not None:
+            set_state[composed.result_set_name] = SetStateEntry(
+                pattern=composed, nwr_results=None, area_results=None
+            )
+    assert composed is not None
+    return render_query(composed, set_state), overpass_ids
+
+
+def test_translated_union_invalid_out_member() -> None:
+    with pytest.raises(QueryError):
+        _translate("( node(id:1); out; );")
+
+
+def test_translated_union_invalid_foreach_member() -> None:
+    with pytest.raises(QueryError):
+        _translate("( node(id:1); foreach { node(id:2); }; );")
+
+
+def test_translated_union_invalid_for_member() -> None:
+    with pytest.raises(QueryError):
+        _translate('( node(id:1); for (t["name"]) { node(id:2); }; );')
+
+
+def test_translated_union_invalid_if_member() -> None:
+    with pytest.raises(QueryError):
+        _translate("( node(id:1); if (1 == 1) { node(id:2); }; );")
+
+
+def test_translated_union_invalid_complete_member() -> None:
+    with pytest.raises(QueryError):
+        _translate("( node(id:1); complete { node(id:2); }; );")
+
+
+def test_translated_union_one_member() -> None:
+    # single-member union: same result as the unwrapped query
+    query = "( node[geological=meteor_crater]; );"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_union_two_members() -> None:
+    # 192 total — see set-operations.md for the verified count
+    query = "( node[geological=columnar_jointing]; node[geological=meteor_crater]; );"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_union_three_members() -> None:
+    query = (
+        "( node[geological=columnar_jointing];"
+        " node[geological=meteor_crater];"
+        " node[geological=volcanic_vent]; );"
+    )
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_union_way_count_member() -> None:
+    # way_count filter has a must_materialize injection; currently raises
+    # UnimplementedFeatureError — keep as a reminder to implement later
+    ways = "100,4055383,4055631,8046838,17967466,169588430,169588433"
+    way_query = f"way(id:{ways}) -> .ways;"
+    full_query = way_query + "( node(way_cnt.ways:2-); node(id:1); );"
+    overpass_ids = _execute_overpass(full_query)
+
+    patterns = _translate_query(full_query)
+    set_state: SetState = {}
+
+    # Materialize the ways set on QLever
+    composed_ways = compose(patterns[0], set_state)
+    assert composed_ways is not None
+    assert composed_ways.result_set_name is not None
+    way_sparql = render_query(composed_ways, set_state)
+    way_ids = _execute_qlever(way_sparql)
+    way_uris = [
+        (ElementType.WAY, f"https://www.openstreetmap.org/way/{s.split('/')[1]}")
+        for s in way_ids
+    ]
+    set_state[composed_ways.result_set_name] = SetStateEntry(
+        pattern=composed_ways,
+        nwr_results=way_uris,
+        area_results=None,
+    )
+
+    # Compose and render the union with materialized .ways
+    composed_union = compose(patterns[1], set_state)
+    assert composed_union is not None
+    union_sparql = render_query(composed_union, set_state)
+    print(union_sparql)
+    qlever_ids = _execute_qlever(union_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)

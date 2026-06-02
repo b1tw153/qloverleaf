@@ -69,7 +69,7 @@ not implemented yet:</p>
 <li>[timeout: ] global setting</li>
 <li>[bbox: ] global setting</li>
 <li>[maxsize: ] global setting</li>
-<li>union statement, e.g., <code>( .a; .b; );</code></li>
+<li>difference statement, e.g., <code>( .a; - .b; );</code></li>
 <li>recurse statements, i.e., <code>&gt;; &gt;&gt;; &lt;; &lt;&lt;;</code></li>
 <li>is_in statement</li>
 <li>map_to_area statement</li>
@@ -158,6 +158,7 @@ addressible in QLever queries.</p>
 <li>[maxsize: ] global setting is not applied</li>
 <li>output limit restricts the number of rows returned from QLever instead of limiting
   the number of OSM elements returned in the result set</li>
+<li>the way_cnt filter does not work inside a union statement</li>
 <li>the logo on this page is not rendering correctly</li>
 <li>... and certainly many more that are unknown</li>
 </ul>

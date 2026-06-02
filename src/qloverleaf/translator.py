@@ -1,5 +1,10 @@
+from qloverleaf.composer import _substitute_variable
 from qloverleaf.evaluators import translate_evaluator
-from qloverleaf.exceptions import UnimplementedFeatureError, UnsupportedFeatureError
+from qloverleaf.exceptions import (
+    QueryError,
+    UnimplementedFeatureError,
+    UnsupportedFeatureError,
+)
 from qloverleaf.transformer import (
     _AREA,
     _NWR,
@@ -956,10 +961,105 @@ def _translate_if_filter(
 
 
 def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
-    raise UnimplementedFeatureError(
-        "UnionStatement translation is not yet implemented",
-        stmt.token,
-    )
+    output_set = stmt.output_set
+    result_variable = f"?{output_set.identifier}"
+    pattern = SparqlPattern(output_set=output_set, distinct=True)
+
+    leaves: list[str] = []
+
+    for leaf_idx, member in enumerate(stmt.members):
+        if isinstance(
+            member,
+            (
+                OutStatement,
+                ForeachStatement,
+                ForStatement,
+                IfStatement,
+                CompleteStatement,
+            ),
+        ):
+            raise QueryError(
+                f"{type(member).__name__} cannot appear"
+                " as a member of a union statement",
+                member.token,
+            )
+
+        member_patterns = translate(member)
+        if len(member_patterns) != 1:
+            raise UnimplementedFeatureError(
+                "hot pipeline members in UnionStatement are not yet supported",
+                member.token,
+            )
+        mp = member_patterns[0]
+
+        if mp.materialize:
+            raise UnimplementedFeatureError(
+                "hot pipeline members in UnionStatement are not yet supported",
+                member.token,
+            )
+        if mp.select_clause or mp.group_by or mp.order_by or mp.limit is not None:
+            raise UnimplementedFeatureError(
+                "output-stage members in UnionStatement are not yet supported",
+                member.token,
+            )
+        if any(inj.must_materialize for inj in mp.injections):
+            raise UnimplementedFeatureError(
+                "hot set injections (e.g. way_count filter) in UnionStatement"
+                " are not yet supported",
+                member.token,
+            )
+
+        old_var = mp.result_variable
+        assert old_var is not None
+
+        # Substitute the member's result variable → union's result variable in clauses.
+        # Intermediate variables (e.g. ?way1·f0·geom) are not matched because · follows
+        # the identifier and the regex lookahead excludes it.
+        leaf_clauses = [
+            _substitute_variable(clause, old_var, result_variable)
+            for clause in mp.where_clauses
+        ]
+        pattern.prefixes |= mp.prefixes
+
+        # Every injection from a member must become a site injection inside its leaf.
+        # QLever evaluates each UNION branch independently so an outer VALUES is not
+        # visible inside a branch; the constraint must live in the leaf.
+        for inj in mp.injections:
+            new_sparql_var = _substitute_variable(
+                inj.sparql_var, old_var, result_variable
+            )
+
+            if inj.marker is not None:
+                # Already a site injection: the marker is embedded in leaf_clauses via
+                # the intermediate variable name, which is unique across members and
+                # does not change (· prevents substitution above).
+                new_marker = inj.marker
+            else:
+                # Flat injection: create a leaf-specific marker and insert it first so
+                # QLever sees the binding before evaluating subsequent triple patterns.
+                new_marker = f"VALUES {new_sparql_var}·u{leaf_idx} {{ }}"
+                leaf_clauses.insert(0, new_marker)
+
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=new_sparql_var,
+                    set_name=inj.set_name,
+                    required_types=inj.required_types,
+                    must_materialize=inj.must_materialize,
+                    marker=new_marker,
+                )
+            )
+
+        leaves.append("{\n  " + "\n  ".join(leaf_clauses) + "\n}")
+
+    if not leaves:
+        raise UnsupportedFeatureError(
+            "UnionStatement has no translatable members",
+            stmt.token,
+        )
+
+    pattern.where_clauses.append("\nUNION\n".join(leaves))
+    return [pattern]
 
 
 def _translate_difference(stmt: DifferenceStatement) -> list[SparqlPattern]:

@@ -1894,13 +1894,21 @@ class OverpassTransformer(Transformer[Token, Query]):
     # Other Statement Transforms
 
     def union_stmt(self, children: list[Any]) -> UnionStatement:
-        # All statement types are permitted as union members. out and if are allowed
-        # because syntax and semantics permit them, unlike the legacy implementation.
-        # foreach and for are allowed, consistent with the legacy implementation; body
-        # assignments do not contribute to the union but modified sets may. complete is
-        # allowed, consistent with the legacy implementation, but we will not reproduce
-        # the input set bug. All other statements are allowed.
         members = [c for c in children if isinstance(c, Statement)]
+        _FORBIDDEN = (
+            OutStatement,
+            CompleteStatement,
+            ForeachStatement,
+            ForStatement,
+            IfStatement,
+        )
+        for member in members:
+            if isinstance(member, _FORBIDDEN):
+                raise QueryError(
+                    f"{type(member).__name__} cannot appear"
+                    " as a member of a union statement",
+                    member.token,
+                )
         output_set = SetReference(name="_", token=None)
         if children and isinstance(children[-1], SetAssignment):
             output_set = children[-1].set_reference

@@ -2891,6 +2891,15 @@ def test_translated_union_intra_pipeline_recurse_down() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
+def test_translated_union_intra_pipeline_item_then_recurse_down() -> None:
+    # relation(...); ( ._; >; ) — the item statement ._ passes through a named set
+    # into the union, and > reads from it (two-level intra-union pipeline).
+    query = "relation(13127617); ( ._; >; );"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
 # ---------------------------------------------------------------------------
 # RecurseStatement
 # ---------------------------------------------------------------------------

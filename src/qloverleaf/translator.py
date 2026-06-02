@@ -992,27 +992,65 @@ def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
                 prev_mp = member_outputs[inj.set_name]
                 prev_old_var = prev_mp.result_variable
                 assert prev_old_var is not None
-                # Rename prev result variable → this injection's input variable
-                inline_clauses = [
-                    _substitute_variable(c, prev_old_var, new_sparql_var)
-                    for c in prev_mp.where_clauses
-                ]
-                leaf_clauses = [
-                    c.replace(inj.marker, "\n  ".join(inline_clauses))
-                    for c in leaf_clauses
-                ]
                 pattern.prefixes |= prev_mp.prefixes
-                # Lift any external injections that were embedded in the inlined clauses
-                for prev_inj in prev_mp.injections:
-                    pattern.injections.append(
-                        SetInjection(
-                            sparql_var=prev_inj.sparql_var,
-                            set_name=prev_inj.set_name,
-                            required_types=prev_inj.required_types,
-                            must_materialize=prev_inj.must_materialize,
-                            marker=prev_inj.marker,
+
+                if prev_mp.where_clauses:
+                    # General case: inline the previous member's WHERE clauses in place
+                    # of the marker.  Rename prev result variable → this input variable.
+                    inline_clauses = [
+                        _substitute_variable(c, prev_old_var, new_sparql_var)
+                        for c in prev_mp.where_clauses
+                    ]
+                    leaf_clauses = [
+                        c.replace(inj.marker, "\n  ".join(inline_clauses))
+                        for c in leaf_clauses
+                    ]
+                    # Lift external injections whose markers are now in the inlined text
+                    for prev_inj in prev_mp.injections:
+                        pattern.injections.append(
+                            SetInjection(
+                                sparql_var=prev_inj.sparql_var,
+                                set_name=prev_inj.set_name,
+                                required_types=prev_inj.required_types,
+                                must_materialize=prev_inj.must_materialize,
+                                marker=prev_inj.marker,
+                            )
                         )
-                    )
+                else:
+                    # Pass-through (e.g. item statement ._ ): the previous member has
+                    # no WHERE clauses — it is a pure alias from its injected source.
+                    # We cannot use the general-case path here: inlining empty clauses
+                    # would replace the current marker with nothing (destroying the
+                    # constraint), and lifting the flat alias injection would append its
+                    # substituted clauses to the outer WHERE clause rather than inside
+                    # the UNION branch.  Instead, re-point the current site marker
+                    # directly at each source injection's set so the composer can
+                    # resolve it in-place.
+                    for prev_inj in prev_mp.injections:
+                        if prev_inj.marker is None:
+                            # Flat source: bind the current marker (already in the leaf)
+                            # to the upstream set, using this injection's variable and
+                            # required_types (not prev_inj's, which names the wrong var)
+                            pattern.injections.append(
+                                SetInjection(
+                                    sparql_var=new_sparql_var,
+                                    set_name=prev_inj.set_name,
+                                    required_types=inj.required_types,
+                                    must_materialize=prev_inj.must_materialize,
+                                    marker=inj.marker,
+                                )
+                            )
+                        else:
+                            # Site source: lift as-is (marker is already in the leaf)
+                            pattern.injections.append(
+                                SetInjection(
+                                    sparql_var=prev_inj.sparql_var,
+                                    set_name=prev_inj.set_name,
+                                    required_types=prev_inj.required_types,
+                                    must_materialize=prev_inj.must_materialize,
+                                    marker=prev_inj.marker,
+                                )
+                            )
 
             elif inj.marker is not None:
                 # Already a site injection: the marker is embedded in leaf_clauses via

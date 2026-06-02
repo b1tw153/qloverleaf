@@ -2872,3 +2872,129 @@ def test_translated_union_way_count_member() -> None:
     print(union_sparql)
     qlever_ids = _execute_qlever(union_sparql)
     assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# ---------------------------------------------------------------------------
+# RecurseStatement
+# ---------------------------------------------------------------------------
+# Test data structure:
+#   relation/13127617 (South Alamo Canal)
+#     way/976392814                       — nodes 2598265067, 9035591690–92,
+#                                                  10180267331, 10180267340
+#     relation/13127616 (Menvielle, sub-relation)
+#       way/976392815                     — nodes 5900517681–82, 5900518289,
+#                                                  9035591691, 9035591693–98,
+#                                                  9035661478
+#       way/976392816                     — nodes 2598265067, 9035591691,
+#                                                  9035591699–700, 9035661480
+#
+# node/9035591699 is a member of way/976392816 only — not a direct relation
+# member — so < on it exercises the parent-way and two-hop branches without
+# the direct-relation-member branch (covered separately).
+
+
+def test_translated_recurse_down_way() -> None:
+    # > on a way: member nodes only
+    query = "way(976392814);>;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_down_relation() -> None:
+    # > on a relation: direct way/node members (sub-relations excluded by rdf:type
+    # UNION) plus member nodes of those ways; relation/13127616 is absent
+    query = "rel(13127617);>;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_down_relations() -> None:
+    # >> on a relation: input relation passes through, sub-relations reached via
+    # transitive path, all descendant ways expanded to their member nodes
+    query = "rel(13127617);>>;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_up_node() -> None:
+    # < on a node: parent way (parent-way branch) and the relation containing
+    # that way (two-hop branch); shared branch returns nothing here because the
+    # node is not a direct relation member
+    query = "node(9035591699);<;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_up_way() -> None:
+    # < on a way: direct parent relations (shared branch only)
+    query = "way(976392814);<;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_up_relation_passthrough() -> None:
+    # < on a relation: returns the relation itself; parent relations are NOT
+    # returned by < (that is <<); relation/13127617 is absent
+    query = "rel(13127616);<;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_up_relations_node() -> None:
+    # << on a node: parent way (parent-way branch) plus all ancestor relations
+    # via transitive path through parent ways; both relation/13127616 and
+    # relation/13127617 are returned
+    query = "node(9035591699);<<;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_up_relations_way_two_levels() -> None:
+    # << on a way two levels deep: transitive path reaches both
+    # relation/13127616 (direct parent) and relation/13127617 (grandparent)
+    query = "way(976392815);<<;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_up_relations_relation_with_ancestor() -> None:
+    # << on a relation: passthrough returns the relation itself, transitive
+    # path returns its ancestor relations; relation/13127617 is included
+    query = "rel(13127616);<<;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_up_relations_relation_no_ancestors() -> None:
+    # << on a relation with no parents: passthrough only
+    query = "rel(13127617);<<;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_down_relation_direct_node_member() -> None:
+    # node/150935187 is a direct node member of relation/18375544 (alongside
+    # way/33178232); > must return it via the type-gated direct-members branch
+    query = "rel(18375544);>;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_recurse_up_node_direct_relation_member() -> None:
+    # node/150935187 is a direct member of relation/18375544; < must return
+    # that relation via the shared branch (not only the two-hop via-way path)
+    query = "node(150935187);<;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)

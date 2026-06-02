@@ -1412,11 +1412,11 @@ def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
         branches.append(_leaf(marker, f"{result_var} rdf:type osm:relation ."))
 
     # Intermediate variable names, all scoped to the output set identifier.
-    iw = _variable_name(stmt.output_set, intermediate="iw")    # way input
-    ir = _variable_name(stmt.output_set, intermediate="ir")    # relation input
+    iw = _variable_name(stmt.output_set, intermediate="iw")  # way input
+    ir = _variable_name(stmt.output_set, intermediate="ir")  # relation input
     ir2 = _variable_name(stmt.output_set, intermediate="ir2")  # relation (2nd branch)
     inw = _variable_name(stmt.output_set, intermediate="inw")  # node-or-way input
-    inn = _variable_name(stmt.output_set, intermediate="in")   # node-only input
+    inn = _variable_name(stmt.output_set, intermediate="in")  # node-only input
     in2 = _variable_name(stmt.output_set, intermediate="in2")  # node-only (2nd branch)
     wm = _variable_name(stmt.output_set, intermediate="wm")
     wm2 = _variable_name(stmt.output_set, intermediate="wm2")
@@ -1433,14 +1433,16 @@ def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
             pattern.prefixes |= {"osmway", "osmrel", "rdf", "osm"}
             if ElementType.WAY in input_types:
                 _add_input_branch(
-                    iw, _WAY,
+                    iw,
+                    _WAY,
                     f"{iw} osmway:member {wm} .",
                     f"{wm} osmway:member_id {result_var} .",
                 )
             if ElementType.RELATION in input_types:
                 # Branch 1: direct node/way members; rdf:type UNION excludes sub-rels
                 _add_input_branch(
-                    ir, _RELATION,
+                    ir,
+                    _RELATION,
                     f"{{ {result_var} rdf:type osm:node }}"
                     f" UNION {{ {result_var} rdf:type osm:way }}",
                     f"{ir} osmrel:member {rm} .",
@@ -1448,7 +1450,8 @@ def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
                 )
                 # Branch 2: nodes of direct way members (two-hop)
                 _add_input_branch(
-                    ir2, _RELATION,
+                    ir2,
+                    _RELATION,
                     f"{ir2} osmrel:member {rm2} .",
                     f"{rm2} osmrel:member_id {w} .",
                     f"{w} osmway:member {nm} .",
@@ -1464,19 +1467,22 @@ def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
             if ElementType.RELATION in input_types:
                 _add_passthrough_branch("pass")
                 _add_input_branch(
-                    ir, _RELATION,
+                    ir,
+                    _RELATION,
                     f"{ir} (osmrel:member/osmrel:member_id)+ {result_var} .",
                 )
                 # Nodes of descendant ways (transitive path reaches ways at any depth)
                 _add_input_branch(
-                    ir2, _RELATION,
+                    ir2,
+                    _RELATION,
                     f"{ir2} (osmrel:member/osmrel:member_id)+ {w} .",
                     f"{w} osmway:member {nm} .",
                     f"{nm} osmway:member_id {result_var} .",
                 )
             if ElementType.WAY in input_types:
                 _add_input_branch(
-                    iw, _WAY,
+                    iw,
+                    _WAY,
                     f"{iw} osmway:member {wm} .",
                     f"{wm} osmway:member_id {result_var} .",
                 )
@@ -1490,7 +1496,8 @@ def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
                 # Shared: relations directly containing input nodes or ways.
                 # rdf:type UNION guards against relation URIs reaching this branch.
                 _add_input_branch(
-                    inw, input_types & _NW,
+                    inw,
+                    input_types & _NW,
                     f"{{ {inw} rdf:type osm:node }} UNION {{ {inw} rdf:type osm:way }}",
                     f"{rm} osmrel:member_id {inw} .",
                     f"{result_var} osmrel:member {rm} .",
@@ -1498,13 +1505,15 @@ def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
             if ElementType.NODE in input_types:
                 # Node-only: parent ways of input nodes
                 _add_input_branch(
-                    inn, _NODE,
+                    inn,
+                    _NODE,
                     f"{wm} osmway:member_id {inn} .",
                     f"{result_var} osmway:member {wm} .",
                 )
                 # Node-only: relations containing parent ways (two-hop)
                 _add_input_branch(
-                    in2, _NODE,
+                    in2,
+                    _NODE,
                     f"{wm2} osmway:member_id {in2} .",
                     f"{w} osmway:member {wm2} .",
                     f"{rm2} osmrel:member_id {w} .",
@@ -1519,24 +1528,26 @@ def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
             # paths. osmrel:member (~161M triples) is feasible for anchored
             # transitive paths; osmway:member (~7B) is kept in its own branch.
             pattern.prefixes |= {"osmway", "osmrel", "rdf", "osm"}
-            if ElementType.NODE in input_types or ElementType.WAY in input_types:
-                # Shared: all relation ancestors of input nodes or ways (transitive).
-                # rdf:type UNION guards against relation URIs reaching this branch.
-                _add_input_branch(
-                    inw, input_types & _NW,
-                    f"{{ {inw} rdf:type osm:node }} UNION {{ {inw} rdf:type osm:way }}",
-                    f"{result_var} (osmrel:member/osmrel:member_id)+ {inw} .",
-                )
+
+            # Shared: all relation ancestors of input nodes, ways, or relations
+            # (transitive).
+            _add_input_branch(
+                inw,
+                input_types & _NWR,
+                f"{result_var} (osmrel:member/osmrel:member_id)+ {inw} .",
+            )
             if ElementType.NODE in input_types:
                 # Node-only: parent ways of input nodes (unchanged from <)
                 _add_input_branch(
-                    inn, _NODE,
+                    inn,
+                    _NODE,
                     f"{wm} osmway:member_id {inn} .",
                     f"{result_var} osmway:member {wm} .",
                 )
                 # Node-only: relation ancestors via parent ways (transitive)
                 _add_input_branch(
-                    in2, _NODE,
+                    in2,
+                    _NODE,
                     f"{wm2} osmway:member_id {in2} .",
                     f"{w} osmway:member {wm2} .",
                     f"{result_var} (osmrel:member/osmrel:member_id)+ {w} .",

@@ -68,13 +68,6 @@ not implemented yet:</p>
 <li>difference statement, e.g., <code>( .a; - .b; );</code></li>
 <li>is_in statement</li>
 <li>map_to_area statement</li>
-<li>foreach statement</li>
-<li>for statement</li>
-<li>complete statement</li>
-<li>if statement</li>
-<li>convert statement</li>
-<li>make statement</li>
-<li>derived types</li>
 <li>count_tags() evaluator</li>
 <li>count_members() evaluator</li>
 <li>count_distinct_members() evaluator</li>
@@ -85,11 +78,14 @@ not implemented yet:</p>
 <li>max() evaluator</li>
 <li>sum() evaluator</li>
 <li>count() evaluator</li>
+<li>foreach statement</li>
+<li>for statement</li>
+<li>complete statement</li>
+<li>if statement</li>
 <li>set.val evaluator</li>
 <li>CSV output</li>
 <li>popup output</li>
 <li>custom output</li>
-<li>sets containing both NWR elements and AREA elements</li>
 <li>(if: ) filter evaluators that require SPARQL subqueries (the if filter is supported
   in other cases)</li>
 </ul>
@@ -114,6 +110,8 @@ addressible in QLever queries.</p>
 <li>timeline statement - no history data</li>
 <li>local statement - no history data</li>
 <li>compare statement - no history data</li>
+<li>convert statement - constructed type</li>
+<li>make statement - constructed type</li>
 <li>(bbox) filter in out statement - broken in Overpass</li>
 <li>noids mode in out statement - broken in Overpass</li>
 <li>qt sort in out statment - no quad tile index</li>
@@ -145,6 +143,9 @@ addressible in QLever queries.</p>
 <li>lrs_union() evaluator - constructed type</li>
 <li>lrs_min() evaluator - constructed type</li>
 <li>lrs_max() evaluator - constructed type</li>
+<li>sets containing both NWR elements and AREA elements -- instead of mirroring the
+  separate element type for areas that Overpass implements, Qloverleaf uses QLever's
+  model where all closed ways and relations are areas</li>
 </ul>
 <h2>Known Bugs</h2>
 <ul>
@@ -154,6 +155,7 @@ addressible in QLever queries.</p>
   the number of OSM elements returned in the result set</li>
 <li>the way_cnt filter does not work inside a union statement</li>
 <li>output is sorted by ID in lexical order rather than numerical order</li>
+<li>some execution errors are not properly reported in response messages</li>
 <li>the logo on this page is not rendering correctly</li>
 <li>... and certainly many more that are unknown</li>
 </ul>
@@ -165,7 +167,7 @@ addressible in QLever queries.</p>
 <li><code>[out:raw]</code> renders the output from QLever as plain text</li>
 <li><code>out debug</code> dumps the state of the selected set and the QLever query that would be
   used to collect data for the output instead of executing the query. This token can
-  be combined with other <code>out</code> tokens, e.g., <code>out body geom debug;</code></li>
+  be combined with other <code>out</code> tokens, e.g., <code>out meta geom debug;</code></li>
 </ul>
 <h2>Other Quirks</h2>
 <p>There are a number of ways in which Qloverleaf behaves differently than Overpass. The

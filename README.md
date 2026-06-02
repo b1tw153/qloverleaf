@@ -69,13 +69,6 @@ not implemented yet:
 - difference statement, e.g., `( .a; - .b; );`
 - is_in statement
 - map_to_area statement
-- foreach statement
-- for statement
-- complete statement
-- if statement
-- convert statement
-- make statement
-- derived types
 - count_tags() evaluator
 - count_members() evaluator
 - count_distinct_members() evaluator
@@ -86,11 +79,14 @@ not implemented yet:
 - max() evaluator
 - sum() evaluator
 - count() evaluator
+- foreach statement
+- for statement
+- complete statement
+- if statement
 - set.val evaluator
 - CSV output
 - popup output
 - custom output
-- sets containing both NWR elements and AREA elements
 - (if: ) filter evaluators that require SPARQL subqueries (the if filter is supported
   in other cases)
 
@@ -118,6 +114,8 @@ These features are unsupported with no implementation plans at this time:
 - timeline statement - no history data
 - local statement - no history data
 - compare statement - no history data
+- convert statement - constructed type
+- make statement - constructed type
 - (bbox) filter in out statement - broken in Overpass
 - noids mode in out statement - broken in Overpass
 - qt sort in out statment - no quad tile index
@@ -149,6 +147,9 @@ These features are unsupported with no implementation plans at this time:
 - lrs_union() evaluator - constructed type
 - lrs_min() evaluator - constructed type
 - lrs_max() evaluator - constructed type
+- sets containing both NWR elements and AREA elements -- instead of mirroring the
+  separate element type for areas that Overpass implements, Qloverleaf uses QLever's
+  model where all closed ways and relations are areas
 
 ## Known Bugs
 
@@ -158,6 +159,7 @@ These features are unsupported with no implementation plans at this time:
   the number of OSM elements returned in the result set
 - the way_cnt filter does not work inside a union statement
 - output is sorted by ID in lexical order rather than numerical order
+- some execution errors are not properly reported in response messages
 - the logo on this page is not rendering correctly
 - ... and certainly many more that are unknown
 
@@ -171,7 +173,7 @@ Qloverleaf supports some additional features for debugging and evaluation purpos
 - `[out:raw]` renders the output from QLever as plain text
 - `out debug` dumps the state of the selected set and the QLever query that would be
   used to collect data for the output instead of executing the query. This token can
-  be combined with other `out` tokens, e.g., `out body geom debug;`
+  be combined with other `out` tokens, e.g., `out meta geom debug;`
 
 ## Other Quirks
 

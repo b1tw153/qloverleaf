@@ -2882,6 +2882,15 @@ def test_translated_union_way_count_member() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
+def test_translated_union_intra_pipeline_recurse_down() -> None:
+    # ( rel(...); >; ) is syntactic sugar for rel(...) -> .a; .a > -> .b; ( .a; .b; );
+    # The > member reads from the previous member's output (intra-union pipeline).
+    query = "( rel(13127617); >; );"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
 # ---------------------------------------------------------------------------
 # RecurseStatement
 # ---------------------------------------------------------------------------

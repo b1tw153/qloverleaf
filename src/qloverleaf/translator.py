@@ -911,6 +911,11 @@ def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
     pattern = SparqlPattern(output_set=output_set, distinct=True)
 
     leaves: list[str] = []
+    # In OverpassQL, ._ propagates sequentially between union members, so a later
+    # member (e.g. >) can read from the output of the member before it.  Maps each
+    # processed member's output_set.identifier → its pattern so those dependencies
+    # can be inlined rather than lifted as external set_state lookups.
+    member_outputs: dict[str, SparqlPattern] = {}
 
     for leaf_idx, member in enumerate(stmt.members):
         if isinstance(
@@ -974,27 +979,72 @@ def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
                 inj.sparql_var, old_var, result_variable
             )
 
-            if inj.marker is not None:
+            if inj.set_name in member_outputs:
+                # Intra-union pipeline: reads from a previous member's output.
+                # That result is already folded into a UNION leaf and never stored
+                # in set_state, so inline the previous member's WHERE clauses directly
+                # in place of the marker to keep each UNION branch self-contained.
+                if inj.marker is None:
+                    raise UnimplementedFeatureError(
+                        "flat intra-union pipeline injection is not yet supported",
+                        member.token,
+                    )
+                prev_mp = member_outputs[inj.set_name]
+                prev_old_var = prev_mp.result_variable
+                assert prev_old_var is not None
+                # Rename prev result variable → this injection's input variable
+                inline_clauses = [
+                    _substitute_variable(c, prev_old_var, new_sparql_var)
+                    for c in prev_mp.where_clauses
+                ]
+                leaf_clauses = [
+                    c.replace(inj.marker, "\n  ".join(inline_clauses))
+                    for c in leaf_clauses
+                ]
+                pattern.prefixes |= prev_mp.prefixes
+                # Lift any external injections that were embedded in the inlined clauses
+                for prev_inj in prev_mp.injections:
+                    pattern.injections.append(
+                        SetInjection(
+                            sparql_var=prev_inj.sparql_var,
+                            set_name=prev_inj.set_name,
+                            required_types=prev_inj.required_types,
+                            must_materialize=prev_inj.must_materialize,
+                            marker=prev_inj.marker,
+                        )
+                    )
+
+            elif inj.marker is not None:
                 # Already a site injection: the marker is embedded in leaf_clauses via
                 # the intermediate variable name, which is unique across members and
                 # does not change (· prevents substitution above).
-                new_marker = inj.marker
+                pattern.injections.append(
+                    SetInjection(
+                        sparql_var=new_sparql_var,
+                        set_name=inj.set_name,
+                        required_types=inj.required_types,
+                        must_materialize=inj.must_materialize,
+                        marker=inj.marker,
+                    )
+                )
+
             else:
                 # Flat injection: create a leaf-specific marker and insert it first so
                 # QLever sees the binding before evaluating subsequent triple patterns.
                 new_marker = f"VALUES {new_sparql_var}·u{leaf_idx} {{ }}"
                 leaf_clauses.insert(0, new_marker)
-
-            pattern.injections.append(
-                SetInjection(
-                    sparql_var=new_sparql_var,
-                    set_name=inj.set_name,
-                    required_types=inj.required_types,
-                    must_materialize=inj.must_materialize,
-                    marker=new_marker,
+                pattern.injections.append(
+                    SetInjection(
+                        sparql_var=new_sparql_var,
+                        set_name=inj.set_name,
+                        required_types=inj.required_types,
+                        must_materialize=inj.must_materialize,
+                        marker=new_marker,
+                    )
                 )
-            )
 
+        assert mp.output_set is not None  # all union members write to an output set
+        member_outputs[mp.output_set.identifier] = mp
         leaves.append("{\n  " + "\n  ".join(leaf_clauses) + "\n}")
 
     if not leaves:

@@ -1669,17 +1669,49 @@ def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
 
 
 def _translate_is_in(stmt: IsInStatement) -> list[SparqlPattern]:
-    raise UnimplementedFeatureError(
-        "IsInStatement translation is not yet implemented",
-        stmt.token,
-    )
+    if stmt.lat is not None or stmt.lon is not None:
+        # QLever GeoSPARQL predicates require two variables; constant WKT literals
+        # on either side are not supported
+        raise UnimplementedFeatureError(
+            "is_in with lat/lon coordinates is not yet implemented",
+            stmt.token,
+        )
+    pattern = SparqlPattern(output_set=stmt.output_set)
+    result_var = pattern.result_variable
+    assert result_var is not None
+    pattern.prefixes |= {"ogc", "osm2rdf"}
+    input_var = _variable_name(stmt.output_set, filter_index=0, intermediate="input")
+    area_var = _variable_name(stmt.output_set, filter_index=0, intermediate="area")
+    # result_var is an area that intersects the input element
+    pattern.where_clauses.append(f"{result_var} ogc:sfIntersects {input_var} .")
+    pattern.where_clauses.append(f"{result_var} osm2rdf:area {area_var} .")
+    pattern.injections = [
+        SetInjection(
+            sparql_var=input_var,
+            set_name=stmt.input_set.identifier,
+            required_types=stmt.input_set.required_types,
+        )
+    ]
+    return [pattern]
 
 
 def _translate_map_to_area(stmt: MapToAreaStatement) -> list[SparqlPattern]:
-    raise UnimplementedFeatureError(
-        "MapToAreaStatement translation is not yet implemented",
-        stmt.token,
-    )
+    pattern = SparqlPattern(output_set=stmt.output_set)
+    result_var = pattern.result_variable
+    assert result_var is not None
+    pattern.prefixes |= {"osm2rdf"}
+    area_var = _variable_name(stmt.output_set, filter_index=0, intermediate="area")
+    pattern.where_clauses.append(f"{result_var} osm2rdf:area {area_var} .")
+
+    # Inject the input set and assign to the output set variable
+    pattern.injections = [
+        SetInjection(
+            sparql_var=result_var,
+            set_name=stmt.input_set.identifier,
+            required_types=stmt.input_set.required_types,
+        )
+    ]
+    return [pattern]
 
 
 def _translate_foreach(stmt: ForeachStatement) -> list[SparqlPattern]:

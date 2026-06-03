@@ -2346,7 +2346,7 @@ def _parse_wkt_coords(wkt: str) -> list[tuple[float, float]]:
             result.append((float(lat_str), float(lon_str)))
         return result
     # POLYGON (with or without holes), MULTIPOLYGON, GEOMETRYCOLLECTION, etc.
-    flat = s[s.index("("):].replace("(", "").replace(")", "")
+    flat = s[s.index("(") :].replace("(", "").replace(")", "")
     result = []
     for token in flat.split(","):
         parts = token.strip().split()
@@ -3083,3 +3083,143 @@ def test_translated_recurse_up_node_direct_relation_member() -> None:
     qlever_sparql, overpass_ids = _compose_union_query(query)
     qlever_ids = _execute_qlever(qlever_sparql)
     assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# ---------------------------------------------------------------------------
+# IsInStatement
+# ---------------------------------------------------------------------------
+# Overpass is_in returns relation-areas as area/<3600000000 + rel_id>; ways
+# are returned as way/<id>. QLever returns way/<id> and relation/<id>.
+# _normalize_is_in_ids converts Overpass area IDs to their underlying
+# way/relation form for comparison.
+
+_IS_IN_RELATION_OFFSET = 3_600_000_000
+_IS_IN_WAY_OFFSET = 2_400_000_000
+
+
+def _normalize_is_in_ids(ids: list[str]) -> list[str]:
+    result = []
+    for elem_id in ids:
+        if elem_id.startswith("area/"):
+            n = int(elem_id[5:])
+            if n >= _IS_IN_RELATION_OFFSET:
+                result.append(f"relation/{n - _IS_IN_RELATION_OFFSET}")
+            elif n >= _IS_IN_WAY_OFFSET:
+                result.append(f"way/{n - _IS_IN_WAY_OFFSET}")
+        else:
+            result.append(elem_id)
+    return result
+
+
+@pytest.mark.xfail(
+    reason=(
+        "Overpass returns way/33178232 and way/1456428828 as containing areas — "
+        "both are closed, untagged ways that Overpass treats as potential areas "
+        "regardless of tags. osm2rdf only computes osm2rdf:area for area-tagged "
+        "closed ways, so QLever does not index them and returns fewer results."
+    ),
+    strict=True,
+)
+def test_translated_is_in_node_in_ways_and_relations() -> None:
+    # node/150935187 is contained in several way-areas and relation-areas;
+    # diverges on untagged closed ways absent from QLever's area index
+    query = "node(150935187); is_in;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason=(
+        "Overpass is_in only accepts nodes as input; way input returns nothing. "
+        "QLever sfIntersects works geometrically for any element type and returns "
+        "the containing areas. QLever's behavior is correct and intentionally kept."
+    ),
+    strict=True,
+)
+def test_translated_is_in_way_fully_contained() -> None:
+    # way/1095053416 is fully contained within several areas; Overpass returns
+    # nothing (is_in rejects non-node input), QLever returns the containing areas
+    query = "way(1095053416); is_in;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason=(
+        "Overpass is_in only accepts nodes as input; way input returns nothing. "
+        "QLever sfIntersects works geometrically for any element type and returns "
+        "intersecting areas, including partial containment. QLever's behavior is "
+        "correct and intentionally kept."
+    ),
+    strict=True,
+)
+def test_translated_is_in_way_partially_contained() -> None:
+    # way/1456428840 is partly contained in one area and fully contained in others;
+    # Overpass returns nothing, QLever returns all intersecting areas
+    query = "way(1456428840); is_in;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason=(
+        "Overpass is_in only accepts nodes as input; relation input returns nothing. "
+        "QLever sfIntersects works geometrically for any element type and returns "
+        "the containing areas. QLever's behavior is correct and intentionally kept."
+    ),
+    strict=True,
+)
+def test_translated_is_in_relation_fully_contained() -> None:
+    # rel/18375544 is fully contained within several areas; Overpass returns
+    # nothing (is_in rejects non-node input), QLever returns the containing areas
+    query = "rel(18375544); is_in;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason=(
+        "Overpass is_in only accepts nodes as input; relation input returns nothing. "
+        "QLever sfIntersects works geometrically for any element type and returns "
+        "intersecting areas, including partial containment. QLever's behavior is "
+        "correct and intentionally kept."
+    ),
+    strict=True,
+)
+def test_translated_is_in_relation_partially_contained() -> None:
+    # rel/9712655 is partly contained in one area and fully contained in others;
+    # Overpass returns nothing, QLever returns all intersecting areas
+    query = "rel(9712655); is_in;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason=(
+        "node/9172478886 is a boundary vertex of relation/14929666 (UTC-10 "
+        "timezone) and relation/279001 (international waters). Both have "
+        "osm2rdf:area in QLever. Overpass returns both as containing areas, "
+        "but QLever's precomputed sfIntersects triples do not include the "
+        "relation-to-own-boundary-vertex relationship, so QLever returns no "
+        "results."
+    ),
+    strict=True,
+)
+def test_translated_is_in_node_boundary_vertex_of_area() -> None:
+    # Test data:
+    #   node/9172478886 — central Pacific Ocean (lat 7.95, lon -159.37); a vertex
+    #     of the boundary rings of relation/14929666 (UTC-10 timezone) and
+    #     relation/279001 (international waters). Both relations have osm2rdf:area.
+    #     Overpass returns both containing relations; QLever's precomputed
+    #     sfIntersects triples do not include a relation-to-own-boundary-vertex
+    #     relationship, so QLever returns nothing.
+    #
+    query = "node(9172478886); is_in;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)

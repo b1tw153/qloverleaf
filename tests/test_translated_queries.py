@@ -31,7 +31,7 @@ def _translate_query(text: str) -> list[SparqlPattern]:
 def _execute_overpass(statement: str) -> list[str]:
     """Execute query against Overpass and return element IDs as 'type/id' strings."""
     query = "[out:json];" + statement + "out ids;"
-    response = httpx.post(OVERPASS_URL, data={"data": query})
+    response = httpx.post(OVERPASS_URL, data={"data": query}, timeout=30.0)
     response.raise_for_status()
     result = response.json()
     return [f"{elem['type']}/{elem['id']}" for elem in result.get("elements", [])]
@@ -43,6 +43,7 @@ def _execute_qlever(sparql: str) -> list[str]:
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
+        timeout=30.0,
     )
     response.raise_for_status()
     result = response.json()
@@ -205,10 +206,7 @@ def test_translated_polygon() -> None:
 
 
 def test_translated_newer() -> None:
-    statement = (
-        'node[natural=peak](newer:"2025-01-01T00:00:00Z")(32.58870,-116.14417,'
-        "32.88870,-115.84417);"
-    )
+    statement = 'node[geological=columnar_jointing](newer:"2026-05-04T00:00:00Z");'
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}
@@ -1729,6 +1727,7 @@ def _qlever_centroid_coords(sparql: str) -> dict[str, tuple[float, float]]:
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
+        timeout=30.0,
     )
     response.raise_for_status()
     result = {}
@@ -1844,6 +1843,7 @@ def _qlever_skel(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
+        timeout=30.0,
     )
     response.raise_for_status()
     data = response.json()
@@ -1958,6 +1958,7 @@ def _qlever_tags(sparql: str) -> dict[str, dict[str, str]]:
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
+        timeout=30.0,
     )
     response.raise_for_status()
     data = response.json()
@@ -2047,6 +2048,7 @@ def _qlever_body(sparql: str) -> _SkelData:
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
+        timeout=30.0,
     )
     response.raise_for_status()
     data = response.json()
@@ -2191,6 +2193,7 @@ def _qlever_meta(sparql: str) -> _MetaData:
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
+        timeout=30.0,
     )
     response.raise_for_status()
     data = response.json()
@@ -2376,6 +2379,7 @@ def _qlever_geom(sparql: str) -> _GeomData:
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
+        timeout=30.0,
     )
     response.raise_for_status()
     data = response.json()
@@ -2565,6 +2569,7 @@ def _qlever_bb_ids(sparql: str) -> tuple[dict[str, tuple[float, float]], _Bounds
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
+        timeout=30.0,
     )
     response.raise_for_status()
     data = response.json()
@@ -2662,6 +2667,7 @@ def _qlever_bb_tags(
         QLEVER_URL,
         data={"query": sparql},
         headers={"Accept": "application/sparql-results+json"},
+        timeout=30.0,
     )
     response.raise_for_status()
     data = response.json()

@@ -1336,7 +1336,7 @@ def test_area_set_filter_default_set() -> None:
     assert isinstance(filter, AreaSetFilter)
     assert filter.set_reference.name == "_"
     assert filter.set_reference.token is None
-    assert filter.set_reference.required_types == frozenset({ElementType.AREA})
+    assert filter.set_reference.required_types == _AREA
     assert filter.token is None
     assert filter.output_types == _NWR
 
@@ -1346,7 +1346,7 @@ def test_area_set_filter_default_set_area() -> None:
     assert isinstance(filter, AreaSetFilter)
     assert filter.set_reference.name == "_"
     assert filter.set_reference.token is None
-    assert filter.set_reference.required_types == frozenset({ElementType.AREA})
+    assert filter.set_reference.required_types == _AREA
     assert filter.token is None
     assert filter.output_types == _AREA
 
@@ -1558,7 +1558,7 @@ def test_pivot_filter_default_set() -> None:
     assert isinstance(filter, PivotFilter)
     assert filter.set_reference.name == "_"
     assert filter.set_reference.token is None
-    assert filter.set_reference.required_types == frozenset({ElementType.AREA})
+    assert filter.set_reference.required_types == _AREA
     assert filter.output_types == _WR
     assert filter.token is None
 
@@ -1667,7 +1667,7 @@ def test_query_stmt_nr() -> None:
 
 def test_query_stmt_area() -> None:
     stmt = _query_stmt("area;")
-    assert stmt.element_types == frozenset({ElementType.AREA})
+    assert stmt.element_types == _AREA
 
 
 def test_query_stmt_filters() -> None:
@@ -1700,8 +1700,11 @@ def test_query_stmt_output_mismatch() -> None:
     stmt = _query_stmt("area(uid:1);")
     warnings: list[QueryWarning] = list()
     output_types = stmt.get_output_types(warnings)
-    assert output_types == _NONE
-    assert warnings
+    # this was _NONE when areas were distinct types; now _WR because all closed ways and
+    # relations are areas and ways and relations have UIDs
+    assert output_types == _WR  # _NONE
+    # this was assert warnings before; now assert not warnings
+    assert not warnings
 
 
 def test_query_stmt_output_filter_mismatch() -> None:

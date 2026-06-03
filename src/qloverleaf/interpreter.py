@@ -25,9 +25,6 @@ from qloverleaf.formatter import (
 )
 from qloverleaf.query_context import Bbox, OutputFormat, QueryContext
 from qloverleaf.transformer import (
-    _AREA,
-    _NWR,
-    ElementType,
     OutStatement,
     OverpassTransformer,
 )
@@ -315,15 +312,8 @@ async def _execute(query: QueryContext) -> AsyncGenerator[str, None]:
                 if pattern.result_set_name:
                     assert pattern.output_set is not None
                     assert pattern.output_set.content_types is not None
-                    assert not (
-                        pattern.output_set.content_types & _NWR
-                        and pattern.output_set.content_types & _AREA
-                    )  # mixed set content is not yet supported
                     results = parse_results(data, pattern.result_set_name)
-                    if ElementType.AREA in pattern.output_set.content_types:
-                        set_state[pattern.result_set_name].area_results = results
-                    else:
-                        set_state[pattern.result_set_name].nwr_results = results
+                    set_state[pattern.result_set_name].nwr_results = results
 
                 if isinstance(pattern.statements[-1], OutStatement):
                     stmt = pattern.statements[-1]

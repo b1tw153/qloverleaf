@@ -6,7 +6,6 @@ from qloverleaf.exceptions import (
     UnsupportedFeatureError,
 )
 from qloverleaf.transformer import (
-    _AREA,
     _NODE,
     _NW,
     _NWR,
@@ -36,6 +35,7 @@ from qloverleaf.transformer import (
     PivotFilter,
     PolygonFilter,
     QueryFilter,
+    QueryFilterType,
     QueryStatement,
     RecurseDir,
     RecurseFilter,
@@ -132,21 +132,15 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
         entry = set_state.get(injection.set_name)
         uris: list[tuple[ElementType, str]] = []
         if entry:
-            assert (entry.nwr_results is not None) != (
-                entry.area_results is not None
-            ), "Expected exactly one of nwr_results or area_results to be present"
-            if injection.required_types is None or injection.required_types & _AREA:
-                uris += entry.area_results or []
-            if injection.required_types is None or injection.required_types & _NWR:
-                nwr = entry.nwr_results or []
-                rt = injection.required_types
-                if rt is not None and rt & _NWR and rt & _NWR != _NWR:
-                    # required_types is a strict subset of NWR — trim hot injections
-                    # to matching types only (performance; cold queries rely on
-                    # in-clause type guards for correctness)
-                    uris += [(t, u) for t, u in nwr if t in rt]
-                else:
-                    uris += nwr
+            nwr = entry.nwr_results or []
+            rt = injection.required_types
+            if rt is not None and rt & _NWR and rt & _NWR != _NWR:
+                # required_types is a strict subset of NWR — trim hot injections
+                # to matching types only (performance; cold queries rely on
+                # in-clause type guards for correctness)
+                uris += [(t, u) for t, u in nwr if t in rt]
+            else:
+                uris += nwr
         uri_list = " ".join(f"<{u}>" for _, u in uris)
         filled = f"VALUES {injection.sparql_var} {{ {uri_list} }}"
         if injection.marker is not None:
@@ -214,10 +208,6 @@ def translate(statement: Statement) -> list[SparqlPattern]:
     if output_set is not None:
         content_types = output_set.content_types
         assert content_types is not None
-        assert not (content_types & _NWR and content_types & _AREA), (
-            "Cannot translate a statement with mixed output types to a Sparql pattern: "
-            f"{content_types}"
-        )  # see area-handling.md
     if isinstance(statement, QueryStatement):
         patterns = _translate_query(statement)
     elif isinstance(statement, UnionStatement):
@@ -256,42 +246,44 @@ def _translate_query(statement: QueryStatement) -> list[SparqlPattern]:
     pattern = SparqlPattern(output_set=output_set)
     result_variable = pattern.result_variable
     assert result_variable is not None
-    _add_type_filter(statement.element_types, result_variable, pattern)
+    _add_type_filter(
+        statement.filter_type, statement.element_types, result_variable, pattern
+    )
     for filter_index, f in enumerate(statement.filters):
         _add_query_filter(f, output_set, filter_index, result_variable, pattern)
     return [pattern]
 
 
 def _add_type_filter(
+    filter_type: QueryFilterType,
     element_types: frozenset[ElementType],
     result_variable: str,
     pattern: SparqlPattern,
 ) -> None:
     assert pattern.output_set is not None
-    if ElementType.AREA in element_types:
-        assert element_types == frozenset({ElementType.AREA})
-        element_types = frozenset({ElementType.WAY, ElementType.RELATION})
+    if filter_type == QueryFilterType.AREA:
         pattern.prefixes |= {"osm2rdf"}
         area_var = _variable_name(
             pattern.output_set, filter_index=0, intermediate="area"
         )
         pattern.where_clauses.append(f"{result_variable} osm2rdf:area {area_var} .")
-    if ElementType.DERIVED in element_types:
-        raise UnsupportedFeatureError("derived element queries are not supported", None)
-    osm_types = [_OSM_TYPE_NAMES[t] for t in _OSM_TYPE_ORDER if t in element_types]
-    pattern.prefixes |= {"rdf", "osm"}
-    if len(osm_types) == 1:
-        pattern.where_clauses.append(f"{result_variable} rdf:type osm:{osm_types[0]} .")
-    elif len(osm_types) == 2:
-        union = " UNION ".join(
-            f"{{ {result_variable} rdf:type osm:{t} }}" for t in osm_types
-        )
-        pattern.where_clauses.append(union)
     else:
-        type_var = _variable_name(
-            pattern.output_set, filter_index=0, intermediate="type"
-        )
-        pattern.where_clauses.append(f"{result_variable} rdf:type {type_var} .")
+        osm_types = [_OSM_TYPE_NAMES[t] for t in _OSM_TYPE_ORDER if t in element_types]
+        pattern.prefixes |= {"rdf", "osm"}
+        if len(osm_types) == 1:
+            pattern.where_clauses.append(
+                f"{result_variable} rdf:type osm:{osm_types[0]} ."
+            )
+        elif len(osm_types) == 2:
+            union = " UNION ".join(
+                f"{{ {result_variable} rdf:type osm:{t} }}" for t in osm_types
+            )
+            pattern.where_clauses.append(union)
+        else:
+            type_var = _variable_name(
+                pattern.output_set, filter_index=0, intermediate="type"
+            )
+            pattern.where_clauses.append(f"{result_variable} rdf:type {type_var} .")
 
 
 def _add_query_filter(

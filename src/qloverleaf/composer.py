@@ -1,6 +1,6 @@
 import re
 
-from qloverleaf.transformer import _AREA, _NWR, Statement
+from qloverleaf.transformer import Statement
 from qloverleaf.types import SetState, SparqlPattern
 
 
@@ -61,8 +61,6 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
     if pattern.output_set:
         content_types = pattern.output_set.content_types
         assert content_types is not None
-        if content_types & _NWR and content_types & _AREA:
-            return None
 
     # Start with current pattern's where clauses
     composed_where_clauses = list(pattern.where_clauses)

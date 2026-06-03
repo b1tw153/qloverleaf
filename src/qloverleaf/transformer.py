@@ -22,8 +22,20 @@ class ElementType(Enum):
     NODE = "node"
     WAY = "way"
     RELATION = "relation"
-    AREA = "area"
-    DERIVED = "derived"  # derived elements are not supported in the POC
+    # AREA = "area"  # areas are not a separate type in Qloverleaf
+    # DERIVED = "derived"  # derived elements are not supported in the POC
+
+
+class QueryFilterType(Enum):
+    NODE = "element_type_node"
+    WAY = "element_type_way"
+    RELATION = "element_type_relation"
+    NWR = "element_type_nwr"
+    NW = "element_type_nw"
+    WR = "element_type_wr"
+    NR = "element_type_nr"
+    AREA = "element_type_area"
+    # DERIVED = "element_type_derived"
 
 
 class TagFilterOp(Enum):
@@ -191,20 +203,26 @@ class SetAssignment:
     set_reference: SetReference
 
 
+_NONE: frozenset[ElementType] = frozenset()
 _NODE = frozenset({ElementType.NODE})
 _WAY = frozenset({ElementType.WAY})
 _RELATION = frozenset({ElementType.RELATION})
-_AREA = frozenset({ElementType.AREA})
-_NWR = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
-_NWRA = frozenset(
-    {ElementType.NODE, ElementType.WAY, ElementType.RELATION, ElementType.AREA}
-)
-_WR = frozenset({ElementType.WAY, ElementType.RELATION})
+_AREA = frozenset({ElementType.WAY, ElementType.RELATION})
 _NW = frozenset({ElementType.NODE, ElementType.WAY})
+_WR = frozenset({ElementType.WAY, ElementType.RELATION})
 _NR = frozenset({ElementType.NODE, ElementType.RELATION})
-_NONE: frozenset[ElementType] = frozenset()
+_NWR = frozenset({ElementType.NODE, ElementType.WAY, ElementType.RELATION})
+_ANY = frozenset(
+    {
+        ElementType.NODE,
+        ElementType.WAY,
+        ElementType.RELATION,
+        # ElementType.AREA,
+        # ElementType.DERIVED,
+    }
+)
 
-_ELEMENT_TYPE_MAP: dict[str, frozenset[ElementType]] = {
+_ELEMENT_TYPES_MAP: dict[str, frozenset[ElementType]] = {
     "element_type_node": _NODE,
     "element_type_way": _WAY,
     "element_type_relation": _RELATION,
@@ -213,7 +231,7 @@ _ELEMENT_TYPE_MAP: dict[str, frozenset[ElementType]] = {
     "element_type_wr": _WR,
     "element_type_nr": _NR,
     "element_type_area": _AREA,
-    "element_type_derived": frozenset({ElementType.DERIVED}),
+    # "element_type_derived": frozenset({ElementType.DERIVED}),
 }
 
 # Scalar Types
@@ -633,6 +651,7 @@ class Query:
 
 @dataclass
 class QueryStatement(Statement):
+    filter_type: QueryFilterType
     element_types: frozenset[ElementType]
     filters: list[QueryFilter]
     output_set: SetReference
@@ -1133,10 +1152,6 @@ def _stamp_write(
     ref.version = version
     ref.content_types = types
     ref.constrained = constrained
-    if types is not None and types & _NWR and types & _AREA:
-        raise UnimplementedFeatureError(
-            f"Set cannot contain both {types & _NWR} and {types & _AREA}", ref.token
-        )
 
 
 def _stamp_evaluator(
@@ -1443,7 +1458,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             key=_unquote(children[0]),
             absent=False,
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def tag_filter_absent(self, children: list[Any]) -> TagKeyFilter:
@@ -1451,7 +1466,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             key=_unquote(children[0]),
             absent=True,
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def tag_filter_eq(self, children: list[Any]) -> TagValueFilter:
@@ -1461,7 +1476,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             value=_unquote(children[1]),
             case_insensitive=False,
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def tag_filter_neq(self, children: list[Any]) -> TagValueFilter:
@@ -1471,7 +1486,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             value=_unquote(children[1]),
             case_insensitive=False,
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def tag_filter_regex(self, children: list[Any]) -> TagValueFilter:
@@ -1482,7 +1497,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             value=_unquote(children[1]),
             case_insensitive=case_insensitive,
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def tag_filter_not_regex(self, children: list[Any]) -> TagValueFilter:
@@ -1493,7 +1508,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             value=_unquote(children[1]),
             case_insensitive=case_insensitive,
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def tag_filter_key_regex(self, children: list[Any]) -> TagValueFilter:
@@ -1504,7 +1519,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             value=_unquote(children[1]),
             case_insensitive=case_insensitive,
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def bbox_filter(self, children: list[Any]) -> BboxFilter:
@@ -1532,7 +1547,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             north=north,
             east=east,
             token=s_tok,
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def id_filter_single(self, children: list[Any]) -> IdFilter:
@@ -1540,7 +1555,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return IdFilter(
             ids=[int(children[0])],
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def id_filter_list(self, children: list[Any]) -> IdFilter:
@@ -1548,7 +1563,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return IdFilter(
             ids=[int(t) for t in children],
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def around_set_filter(self, children: list[Any]) -> AroundSetFilter:
@@ -1567,7 +1582,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             radius=radius_token.value,
             set_reference=set_reference,
             token=radius_token,
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def around_point_filter(self, children: list[Any]) -> AroundPointFilter:
@@ -1580,7 +1595,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             lat=lat_lon.lat,
             lon=lat_lon.lon,
             token=radius_token,
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def around_line_filter(self, children: list[Any]) -> AroundLineFilter:
@@ -1590,7 +1605,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             radius=radius_token.value,
             points=list(children[1:]),
             token=radius_token,
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def polygon_filter(self, children: list[Any]) -> PolygonFilter:
@@ -1598,7 +1613,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return PolygonFilter(
             points=list(children),
             token=children[0].token,
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def newer_filter(self, children: list[Any]) -> NewerFilter:
@@ -1649,11 +1664,11 @@ class OverpassTransformer(Transformer[Token, Query]):
             ref = children[0]
             assert isinstance(ref, SetReference)
             ref.required_types = _AREA
-            return AreaSetFilter(set_reference=ref, token=ref.token, output_types=_NWRA)
+            return AreaSetFilter(set_reference=ref, token=ref.token, output_types=_ANY)
         return AreaSetFilter(
             set_reference=SetReference(name="_", token=None, required_types=_AREA),
             token=None,
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def area_id_filter(self, children: list[Any]) -> AreaIdFilter:
@@ -1661,7 +1676,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return AreaIdFilter(
             area_id=int(children[0]),
             token=children[0],
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def recurse_filter(self, children: list[Any]) -> RecurseFilter:
@@ -1752,7 +1767,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return IfFilter(
             evaluator=evaluator,
             token=evaluator.token,
-            output_types=_NWRA,
+            output_types=_ANY,
         )
 
     def set_assignment(self, children: list[Any]) -> SetAssignment:
@@ -1771,7 +1786,8 @@ class OverpassTransformer(Transformer[Token, Query]):
     def query_stmt(self, children: list[Any]) -> QueryStatement:
         element_type_tree = children[0]
         assert isinstance(element_type_tree, Tree)
-        element_types = _ELEMENT_TYPE_MAP[str(element_type_tree.data)]
+        filter_type = QueryFilterType(str(element_type_tree.data))
+        element_types = _ELEMENT_TYPES_MAP[str(element_type_tree.data)]
         token = element_type_tree.children[0]
         assert isinstance(token, Token)
         filters: list[QueryFilter] = []
@@ -1782,6 +1798,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             elif isinstance(child, SetAssignment):
                 output_set = child.set_reference
         return QueryStatement(
+            filter_type=filter_type,
             element_types=element_types,
             filters=filters,
             output_set=output_set,
@@ -1804,7 +1821,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                 output_set = child.set_reference
             elif isinstance(child, list):
                 body = child
-        input_set.required_types = _NWRA
+        input_set.required_types = _ANY
         return ForeachStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1827,7 +1844,7 @@ class OverpassTransformer(Transformer[Token, Query]):
             elif isinstance(child, list):
                 body = child
         assert evaluator is not None
-        input_set.required_types = _NWRA
+        input_set.required_types = _ANY
         return ForStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1850,7 +1867,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                 max_iterations = int(child)
             else:
                 body.append(child)
-        input_set.required_types = _NWRA
+        input_set.required_types = _ANY
         return CompleteStatement(
             input_set=input_set,
             output_set=output_set,
@@ -1929,7 +1946,7 @@ class OverpassTransformer(Transformer[Token, Query]):
     def item_stmt(self, children: list[Any]) -> ItemStatement:
         input_set = children[0]
         assert isinstance(input_set, SetReference)
-        input_set.required_types = _NWRA
+        input_set.required_types = _ANY
         output_set = SetReference(name="_", token=None)
         if len(children) == 2:
             assert isinstance(children[1], SetAssignment)
@@ -2044,7 +2061,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                 "Quad tile sorting is not supported", sort_token
             )
 
-        input_set.required_types = _NWRA
+        input_set.required_types = _ANY
 
         return OutStatement(
             input_set=input_set,

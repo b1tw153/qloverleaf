@@ -4,7 +4,6 @@ from lark import Token
 
 from qloverleaf.exceptions import UnimplementedFeatureError
 from qloverleaf.transformer import (
-    _NUMERIC_TYPES,
     AbsEvaluator,
     AddEvaluator,
     AddOperator,
@@ -360,7 +359,7 @@ def _translate_literal(evaluator: LiteralEvaluator) -> EvaluatorPattern:
     # Numeric types emit the value as a bare SPARQL literal (no quotes).
     # String literals are quoted. ISO datetime strings are emitted as typed
     # xsd:dateTime literals.
-    if evaluator.output_type in _NUMERIC_TYPES:
+    if evaluator.output_type == ScalarType.NUMERIC:
         return EvaluatorPattern(expression=evaluator.value)
     if evaluator.output_type == ScalarType.DATETIME:
         escaped = evaluator.value.replace("\\", "\\\\").replace('"', '\\"')
@@ -617,7 +616,7 @@ def _translate_type_check(
     inner_pattern = translate_evaluator(evaluator.operand, element_var, variable_base)
     operand_type = evaluator.operand.output_type
     if evaluator.function == TypeCheckFunction.IS_NUMBER:
-        if operand_type in _NUMERIC_TYPES:
+        if operand_type == ScalarType.NUMERIC:
             # Statically known to be numeric — always true.
             return EvaluatorPattern(
                 expression="true",

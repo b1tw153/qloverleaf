@@ -222,24 +222,12 @@ _ELEMENT_TYPE_MAP: dict[str, frozenset[ElementType]] = {
 class ScalarType(Enum):
     BOOLEAN = "xsd:boolean"
     DATETIME = "xsd:dateTime"
-    DECIMAL = "xsd:decimal"
-    DOUBLE = "xsd:double"
-    INT = "xsd:int"
     LITERAL = "plain_literal"
     NUMERIC = "numeric"
     # None = indeterminate type
 
 
 _NON_EBV_TYPES = frozenset({ScalarType.DATETIME})
-_NUMERIC_TYPES = frozenset({ScalarType.INT, ScalarType.DECIMAL, ScalarType.DOUBLE})
-
-_NUMERIC_RANK = {ScalarType.INT: 0, ScalarType.DECIMAL: 1, ScalarType.DOUBLE: 3}
-
-
-def _promote_numeric_type(a: ScalarType, b: ScalarType) -> ScalarType:
-    assert a in _NUMERIC_TYPES
-    assert b in _NUMERIC_TYPES
-    return a if _NUMERIC_RANK[a] >= _NUMERIC_RANK[b] else b
 
 
 _INT_LITERAL = re.compile(r"^ *[+-]?\d+ *$")
@@ -249,11 +237,11 @@ _DOUBLE_LITERAL = re.compile(r"^ *[+-]?(\d+\.?\d*|\d*\.\d+)[eE][+-]?\d+ *$")
 
 def _infer_literal_type(value: str) -> ScalarType:
     if _INT_LITERAL.fullmatch(value):
-        return ScalarType.INT
+        return ScalarType.NUMERIC
     if _DECIMAL_LITERAL.fullmatch(value):
-        return ScalarType.DECIMAL
+        return ScalarType.NUMERIC
     if _DOUBLE_LITERAL.fullmatch(value):
-        return ScalarType.DOUBLE
+        return ScalarType.NUMERIC
     try:
         datetime.fromisoformat(value)
         return ScalarType.DATETIME
@@ -2144,7 +2132,6 @@ class OverpassTransformer(Transformer[Token, Query]):
 
     def local_stmt(self, children: list[Any]) -> None:
         # The local statement exposes the interal data format within Overpass
-        # TODO: Consider adding an output format type for raw QLever JSON
         raise UnsupportedFeatureError(
             "local statement is not supported", children[0] if children else None
         )
@@ -2227,8 +2214,8 @@ class OverpassTransformer(Transformer[Token, Query]):
             )
         elif then_type == else_type:
             output_type = then_type
-        elif then_type in _NUMERIC_TYPES and else_type in _NUMERIC_TYPES:
-            output_type = _promote_numeric_type(then_type, else_type)
+        elif then_type == ScalarType.NUMERIC and else_type == ScalarType.NUMERIC:
+            output_type = ScalarType.NUMERIC
         else:
             output_type = None
             self.warnings.append(
@@ -2321,9 +2308,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                     right_operand.token,
                 )
             )
-        elif left_type != right_type and not (
-            left_type in _NUMERIC_TYPES and right_type in _NUMERIC_TYPES
-        ):
+        elif left_type != right_type:
             self.warnings.append(
                 QueryWarning(
                     f"Incompatible operand types {left_type.value} and "
@@ -2359,9 +2344,9 @@ class OverpassTransformer(Transformer[Token, Query]):
                     "Operand type is indeterminate and may cause SPARQL errors", token
                 )
             )
-        elif left_type in _NUMERIC_TYPES and right_type in _NUMERIC_TYPES:
+        elif left_type == ScalarType.NUMERIC and right_type == ScalarType.NUMERIC:
             # numeric addition/subtraction
-            output_type = _promote_numeric_type(left_type, right_type)
+            output_type = ScalarType.NUMERIC
         elif operator == AddOperator.ADD and (
             left_type == ScalarType.LITERAL or right_type == ScalarType.LITERAL
         ):
@@ -2410,8 +2395,8 @@ class OverpassTransformer(Transformer[Token, Query]):
                     "Operand type is indeterminate and may cause SPARQL errors", token
                 )
             )
-        elif left_type in _NUMERIC_TYPES and right_type in _NUMERIC_TYPES:
-            output_type = _promote_numeric_type(left_type, right_type)
+        elif left_type == ScalarType.NUMERIC and right_type == ScalarType.NUMERIC:
+            output_type = ScalarType.NUMERIC
         else:
             output_type = None
             op_name = (
@@ -2448,7 +2433,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                     operand.token,
                 )
             )
-        elif operand_type not in _NUMERIC_TYPES:
+        elif operand_type != ScalarType.NUMERIC:
             output_type = None
             self.warnings.append(
                 QueryWarning(
@@ -2478,7 +2463,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         assert isinstance(token, Token)
         return MetadataEvaluator(
             attribute=MetadataAttribute(token.value),
-            output_type=ScalarType.INT,
+            output_type=ScalarType.NUMERIC,
             token=token,
         )
 
@@ -2500,7 +2485,8 @@ class OverpassTransformer(Transformer[Token, Query]):
             # times out (see tag-filters.md)
             # TODO: Revisit this.
             # ?_1 ?p ?v with
-            # FILTER(STR(?_1·f1·p) = STR(evaluator)) should be possible
+            # FILTER(STR(?p) = STR(evaluator)) should be possible
+            # as long as ?_1 is aready constrained
             raise UnsupportedFeatureError(
                 "t[...] with a dynamic key expression is not supported", token
             )
@@ -2530,7 +2516,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         assert isinstance(token, Token)
         return MetadataEvaluator(
             attribute=MetadataAttribute(token.value),
-            output_type=ScalarType.INT,
+            output_type=ScalarType.NUMERIC,
             token=token,
         )
 
@@ -2548,7 +2534,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         assert isinstance(token, Token)
         return MetadataEvaluator(
             attribute=MetadataAttribute(token.value),
-            output_type=ScalarType.INT,
+            output_type=ScalarType.NUMERIC,
             token=token,
         )
 
@@ -2557,7 +2543,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         assert isinstance(token, Token)
         return MetadataEvaluator(
             attribute=MetadataAttribute(token.value),
-            output_type=ScalarType.INT,
+            output_type=ScalarType.NUMERIC,
             token=token,
         )
 
@@ -2572,30 +2558,30 @@ class OverpassTransformer(Transformer[Token, Query]):
 
     def count_tags_expr(self, children: list[Any]) -> CountTagsEvaluator:
         assert isinstance(children[0], Token)
-        return CountTagsEvaluator(output_type=ScalarType.INT, token=children[0])
+        return CountTagsEvaluator(output_type=ScalarType.NUMERIC, token=children[0])
 
     def count_members_expr(self, children: list[Any]) -> CountMembersEvaluator:
         assert isinstance(children[0], Token)
-        return CountMembersEvaluator(output_type=ScalarType.INT, token=children[0])
+        return CountMembersEvaluator(output_type=ScalarType.NUMERIC, token=children[0])
 
     def count_distinct_members_expr(self, children: list[Any]) -> CountMembersEvaluator:
         assert isinstance(children[0], Token)
         return CountMembersEvaluator(
-            distinct=True, output_type=ScalarType.INT, token=children[0]
+            distinct=True, output_type=ScalarType.NUMERIC, token=children[0]
         )
 
     def count_by_role_expr(self, children: list[Any]) -> CountByRoleEvaluator:
         role = children[0]
         assert isinstance(role, Evaluator)
         return CountByRoleEvaluator(
-            role=role, output_type=ScalarType.INT, token=role.token
+            role=role, output_type=ScalarType.NUMERIC, token=role.token
         )
 
     def count_distinct_by_role_expr(self, children: list[Any]) -> CountByRoleEvaluator:
         role = children[0]
         assert isinstance(role, Evaluator)
         return CountByRoleEvaluator(
-            role=role, distinct=True, output_type=ScalarType.INT, token=role.token
+            role=role, distinct=True, output_type=ScalarType.NUMERIC, token=role.token
         )
 
     def is_closed_expr(self, children: list[Any]) -> IsClosedEvaluator:
@@ -2605,13 +2591,13 @@ class OverpassTransformer(Transformer[Token, Query]):
     def lat_expr(self, children: list[Any]) -> CoordinateEvaluator:
         assert isinstance(children[0], Token)
         return CoordinateEvaluator(
-            axis=CoordinateAxis.LAT, output_type=ScalarType.DECIMAL, token=children[0]
+            axis=CoordinateAxis.LAT, output_type=ScalarType.NUMERIC, token=children[0]
         )
 
     def lon_expr(self, children: list[Any]) -> CoordinateEvaluator:
         assert isinstance(children[0], Token)
         return CoordinateEvaluator(
-            axis=CoordinateAxis.LON, output_type=ScalarType.DECIMAL, token=children[0]
+            axis=CoordinateAxis.LON, output_type=ScalarType.NUMERIC, token=children[0]
         )
 
     def geom_expr(self, children: list[Any]) -> None:
@@ -2621,7 +2607,7 @@ class OverpassTransformer(Transformer[Token, Query]):
 
     def length_expr(self, children: list[Any]) -> LengthEvaluator:
         assert isinstance(children[0], Token)
-        return LengthEvaluator(output_type=ScalarType.DECIMAL, token=children[0])
+        return LengthEvaluator(output_type=ScalarType.NUMERIC, token=children[0])
 
     def center_expr(self, children: list[Any]) -> None:
         # geometry can only be assigned to ::geom in convert/make which are unsupported
@@ -2698,7 +2684,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                     operand.token,
                 )
             )
-        elif operand_type != ScalarType.LITERAL and operand_type not in _NUMERIC_TYPES:
+        elif operand_type != ScalarType.LITERAL and operand_type != ScalarType.NUMERIC:
             self.warnings.append(
                 QueryWarning(
                     "Operand may type may not be convertable to a number: "
@@ -2710,7 +2696,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return ConversionEvaluator(
             function=ConversionFunction.NUMBER,
             operand=operand,
-            output_type=ScalarType.DOUBLE,
+            output_type=ScalarType.NUMERIC,
             token=children[0].token,
         )
 
@@ -2781,7 +2767,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                     operand.token,
                 )
             )
-        elif operand_type not in _NUMERIC_TYPES:
+        elif operand_type != ScalarType.NUMERIC:
             output_type = None
             self.warnings.append(
                 QueryWarning(
@@ -2903,7 +2889,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                     evaluator.token,
                 )
             )
-        elif evaluator_type not in _NUMERIC_TYPES:
+        elif evaluator_type != ScalarType.NUMERIC:
             output_type = None
             self.warnings.append(
                 QueryWarning(
@@ -2913,7 +2899,7 @@ class OverpassTransformer(Transformer[Token, Query]):
                 )
             )
         else:
-            output_type = ScalarType.DOUBLE
+            output_type = ScalarType.NUMERIC
 
         if len(children) == 2:
             set_reference = children[0]
@@ -2950,7 +2936,7 @@ class OverpassTransformer(Transformer[Token, Query]):
         return CountEvaluator(
             count_type=count_type,
             input_set=set_reference,
-            output_type=ScalarType.INT,
+            output_type=ScalarType.NUMERIC,
             token=count_type_token,
         )
 

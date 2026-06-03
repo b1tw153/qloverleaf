@@ -58,6 +58,8 @@ Qloverleaf interpreter:</p>
   bandwidth</li>
 <li>Complex queries and queries that return large data sets will likely fail due to
   query timeouts or resource limitations</li>
+<li>The POC uses the public QLever server hosted by the University of Freiburg which is
+  a shared server with limited resources and which may not be available at some times</li>
 </ul>
 <h2>Unimplemented Features</h2>
 <p>Some aspects of the Overpass QL language have been in the implementation plans but are
@@ -149,14 +151,17 @@ addressible in QLever queries.</p>
 </ul>
 <h2>Known Bugs</h2>
 <ul>
+<li>Node coordinates in QLever are rounded to six decimal places instead of retaining
+  the original seven decimal places -
+  <a href="https://github.com/ad-freiburg/osm2rdf/issues/135">osm2rdf issue #135</a></li>
 <li>[bbox: ] global setting is not applied</li>
 <li>[maxsize: ] global setting is not applied</li>
-<li>output limit restricts the number of rows returned from QLever instead of limiting
+<li>Output limit restricts the number of rows returned from QLever instead of limiting
   the number of OSM elements returned in the result set</li>
-<li>the way_cnt filter does not work inside a union statement</li>
-<li>output is sorted by ID in lexical order rather than numerical order</li>
-<li>some execution errors are not properly reported in response messages</li>
-<li>the logo on this page is not rendering correctly</li>
+<li>The way_cnt filter does not work inside a union statement</li>
+<li>Output is sorted by ID in lexical order rather than numerical order</li>
+<li>Some execution errors are not properly reported in response messages</li>
+<li>The logo on this page is not rendering correctly</li>
 <li>... and certainly many more that are unknown</li>
 </ul>
 <p>If you find behavior that looks like a bug, please report it as an issue in the

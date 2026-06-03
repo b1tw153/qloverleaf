@@ -58,6 +58,8 @@ Qloverleaf interpreter:
   bandwidth
 - Complex queries and queries that return large data sets will likely fail due to
   query timeouts or resource limitations
+- The POC uses the public QLever server hosted by the University of Freiburg which is
+  a shared server with limited resources and which may not be available at some times
 
 ## Unimplemented Features
 
@@ -153,14 +155,17 @@ These features are unsupported with no implementation plans at this time:
 
 ## Known Bugs
 
+- Node coordinates in QLever are rounded to six decimal places instead of retaining
+  the original seven decimal places -
+  [osm2rdf issue \#135](https://github.com/ad-freiburg/osm2rdf/issues/135)
 - [bbox: ] global setting is not applied
 - [maxsize: ] global setting is not applied
-- output limit restricts the number of rows returned from QLever instead of limiting
+- Output limit restricts the number of rows returned from QLever instead of limiting
   the number of OSM elements returned in the result set
-- the way_cnt filter does not work inside a union statement
-- output is sorted by ID in lexical order rather than numerical order
-- some execution errors are not properly reported in response messages
-- the logo on this page is not rendering correctly
+- The way_cnt filter does not work inside a union statement
+- Output is sorted by ID in lexical order rather than numerical order
+- Some execution errors are not properly reported in response messages
+- The logo on this page is not rendering correctly
 - ... and certainly many more that are unknown
 
 If you find behavior that looks like a bug, please report it as an issue in the

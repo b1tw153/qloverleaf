@@ -694,6 +694,7 @@ def _translate_area_set_filter(
     )
     # sfIntersects for ways (matches Overpass semantics); sfContains for nodes/relations
     if f.output_types and ElementType.WAY in f.output_types:
+        # TODO: Maybe this should always be sfIntersects
         predicate = "ogc:sfIntersects"
     else:
         predicate = "ogc:sfContains"

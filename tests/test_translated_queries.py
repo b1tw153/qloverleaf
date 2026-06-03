@@ -1,3 +1,5 @@
+import os
+
 import httpx
 import pytest
 
@@ -11,7 +13,7 @@ from qloverleaf.types import SetState, SetStateEntry, SparqlPattern
 pytestmark = pytest.mark.live
 
 OVERPASS_URL = "http://localhost/api/interpreter"
-QLEVER_URL = "https://qlever.dev/api/osm-planet"
+QLEVER_URL = os.environ.get("QLEVER_ENDPOINT", "https://qlever.dev/api/osm-planet")
 
 
 def _translate(text: str) -> list[SparqlPattern]:

@@ -67,7 +67,6 @@ Some aspects of the Overpass QL language have been in the implementation plans b
 not implemented yet:
 
 - [maxsize: ] global setting
-- difference statement, e.g., `( .a; - .b; );`
 - count_tags() evaluator
 - count_members() evaluator
 - count_distinct_members() evaluator

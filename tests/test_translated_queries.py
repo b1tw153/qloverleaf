@@ -3449,3 +3449,52 @@ def test_translated_map_to_area_untagged_closed_way() -> None:
     qlever_sparql, overpass_ids = _compose_union_query(query)
     qlever_ids = _execute_qlever(qlever_sparql)
     assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# ---------------------------------------------------------------------------
+# DifferenceStatement
+# ---------------------------------------------------------------------------
+
+
+def test_translated_difference_unscoped() -> None:
+    # Both sides are standalone tag queries with no named-set dependency.
+    # Neither side has injections, so MINUS is built purely from where_clauses.
+    # Scoping the right side to [geological=meteor_crater] keeps both sets small.
+    query = (
+        "( node[geological=meteor_crater];"
+        " - node[geological=meteor_crater][natural=peak]; );"
+    )
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_difference_scoped() -> None:
+    # Left is an ItemStatement reading from a named set; right has a SetFilter
+    # on the same set.  Exercises the flat-injection → minus_r marker path.
+    # Both backends return meteor craters that are not tagged natural=peak.
+    query = (
+        "node[geological=meteor_crater] -> .craters;"
+        " ( .craters; - node.craters[natural=peak]; );"
+    )
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_difference_empty_result() -> None:
+    # Subtracting a set from itself produces an empty result on both backends.
+    query = "( node[geological=meteor_crater]; - node[geological=meteor_crater]; );"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_difference_no_overlap() -> None:
+    # Subtracting a set with no overlap must return the full base set unchanged.
+    # Nodes 356674654 and 356746407 are meteor craters tagged natural=peak;
+    # neither has geological=columnar_jointing, so neither is subtracted.
+    query = "( node(id:356674654,356746407); - node[geological=columnar_jointing]; );"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)

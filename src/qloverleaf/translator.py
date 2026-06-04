@@ -1113,10 +1113,126 @@ def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
 
 
 def _translate_difference(stmt: DifferenceStatement) -> list[SparqlPattern]:
-    raise UnimplementedFeatureError(
-        "DifferenceStatement translation is not yet implemented",
-        stmt.token,
+    output_set = stmt.output_set
+    result_variable = f"?{output_set.identifier}"
+    pattern = SparqlPattern(output_set=output_set)
+
+    # --- Left side (minuend) ---
+    left_patterns = translate(stmt.left_statement)
+    if len(left_patterns) != 1:
+        raise UnimplementedFeatureError(
+            "multi-pattern left side in DifferenceStatement is not yet supported",
+            stmt.token,
+        )
+    lp = left_patterns[0]
+    if lp.materialize:
+        raise UnimplementedFeatureError(
+            "multi-query left side in DifferenceStatement is not yet supported",
+            stmt.token,
+        )
+    if lp.select_clause or lp.group_by or lp.order_by or lp.limit is not None:
+        raise UnimplementedFeatureError(
+            "output-stage left side in DifferenceStatement is not yet supported",
+            stmt.token,
+        )
+    old_lvar = lp.result_variable
+    assert old_lvar is not None
+    pattern.where_clauses.extend(
+        _substitute_variable(c, old_lvar, result_variable) for c in lp.where_clauses
     )
+    pattern.prefixes |= lp.prefixes
+    left_flat_idx = 0
+    for inj in lp.injections:
+        new_lvar = _substitute_variable(inj.sparql_var, old_lvar, result_variable)
+        if inj.marker is not None:
+            # Site injection: marker is already embedded in left's where_clauses
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=new_lvar,
+                    set_name=inj.set_name,
+                    required_types=inj.required_types,
+                    must_materialize=inj.must_materialize,
+                    marker=inj.marker,
+                )
+            )
+        else:
+            # Flat injection: add a marker here so cold/hot clauses land before
+            # the MINUS block (compose appends flat cold clauses to the end of
+            # where_clauses, which would place them after MINUS — wrong)
+            left_marker = f"VALUES {new_lvar}·diff_l{left_flat_idx} {{ }}"
+            pattern.where_clauses.append(left_marker)
+            left_flat_idx += 1
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=new_lvar,
+                    set_name=inj.set_name,
+                    required_types=inj.required_types,
+                    must_materialize=inj.must_materialize,
+                    marker=left_marker,
+                )
+            )
+
+    # --- Right side (subtrahend) ---
+    right_patterns = translate(stmt.right_statement)
+    if len(right_patterns) != 1:
+        raise UnimplementedFeatureError(
+            "multi-pattern right side in DifferenceStatement is not yet supported",
+            stmt.token,
+        )
+    rp = right_patterns[0]
+    if rp.materialize:
+        raise UnimplementedFeatureError(
+            "multi-query right side in DifferenceStatement is not yet supported",
+            stmt.token,
+        )
+    if rp.select_clause or rp.group_by or rp.order_by or rp.limit is not None:
+        raise UnimplementedFeatureError(
+            "output-stage right side in DifferenceStatement is not yet supported",
+            stmt.token,
+        )
+    if any(inj.must_materialize for inj in rp.injections):
+        raise UnimplementedFeatureError(
+            "must-materialize injections in DifferenceStatement right side"
+            " are not yet supported",
+            stmt.token,
+        )
+    old_rvar = rp.result_variable
+    assert old_rvar is not None
+    minus_clauses = [
+        _substitute_variable(c, old_rvar, result_variable) for c in rp.where_clauses
+    ]
+    pattern.prefixes |= rp.prefixes
+    flat_inj_idx = 0
+    for inj in rp.injections:
+        new_var = _substitute_variable(inj.sparql_var, old_rvar, result_variable)
+        if inj.marker is not None:
+            # Site injection: marker is already embedded in minus_clauses
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=new_var,
+                    set_name=inj.set_name,
+                    required_types=inj.required_types,
+                    must_materialize=inj.must_materialize,
+                    marker=inj.marker,
+                )
+            )
+        else:
+            # Flat injection: VALUES must land inside MINUS, not at top level
+            minus_marker = f"VALUES {new_var}·minus_r{flat_inj_idx} {{ }}"
+            minus_clauses.insert(flat_inj_idx, minus_marker)
+            flat_inj_idx += 1
+            pattern.injections.append(
+                SetInjection(
+                    sparql_var=new_var,
+                    set_name=inj.set_name,
+                    required_types=inj.required_types,
+                    must_materialize=inj.must_materialize,
+                    marker=minus_marker,
+                )
+            )
+
+    pattern.where_clauses.append("MINUS {\n  " + "\n  ".join(minus_clauses) + "\n}")
+    return [pattern]
 
 
 def _translate_item(stmt: ItemStatement) -> list[SparqlPattern]:

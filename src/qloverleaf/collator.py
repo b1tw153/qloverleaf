@@ -1,7 +1,13 @@
 import math
+import re
 from typing import Any
 
 from qloverleaf.transformer import OutStatement, OutVerbosity
+
+# Matches a lon/lat coordinate pair anywhere in a WKT string.
+_COORD_PAIR_RE = re.compile(
+    r"(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s+(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)"
+)
 
 _COUNT_TYPE_TAGS: dict[str, str] = {
     "https://www.openstreetmap.org/node": "nodes",
@@ -41,16 +47,11 @@ def parse_wkt_coords(wkt: str) -> list[tuple[float, float]]:
         body = s.removeprefix("POLYGON((").split("))", 1)[0]
     else:
         # MULTIPOLYGON, GEOMETRYCOLLECTION, etc. — only used for bbox accumulation,
-        # not ordered geometry output. WKT structure is entirely parentheses and
-        # commas; stripping all parens leaves a flat comma-separated list of
-        # "lon lat" tokens, which is all we need to fit a bounding box.
-        flat = s[s.index("(") :].replace("(", "").replace(")", "")
-        result = []
-        for token in flat.split(","):
-            parts = token.strip().split()
-            if len(parts) == 2:
-                result.append((float(parts[1]), float(parts[0])))
-        return result
+        # not ordered geometry output. Regex extraction avoids type-name/coordinate
+        # concatenation bugs when parentheses are stripped (e.g. LINESTRING(-116...).
+        return [
+            (float(m.group(2)), float(m.group(1))) for m in _COORD_PAIR_RE.finditer(s)
+        ]
     result = []
     for pair in body.split(","):
         lon_str, lat_str = pair.strip().split()

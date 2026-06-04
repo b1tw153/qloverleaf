@@ -123,7 +123,6 @@ These features are unsupported with no implementation plans at this time:
 - (user_touched: ) filter - no history data
 - (uid_touched: ) filter - no history data
 - (way_link: ) filter - no practical query translation
-- `t[ ]` tag value evaluator with a dynamic key (static keys are supported)
 - keys() evaluator - constructed type
 - `::` generic tag evaluator - constructed type
 - geom() evaluator - constructed type
@@ -149,7 +148,7 @@ These features are unsupported with no implementation plans at this time:
 - lrs_max() evaluator - constructed type
 - sets containing both NWR elements and AREA elements -- instead of mirroring the
   separate element type for areas that Overpass implements, Qloverleaf uses QLever's
-  model where all closed ways and relations are areas
+  model where all relations and tagged closed ways are areas
 
 ## Known Bugs
 

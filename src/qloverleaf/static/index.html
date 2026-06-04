@@ -119,7 +119,6 @@ addressible in QLever queries.</p>
 <li>(user_touched: ) filter - no history data</li>
 <li>(uid_touched: ) filter - no history data</li>
 <li>(way_link: ) filter - no practical query translation</li>
-<li><code>t[ ]</code> tag value evaluator with a dynamic key (static keys are supported)</li>
 <li>keys() evaluator - constructed type</li>
 <li><code>::</code> generic tag evaluator - constructed type</li>
 <li>geom() evaluator - constructed type</li>
@@ -145,7 +144,7 @@ addressible in QLever queries.</p>
 <li>lrs_max() evaluator - constructed type</li>
 <li>sets containing both NWR elements and AREA elements -- instead of mirroring the
   separate element type for areas that Overpass implements, Qloverleaf uses QLever's
-  model where all closed ways and relations are areas</li>
+  model where all relations and tagged closed ways are areas</li>
 </ul>
 <h2>Known Bugs</h2>
 <ul>

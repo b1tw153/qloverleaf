@@ -418,12 +418,10 @@ def _translate_bbox_filter(
     pattern: SparqlPattern,
 ) -> None:
     pattern.prefixes |= {"geo", "geof"}
-    geom_var = _variable_name(
-        output_set, filter_index=filter_index, intermediate="geom"
-    )
     wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
-    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
-    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+    pattern.where_clauses.append(
+        f"{result_variable} geo:hasGeometry/geo:asWKT {wkt_var} ."
+    )
     # geof:minX/maxX/minY/maxY work for any geometry type, including POINT (nodes)
     pattern.where_clauses.append(
         f"FILTER(geof:minX({wkt_var}) <= {f.east} && geof:maxX({wkt_var}) >= {f.west})"
@@ -470,17 +468,11 @@ def _translate_around_set_filter(
 
     # Reference set geometry variables
     ref_var = _variable_name(output_set, filter_index=filter_index, intermediate="ref")
-    ref_geom_var = _variable_name(
-        output_set, filter_index=filter_index, intermediate="refgeom"
-    )
     ref_wkt_var = _variable_name(
         output_set, filter_index=filter_index, intermediate="refwkt"
     )
 
-    # Target geometry variables
-    geom_var = _variable_name(
-        output_set, filter_index=filter_index, intermediate="geom"
-    )
+    # Target geometry variable
     wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
 
     # Inject reference set
@@ -493,16 +485,13 @@ def _translate_around_set_filter(
         )
     )
 
-    # TODO: Use property paths here and in other translations to remove intermediate
-    # variables
-
     # Reference geometry
-    pattern.where_clauses.append(f"{ref_var} geo:hasGeometry {ref_geom_var} .")
-    pattern.where_clauses.append(f"{ref_geom_var} geo:asWKT {ref_wkt_var} .")
+    pattern.where_clauses.append(f"{ref_var} geo:hasGeometry/geo:asWKT {ref_wkt_var} .")
 
     # Target geometry
-    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
-    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+    pattern.where_clauses.append(
+        f"{result_variable} geo:hasGeometry/geo:asWKT {wkt_var} ."
+    )
 
     # Distance filter
     pattern.where_clauses.append(
@@ -519,12 +508,10 @@ def _translate_around_point_filter(
     pattern: SparqlPattern,
 ) -> None:
     pattern.prefixes |= {"geo", "geof"}
-    geom_var = _variable_name(
-        output_set, filter_index=filter_index, intermediate="geom"
-    )
     wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
-    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
-    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+    pattern.where_clauses.append(
+        f"{result_variable} geo:hasGeometry/geo:asWKT {wkt_var} ."
+    )
     point_wkt = f'"POINT({f.lon} {f.lat})"^^geo:wktLiteral'
     pattern.where_clauses.append(
         f"FILTER(geof:metricDistance({wkt_var}, {point_wkt}) <= {f.radius})"
@@ -539,12 +526,10 @@ def _translate_around_line_filter(
     pattern: SparqlPattern,
 ) -> None:
     pattern.prefixes |= {"geo", "geof"}
-    geom_var = _variable_name(
-        output_set, filter_index=filter_index, intermediate="geom"
-    )
     wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
-    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
-    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+    pattern.where_clauses.append(
+        f"{result_variable} geo:hasGeometry/geo:asWKT {wkt_var} ."
+    )
     coords = ", ".join(f"{pt.lon} {pt.lat}" for pt in f.points)
     linestring_wkt = f'"LINESTRING({coords})"^^geo:wktLiteral'
     pattern.where_clauses.append(
@@ -564,17 +549,15 @@ def _translate_polygon_filter(
     poly_var = _variable_name(
         output_set, filter_index=filter_index, intermediate="poly"
     )
-    geom_var = _variable_name(
-        output_set, filter_index=filter_index, intermediate="geom"
-    )
     wkt_var = _variable_name(output_set, filter_index=filter_index, intermediate="wkt")
     coords = ", ".join(f"{pt.lon} {pt.lat}" for pt in f.points)
     first_pt = f.points[0]
     closed_coords = f"{coords}, {first_pt.lon} {first_pt.lat}"
     polygon_wkt = f'"POLYGON(({closed_coords}))"^^geo:wktLiteral'
     pattern.where_clauses.append(f"VALUES {poly_var} {{ {polygon_wkt} }}")
-    pattern.where_clauses.append(f"{result_variable} geo:hasGeometry {geom_var} .")
-    pattern.where_clauses.append(f"{geom_var} geo:asWKT {wkt_var} .")
+    pattern.where_clauses.append(
+        f"{result_variable} geo:hasGeometry/geo:asWKT {wkt_var} ."
+    )
     if f.output_types == {ElementType.NODE}:
         spatial_fn = "geof:sfWithin"
     else:
@@ -730,16 +713,18 @@ def _translate_recurse_filter(
             # relation → members (downward)
             pattern.prefixes.add("osmrel")
             if f.role is not None:
-                # blank node needed to attach the role filter
-                blank_var = _variable_name(
+                # blank variable needed to bind member to role
+                member_var = _variable_name(
                     output_set, filter_index=filter_index, intermediate="m"
                 )
-                pattern.where_clauses.append(f"{input_var} osmrel:member {blank_var} .")
                 pattern.where_clauses.append(
-                    f"{blank_var} osmrel:member_id {result_variable} ."
+                    f"{input_var} osmrel:member {member_var} ."
                 )
                 pattern.where_clauses.append(
-                    f"{blank_var} osmrel:member_role {_sparql_literal(f.role)} ."
+                    f"{member_var} osmrel:member_id {result_variable} ."
+                )
+                pattern.where_clauses.append(
+                    f"{member_var} osmrel:member_role {_sparql_literal(f.role)} ."
                 )
             else:
                 pattern.where_clauses.append(
@@ -819,10 +804,10 @@ def _translate_way_count_filter(
         )
     )
 
-    # Join ways to their member nodes (outer query) via blank node
-    blank_var = _variable_name(output_set, filter_index=filter_index, intermediate="m")
-    pattern.where_clauses.append(f"{way_var} osmway:member {blank_var} .")
-    pattern.where_clauses.append(f"{blank_var} osmway:member_id {result_variable} .")
+    # Join ways to their member nodes (outer query)
+    pattern.where_clauses.append(
+        f"{way_var} osmway:member/osmway:member_id {result_variable} ."
+    )
 
     # Subquery to count how many ways each node appears in
     # Note: VALUES must appear in both outer and inner query due to QLever limitation
@@ -830,8 +815,7 @@ def _translate_way_count_filter(
         f"{{ SELECT {result_variable} (COUNT(DISTINCT {way_var}) AS {count_var})"
         " WHERE {"
         f" VALUES {way_var} {{ }}"
-        f" {way_var} osmway:member {blank_var} ."
-        f" {blank_var} osmway:member_id {result_variable} ."
+        f" {way_var} osmway:member/osmway:member_id {result_variable} ."
         f" }} GROUP BY {result_variable} }}"
     )
     pattern.where_clauses.append(subquery)

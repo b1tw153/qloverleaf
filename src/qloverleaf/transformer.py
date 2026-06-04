@@ -494,8 +494,9 @@ class AroundSetFilter(QueryFilter):
 
     @property
     def constrained(self) -> Constrained | None:
-        # TODO: This should be None or NO but never YES
-        return self.set_reference.constrained
+        if self.set_reference is None:
+            return None
+        return Constrained.NO
 
 
 @dataclass
@@ -506,7 +507,7 @@ class AroundPointFilter(QueryFilter):
 
     @property
     def constrained(self) -> Constrained | None:
-        return Constrained.YES
+        return Constrained.NO
 
 
 @dataclass
@@ -516,7 +517,7 @@ class AroundLineFilter(QueryFilter):
 
     @property
     def constrained(self) -> Constrained | None:
-        return Constrained.YES
+        return Constrained.NO
 
 
 @dataclass
@@ -525,7 +526,7 @@ class PolygonFilter(QueryFilter):
 
     @property
     def constrained(self) -> Constrained | None:
-        return Constrained.YES
+        return Constrained.NO
 
 
 @dataclass
@@ -593,7 +594,9 @@ class WayCountFilter(QueryFilter):
 
     @property
     def constrained(self) -> Constrained | None:
-        return self.set_reference.constrained
+        if self.set_reference.constrained is None:
+            return None
+        return Constrained.NO
 
 
 @dataclass

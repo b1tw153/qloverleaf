@@ -495,7 +495,6 @@ def _translate_around_set_filter(
 
     # Distance filter
     pattern.where_clauses.append(
-        # TODO: Make sure anything that uses FILTER is unconstrained
         f"FILTER(geof:metricDistance({wkt_var}, {ref_wkt_var}) <= {f.radius})"
     )
 

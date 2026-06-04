@@ -24,6 +24,33 @@ async def _safe_stream(
         yield f"\n\n[ERROR: {e}]"
 
 
+def _error_response(message: str, status_code: int = 400) -> Response:
+    # Wrap error in the same HTML envelope Overpass uses so clients that parse
+    # Overpass error responses (e.g. Overpass Turbo) can display the message.
+    html = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"\n'
+        '    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">\n'
+        '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">\n'
+        "<head>\n"
+        '  <meta http-equiv="content-type" content="text/html; charset=utf-8"'
+        ' lang="en"/>\n'
+        "  <title>Query Error</title>\n"
+        "</head>\n"
+        "<body>\n"
+        '<p><strong style="color:#FF0000">Error</strong>: '
+        f"<pre>\n{message}</pre> </p>\n"
+        "</body>\n"
+        "</html>\n"
+    )
+    return Response(
+        html,
+        status_code=status_code,
+        media_type="text/html",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
+
 async def health(request: Request) -> Response:
     return Response("ok")
 
@@ -50,7 +77,7 @@ async def listener(request: Request) -> Response:
         tree = parse(query_text)
         parse_time = time.perf_counter() - start_time
     except Exception as e:
-        return Response(str(e), status_code=400)
+        return _error_response(str(e))
 
     query = QueryContext(text=query_text, tree=tree)
     query.stats.parse_time = parse_time
@@ -58,7 +85,7 @@ async def listener(request: Request) -> Response:
     try:
         content, media_type = await interpreter.initialize(query)
     except Exception as e:
-        return Response(str(e), status_code=400)
+        return _error_response(str(e))
     return StreamingResponse(
         _safe_stream(content),
         media_type=media_type,

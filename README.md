@@ -66,7 +66,6 @@ Qloverleaf interpreter:
 Some aspects of the Overpass QL language have been in the implementation plans but are
 not implemented yet:
 
-- [bbox: ] global setting
 - [maxsize: ] global setting
 - difference statement, e.g., `( .a; - .b; );`
 - count_tags() evaluator

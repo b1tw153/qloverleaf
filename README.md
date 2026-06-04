@@ -69,8 +69,6 @@ not implemented yet:
 - [bbox: ] global setting
 - [maxsize: ] global setting
 - difference statement, e.g., `( .a; - .b; );`
-- is_in statement
-- map_to_area statement
 - count_tags() evaluator
 - count_members() evaluator
 - count_distinct_members() evaluator
@@ -179,6 +177,19 @@ Qloverleaf supports some additional features for debugging and evaluation purpos
 - `out debug` dumps the state of the selected set and the QLever query that would be
   used to collect data for the output instead of executing the query. This token can
   be combined with other `out` tokens, e.g., `out meta geom debug;`
+
+## Area Handling
+
+Areas are derived data types in both Overpass and QLever and the derivations differ
+between the two systems. Overpass includes untagged closed ways in its area derivation
+and derives areas as a separate data type. QLever (via `osm2rdf`) does not treat
+untagged closed ways as areas, but it assigns area attributes to all relations and
+closed tagged ways.
+
+Qloverleaf preserves QLever's area model. Relations and tagged ways can be used
+directly in area queries without adaptation. This differs slightly from Overpass,
+where ways and relations must be converted to the derived area type before they can be
+used in area queries.
 
 ## Other Quirks
 

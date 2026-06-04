@@ -1112,7 +1112,15 @@ def _unquote(token: Token) -> str:
     return re.sub(r'\\(u[0-9A-Fa-f]{4}|[nt"\'\\])', replace_escape, inner)
 
 
-# Phase 2 — Set Version Assignment
+# Phase 2 — IR Enrichment
+#
+# The functions below walk the IR to assign set versions, propagate element
+# types through set references, and derive constrained values. They are called
+# from the transformer's query() method immediately after Phase 1 (AST → IR
+# construction), but have no dependency on Lark internals and could be moved
+# to a separate analyzer module. A future analyzer would accept a raw Query
+# (fields set by Phase 1, version/content_types/constrained still at defaults)
+# and return an enriched Query ready for translation.
 
 
 _SetState = tuple[int, frozenset[ElementType] | None, Constrained | None]
@@ -1383,6 +1391,8 @@ class OverpassTransformer(Transformer[Token, Query]):
             if isinstance(child, Statement):
                 statements.append(child)
         result = Query(statements=statements, warnings=self.warnings)
+        # Phase 1 ends here. Phase 2 enrichment follows — see the section header
+        # above for how these passes could be factored into a separate analyzer.
         _resolve_types(result)
         _resolve_element_contexts(result)
         return result

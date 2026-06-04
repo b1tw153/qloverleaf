@@ -2,10 +2,13 @@ import os
 
 import httpx
 import pytest
+from lark import Token
 
 from qloverleaf.composer import compose
 from qloverleaf.exceptions import QueryError
+from qloverleaf.optimizer import optimize
 from qloverleaf.parser import parse
+from qloverleaf.query_context import Bbox
 from qloverleaf.transformer import ElementType, OverpassTransformer
 from qloverleaf.translator import render_query, translate
 from qloverleaf.types import SetState, SetStateEntry, SparqlPattern
@@ -21,6 +24,22 @@ def _translate(text: str) -> list[SparqlPattern]:
     return translate(query.statements[0])
 
 
+def _translate_optimized(text: str) -> list[SparqlPattern]:
+    """Translate the first statement with the global bbox optimizer applied,
+    mirroring what the interpreter does."""
+    tree = parse(text)
+    ir = OverpassTransformer().transform(tree)
+    matches = list(tree.find_data("global_bbox"))
+    global_bbox = None
+    if matches:
+        s, w, n, e = matches[0].children
+        assert isinstance(s, Token) and isinstance(w, Token)
+        assert isinstance(n, Token) and isinstance(e, Token)
+        global_bbox = Bbox(s.value, w.value, n.value, e.value)
+    optimize(ir, global_bbox)
+    return translate(ir.statements[0])
+
+
 def _translate_query(text: str) -> list[SparqlPattern]:
     query = OverpassTransformer().transform(parse(text))
     return [
@@ -30,7 +49,12 @@ def _translate_query(text: str) -> list[SparqlPattern]:
 
 def _execute_overpass(statement: str) -> list[str]:
     """Execute query against Overpass and return element IDs as 'type/id' strings."""
-    query = "[out:json];" + statement + "out ids;"
+    # If the statement already has a global settings block, merge [out:json] into
+    # it rather than prepending a separate block, which Overpass does not allow.
+    if statement.lstrip().startswith("["):
+        query = "[out:json]" + statement + "out ids;"
+    else:
+        query = "[out:json];" + statement + "out ids;"
     response = httpx.post(OVERPASS_URL, data={"data": query}, timeout=30.0)
     response.raise_for_status()
     result = response.json()
@@ -102,6 +126,68 @@ def test_translated_tag_value_equals() -> None:
 def test_translated_bbox_nodes() -> None:
     statement = "node[natural=peak](32.58870,-116.14417,32.88870,-115.84417);"
     pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_bbox_crossing_antimeridian() -> None:
+    # Fiji area: bbox crosses the antimeridian (west=178 > east=-175)
+    statement = "node[place=island](-21,178,-16,-175);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_bbox_multiple() -> None:
+    # Two partially overlapping bboxes on the same statement; effective area is
+    # their intersection: south=32.6, west=-116.1, north=32.9, east=-115.8
+    statement = "node[natural=peak](32.5,-116.2,32.9,-115.8)(32.6,-116.1,33.0,-115.7);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+# ---------------------------------------------------------------------------
+# Global BboxFilter (optimizer)
+# ---------------------------------------------------------------------------
+
+
+def test_translated_global_bbox() -> None:
+    statement = "[bbox:32.58870,-116.14417,32.88870,-115.84417];node[natural=peak];"
+    pattern = _translate_optimized(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_global_bbox_crossing_antimeridian() -> None:
+    statement = "[bbox:-21,178,-16,-175];node[place=island];"
+    pattern = _translate_optimized(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_global_bbox_intersect_explicit() -> None:
+    # Global and explicit bboxes partially overlap; optimizer merges them into
+    # their intersection: south=32.6, west=-116.1, north=32.9, east=-115.8
+    statement = (
+        "[bbox:32.5,-116.2,32.9,-115.8];node[natural=peak](32.6,-116.1,33.0,-115.7);"
+    )
+    pattern = _translate_optimized(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}
     qlever_query = render_query(pattern, set_state)

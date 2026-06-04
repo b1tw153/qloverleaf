@@ -1099,6 +1099,26 @@ def test_bbox_filter_inverted_warns() -> None:
     assert "south >= north" in transformer.warnings[0].message
 
 
+def test_bbox_filter_south_out_of_range() -> None:
+    with pytest.raises(QueryError, match="south latitude out of range"):
+        _transform_query("node(-91,0,0,1);")
+
+
+def test_bbox_filter_north_out_of_range() -> None:
+    with pytest.raises(QueryError, match="north latitude out of range"):
+        _transform_query("node(0,0,91,1);")
+
+
+def test_bbox_filter_west_out_of_range() -> None:
+    with pytest.raises(QueryError, match="west longitude out of range"):
+        _transform_query("node(0,-181,1,0);")
+
+
+def test_bbox_filter_east_out_of_range() -> None:
+    with pytest.raises(QueryError, match="east longitude out of range"):
+        _transform_query("node(0,0,1,181);")
+
+
 # ---------------------------------------------------------------------------
 # OverpassTransformer.id_filter_single / id_filter_list
 # ---------------------------------------------------------------------------

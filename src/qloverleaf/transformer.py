@@ -1550,6 +1550,22 @@ class OverpassTransformer(Transformer[Token, Query]):
             n_tok.value,
             e_tok.value,
         )
+        if float(south) < -90.0 or float(south) > 90.0:
+            raise QueryError(
+                "Bounding box south latitude out of range [-90, 90]", s_tok
+            )
+        if float(north) < -90.0 or float(north) > 90.0:
+            raise QueryError(
+                "Bounding box north latitude out of range [-90, 90]", n_tok
+            )
+        if float(west) < -180.0 or float(west) > 180.0:
+            raise QueryError(
+                "Bounding box west longitude out of range [-180, 180]", w_tok
+            )
+        if float(east) < -180.0 or float(east) > 180.0:
+            raise QueryError(
+                "Bounding box east longitude out of range [-180, 180]", e_tok
+            )
         if float(south) >= float(north):
             self.warnings.append(
                 QueryWarning(

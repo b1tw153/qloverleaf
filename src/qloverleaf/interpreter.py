@@ -23,6 +23,7 @@ from qloverleaf.formatter import (
     format_output,
     format_warnings,
 )
+from qloverleaf.optimizer import optimize
 from qloverleaf.query_context import Bbox, OutputFormat, QueryContext
 from qloverleaf.transformer import (
     OutStatement,
@@ -50,6 +51,7 @@ async def initialize(query: QueryContext) -> tuple[AsyncGenerator[str, None], st
     # and apply the settings from the ir instead of directly from the parse tree
 
     query.ir = OverpassTransformer().transform(query.tree)
+    optimize(query.ir, query.bbox)
 
     await format_init(query)
 

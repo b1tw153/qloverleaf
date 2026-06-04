@@ -423,9 +423,17 @@ def _translate_bbox_filter(
         f"{result_variable} geo:hasGeometry/geo:asWKT {wkt_var} ."
     )
     # geof:minX/maxX/minY/maxY work for any geometry type, including POINT (nodes)
-    pattern.where_clauses.append(
-        f"FILTER(geof:minX({wkt_var}) <= {f.east} && geof:maxX({wkt_var}) >= {f.west})"
-    )
+    if float(f.west) <= float(f.east):
+        pattern.where_clauses.append(
+            f"FILTER(geof:minX({wkt_var}) <= {f.east}"
+            f" && geof:maxX({wkt_var}) >= {f.west})"
+        )
+    else:
+        # Antimeridian-crossing bbox: match elements on either side with OR
+        pattern.where_clauses.append(
+            f"FILTER(geof:maxX({wkt_var}) >= {f.west}"
+            f" || geof:minX({wkt_var}) <= {f.east})"
+        )
     pattern.where_clauses.append(
         f"FILTER(geof:minY({wkt_var}) <= {f.north}"
         f" && geof:maxY({wkt_var}) >= {f.south})"

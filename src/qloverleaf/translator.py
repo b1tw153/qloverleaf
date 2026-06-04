@@ -1652,8 +1652,8 @@ def _translate_is_in(stmt: IsInStatement) -> list[SparqlPattern]:
     if stmt.lat is not None or stmt.lon is not None:
         # QLever GeoSPARQL predicates require two variables; constant WKT literals
         # on either side are not supported
-        raise UnimplementedFeatureError(
-            "is_in with lat/lon coordinates is not yet implemented",
+        raise UnsupportedFeatureError(
+            "is_in with lat/lon coordinates is not supported",
             stmt.token,
         )
     pattern = SparqlPattern(output_set=stmt.output_set)

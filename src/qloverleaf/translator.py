@@ -493,6 +493,9 @@ def _translate_around_set_filter(
         )
     )
 
+    # TODO: Use property paths here and in other translations to remove intermediate
+    # variables
+
     # Reference geometry
     pattern.where_clauses.append(f"{ref_var} geo:hasGeometry {ref_geom_var} .")
     pattern.where_clauses.append(f"{ref_geom_var} geo:asWKT {ref_wkt_var} .")
@@ -503,6 +506,7 @@ def _translate_around_set_filter(
 
     # Distance filter
     pattern.where_clauses.append(
+        # TODO: Make sure anything that uses FILTER is unconstrained
         f"FILTER(geof:metricDistance({wkt_var}, {ref_wkt_var}) <= {f.radius})"
     )
 

@@ -567,7 +567,3 @@ def test_out_xml_rel_geom_meta() -> None:
     output = _run_query(query_text)
     elements = _parse_xml_elements(output)
     assert elements == _overpass_elements_xml(query_text)
-
-
-# TODO: Figure out why the XML for this query is malformed:
-# nwr[leisure=golf_course]; nwr(around:0)[office=yes]; out geom;

@@ -130,9 +130,6 @@ def test_translated_id_filter() -> None:
 
 
 def test_translated_around_set_filter() -> None:
-    # TODO: This filter and others like it cannot run without additional filters to
-    # reduce the scope of element scanning in Qlever. See query-validation.md for a
-    # plan to reject hazardous queries.
     query = "node(1) -> .a; node[natural=tree](around.a:100);"
     overpass_ids = _execute_overpass(query)
     patterns = _translate_query(query)
@@ -2433,7 +2430,9 @@ def _qlever_geom(sparql: str) -> _GeomData:
                 pos = int(pos_val["value"])
                 role = binding.get("role", {}).get("value", "")
                 members[elem_key].append((pos, member_key, role))
-                # member_wkt (way queries) or wkt (relation queries) carries member geometry.
+                # member_wkt (way queries) or wkt (relation queries) carries member
+                # geometry.
+                # TODO: move member_wkt and bb_wkt to wkt
                 member_wkt = binding.get("member_wkt") or binding.get("wkt") or {}
                 if member_wkt.get("type") == "literal":
                     member_coords = _parse_wkt_coords(member_wkt["value"])

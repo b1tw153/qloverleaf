@@ -494,6 +494,7 @@ class AroundSetFilter(QueryFilter):
 
     @property
     def constrained(self) -> Constrained | None:
+        # TODO: This should be None or NO but never YES
         return self.set_reference.constrained
 
 

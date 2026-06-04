@@ -257,7 +257,7 @@ def format_end() -> str:
 
 
 def _format_end_json() -> str:
-    # TODO: research how Overpass formats remark text
+    # TODO: research how Overpass / Overpass Turbo formats remark text
     remark = (
         f',\n  "remark": {json.dumps(". \n".join(_remarks))}\n' if _remarks else "\n"
     )

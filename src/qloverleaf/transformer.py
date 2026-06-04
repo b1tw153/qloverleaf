@@ -2501,16 +2501,6 @@ class OverpassTransformer(Transformer[Token, Query]):
         token = children[0].token
         assert isinstance(token, Token)
         evaluator = children[0]
-        if not isinstance(evaluator, LiteralEvaluator):
-            # the best known translation forces a complete scan over all triples and
-            # times out (see tag-filters.md)
-            # TODO: Revisit this.
-            # ?_1 ?p ?v with
-            # FILTER(STR(?p) = STR(evaluator)) should be possible
-            # as long as ?_1 is aready constrained
-            raise UnsupportedFeatureError(
-                "t[...] with a dynamic key expression is not supported", token
-            )
         return TagValueEvaluator(
             evaluator=evaluator, output_type=ScalarType.LITERAL, token=token
         )

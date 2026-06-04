@@ -382,14 +382,34 @@ def _translate_literal(evaluator: LiteralEvaluator) -> EvaluatorPattern:
 def _translate_tag_value(
     evaluator: TagValueEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    key = evaluator.evaluator.value
-    var = _evaluator_variable_name(variable_base, evaluator.token, "t")
-    clause = f"{element_var} osmkey:{key} {var}"
-    return EvaluatorPattern(
-        expression=f'COALESCE({var}, "")',
-        prefixes={"osmkey"},
-        clauses=[clause],
-    )
+    if isinstance(evaluator.evaluator, LiteralEvaluator):
+        key_var = evaluator.evaluator.value
+        value_var = _evaluator_variable_name(variable_base, evaluator.token, "v")
+        clause = f"{element_var} osmkey:{key_var} {value_var}"
+        return EvaluatorPattern(
+            expression=f'COALESCE({value_var}, "")',
+            prefixes={"osmkey"},
+            clauses=[clause],
+        )
+    else:
+        key_pattern = translate_evaluator(
+            evaluator.evaluator, element_var, variable_base
+        )
+        key_var = _evaluator_variable_name(variable_base, evaluator.token, "p")
+        value_var = _evaluator_variable_name(variable_base, evaluator.token, "v")
+        prefixes = key_pattern.prefixes
+        expression = f'COALESCE({value_var}, "")'
+        clauses = key_pattern.clauses + [
+            f"{element_var} {key_var} {value_var} .",
+            f'FILTER(STR({key_var}) = CONCAT("https://www.openstreetmap.org/wiki/Key:",STR({key_pattern.expression})))',
+        ]
+        subqueries = key_pattern.subqueries
+        return EvaluatorPattern(
+            prefixes=prefixes,
+            expression=expression,
+            clauses=clauses,
+            subqueries=subqueries,
+        )
 
 
 # is_tag_expr

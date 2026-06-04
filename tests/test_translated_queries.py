@@ -1444,6 +1444,17 @@ def test_translated_if_tag_value_missing() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
+def test_translated_if_tag_value_dynamic() -> None:
+    # tag equality via t[...] — equivalent to the tag filter form [key=value]
+    statement = 'rel[type=route](area:3600112201)(if: number(t["r" + "e" + "f"]) == 8);'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
 # IsTagEvaluator
 
 

@@ -963,6 +963,17 @@ def test_translated_if_add_numeric() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
+def test_translated_if_add_numeric_multiple() -> None:
+    # 1+1 → 2 → truthy
+    statement = "node(1)(if:1+1+1 == 3);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
 def test_translated_if_add_concat() -> None:
     # "foo"+"bar" → "foobar" → truthy; translates to CONCAT
     statement = 'node(1)(if:"foo"+"bar");'
@@ -974,9 +985,42 @@ def test_translated_if_add_concat() -> None:
     assert sorted(overpass_ids) == sorted(qlever_ids)
 
 
+def test_translated_if_add_concat_multiple() -> None:
+    # "foo"+"bar" → "foobar" → truthy; translates to CONCAT
+    statement = 'node(1)(if:"r"+"e"+"f" == "ref");'
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
 def test_translated_if_subtract_truthy() -> None:
     # 2-1 → 1 → truthy
     statement = "node(1)(if:2-1);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_subtract_numeric_multiple() -> None:
+    # 5-2-1 → 2 → truthy; tests 3-operand flat subtract chain
+    statement = "node(1)(if:5-2-1 == 2);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_add_subtract_mixed() -> None:
+    # 3+2-1 → 4; tests mixed operators in flat chain
+    statement = "node(1)(if:3+2-1 == 4);"
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}
@@ -1066,6 +1110,28 @@ def test_translated_if_divide_truthy() -> None:
 def test_translated_if_divide_falsy() -> None:
     # 0/5 → 0 → falsy
     statement = "node(1)(if:0/5);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_multiply_multiple() -> None:
+    # 2*3*4 → 24 → truthy; tests 3-operand flat multiply chain
+    statement = "node(1)(if:2*3*4 == 24);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_if_multiply_divide_mixed() -> None:
+    # 6*2/3 → 4; tests mixed operators in flat multiply chain
+    statement = "node(1)(if:6*2/3 == 4);"
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}

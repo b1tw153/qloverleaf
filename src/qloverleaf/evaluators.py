@@ -6,7 +6,6 @@ from qloverleaf.exceptions import UnimplementedFeatureError
 from qloverleaf.transformer import (
     AbsEvaluator,
     AddEvaluator,
-    AddOperator,
     BinaryEvaluator,
     CompareEvaluator,
     CompareOperator,
@@ -304,28 +303,24 @@ def _translate_compare(
 def _translate_add(
     evaluator: AddEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    left_pattern = translate_evaluator(
-        evaluator.left_operand, element_var, variable_base
-    )
-    right_pattern = translate_evaluator(
-        evaluator.right_operand, element_var, variable_base
-    )
-    prefixes = left_pattern.prefixes | right_pattern.prefixes
-    clauses = left_pattern.clauses + right_pattern.clauses
-    subqueries = left_pattern.subqueries + right_pattern.subqueries
-    if (
-        evaluator.operator == AddOperator.ADD
-        and evaluator.output_type == ScalarType.LITERAL
-    ):
+    patterns = [
+        translate_evaluator(operand, element_var, variable_base)
+        for operand in evaluator.operands
+    ]
+    prefixes = set.union(*(p.prefixes for p in patterns))
+    clauses = [c for p in patterns for c in p.clauses]
+    subqueries = [s for p in patterns for s in p.subqueries]
+    if evaluator.output_type == ScalarType.LITERAL:
         # At least one operand is a string: Overpass + is string concatenation.
         # str() coerces numeric arguments to their string form so that e.g.
         # "foo" + 1 → CONCAT(str("foo"), str(1)) → "foo1", matching Overpass.
-        expression = (
-            f"CONCAT(str({left_pattern.expression}), str({right_pattern.expression}))"
-        )
+        args = ", ".join(f"str({p.expression})" for p in patterns)
+        expression = f"CONCAT({args})"
     else:
-        op = evaluator.operator.value
-        expression = f"({left_pattern.expression}) {op} ({right_pattern.expression})"
+        parts = [f"({patterns[0].expression})"]
+        for op, p in zip(evaluator.operators, patterns[1:]):
+            parts.append(f"{op.value} ({p.expression})")
+        expression = " ".join(parts)
     return EvaluatorPattern(
         expression=expression, prefixes=prefixes, clauses=clauses, subqueries=subqueries
     )
@@ -335,17 +330,17 @@ def _translate_add(
 def _translate_multiply(
     evaluator: MultiplyEvaluator, element_var: str, variable_base: str
 ) -> EvaluatorPattern:
-    left_pattern = translate_evaluator(
-        evaluator.left_operand, element_var, variable_base
-    )
-    right_pattern = translate_evaluator(
-        evaluator.right_operand, element_var, variable_base
-    )
-    op = evaluator.operator.value
-    expression = f"({left_pattern.expression}) {op} ({right_pattern.expression})"
-    prefixes = left_pattern.prefixes | right_pattern.prefixes
-    clauses = left_pattern.clauses + right_pattern.clauses
-    subqueries = left_pattern.subqueries + right_pattern.subqueries
+    patterns = [
+        translate_evaluator(operand, element_var, variable_base)
+        for operand in evaluator.operands
+    ]
+    parts = [f"({patterns[0].expression})"]
+    for op, p in zip(evaluator.operators, patterns[1:]):
+        parts.append(f"{op.value} ({p.expression})")
+    expression = " ".join(parts)
+    prefixes = set.union(*(p.prefixes for p in patterns))
+    clauses = [c for p in patterns for c in p.clauses]
+    subqueries = [s for p in patterns for s in p.subqueries]
     return EvaluatorPattern(
         expression=expression, prefixes=prefixes, clauses=clauses, subqueries=subqueries
     )

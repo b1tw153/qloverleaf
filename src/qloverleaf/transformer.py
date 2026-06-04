@@ -304,16 +304,14 @@ class CompareEvaluator(Evaluator):
 
 @dataclass
 class AddEvaluator(Evaluator):
-    left_operand: Evaluator
-    operator: AddOperator
-    right_operand: Evaluator
+    operands: list[Evaluator]
+    operators: list[AddOperator]
 
 
 @dataclass
 class MultiplyEvaluator(Evaluator):
-    left_operand: Evaluator
-    operator: MultiplyOperator
-    right_operand: Evaluator
+    operands: list[Evaluator]
+    operators: list[MultiplyOperator]
 
 
 # ...
@@ -1325,6 +1323,10 @@ def _stamp_element_context(evaluator: Evaluator, context: SetReference | None) -
             else:
                 child_context = context
             _stamp_element_context(val, child_context)
+        elif isinstance(val, list):
+            for item in val:
+                if isinstance(item, Evaluator):
+                    _stamp_element_context(item, context)
 
 
 def _walk_stmt_element_context(stmt: Statement) -> None:
@@ -2347,98 +2349,98 @@ class OverpassTransformer(Transformer[Token, Query]):
         )
 
     def add_expr(self, children: list[Any]) -> AddEvaluator:
-        operator = AddOperator(children[1].value)
+        # children: [operand, op, operand, op, operand, ...] (flat from grammar)
+        operands: list[Evaluator] = children[0::2]
+        operators = [AddOperator(t.value) for t in children[1::2]]
 
-        left_operand = children[0]
-        assert isinstance(left_operand, Evaluator)
-        left_type = left_operand.output_type
-
-        right_operand = children[2]
-        assert isinstance(right_operand, Evaluator)
-        right_type = right_operand.output_type
-
-        if left_type is None or right_type is None:
-            output_type = None
-            token = left_operand.token if left_type is None else right_operand.token
-            self.warnings.append(
-                QueryWarning(
-                    "Operand type is indeterminate and may cause SPARQL errors", token
+        current_type = operands[0].output_type
+        for operator, right_operand in zip(operators, operands[1:]):
+            left_type = current_type
+            right_type = right_operand.output_type
+            if left_type is None or right_type is None:
+                token = (
+                    right_operand.token if left_type is not None else operands[0].token
                 )
-            )
-        elif left_type == ScalarType.NUMERIC and right_type == ScalarType.NUMERIC:
-            # numeric addition/subtraction
-            output_type = ScalarType.NUMERIC
-        elif operator == AddOperator.ADD and (
-            left_type == ScalarType.LITERAL or right_type == ScalarType.LITERAL
-        ):
-            # string concatenation: Overpass concatenates whenever either operand
-            # is non-numeric, so one LITERAL side is sufficient
-            output_type = ScalarType.LITERAL
-        else:
-            output_type = None
-            op_name = (
-                "addition/concatenation"
-                if operator == AddOperator.ADD
-                else "subtraction"
-            )
-            self.warnings.append(
-                QueryWarning(
-                    f"Operand types are incompatible with {op_name}: "
-                    f"( {left_type.value} / {right_type.value} )",
-                    left_operand.token,
+                self.warnings.append(
+                    QueryWarning(
+                        "Operand type is indeterminate and may cause SPARQL errors",
+                        token,
+                    )
                 )
-            )
+                current_type = None
+            elif left_type == ScalarType.NUMERIC and right_type == ScalarType.NUMERIC:
+                # numeric addition/subtraction
+                current_type = ScalarType.NUMERIC
+            elif operator == AddOperator.ADD and (
+                left_type == ScalarType.LITERAL or right_type == ScalarType.LITERAL
+            ):
+                # string concatenation: Overpass concatenates whenever either operand
+                # is non-numeric, so one LITERAL side is sufficient
+                current_type = ScalarType.LITERAL
+            else:
+                op_name = (
+                    "addition/concatenation"
+                    if operator == AddOperator.ADD
+                    else "subtraction"
+                )
+                self.warnings.append(
+                    QueryWarning(
+                        f"Operand types are incompatible with {op_name}: "
+                        f"( {left_type.value} / {right_type.value} )",
+                        right_operand.token,
+                    )
+                )
+                current_type = None
 
         return AddEvaluator(
-            left_operand=left_operand,
-            operator=operator,
-            right_operand=right_operand,
-            output_type=output_type,
-            token=children[0].token,
+            operands=operands,
+            operators=operators,
+            output_type=current_type,
+            token=operands[0].token,
         )
 
     def mul_expr(self, children: list[Any]) -> MultiplyEvaluator:
-        operator = MultiplyOperator(children[1].value)
+        # children: [operand, op, operand, op, operand, ...] (flat from grammar)
+        operands: list[Evaluator] = children[0::2]
+        operators = [MultiplyOperator(t.value) for t in children[1::2]]
 
-        left_operand = children[0]
-        assert isinstance(left_operand, Evaluator)
-        left_type = left_operand.output_type
-
-        right_operand = children[2]
-        assert isinstance(right_operand, Evaluator)
-        right_type = right_operand.output_type
-
-        if left_type is None or right_type is None:
-            output_type = None
-            token = left_operand.token if left_type is None else right_operand.token
-            self.warnings.append(
-                QueryWarning(
-                    "Operand type is indeterminate and may cause SPARQL errors", token
+        current_type = operands[0].output_type
+        for operator, right_operand in zip(operators, operands[1:]):
+            left_type = current_type
+            right_type = right_operand.output_type
+            if left_type is None or right_type is None:
+                token = (
+                    right_operand.token if left_type is not None else operands[0].token
                 )
-            )
-        elif left_type == ScalarType.NUMERIC and right_type == ScalarType.NUMERIC:
-            output_type = ScalarType.NUMERIC
-        else:
-            output_type = None
-            op_name = (
-                "multiplication"
-                if operator == MultiplyOperator.MULTIPLY
-                else "division"
-            )
-            self.warnings.append(
-                QueryWarning(
-                    f"Operand types are incompatible with {op_name}: "
-                    f"( {left_type.value} / {right_type.value} )",
-                    left_operand.token,
+                self.warnings.append(
+                    QueryWarning(
+                        "Operand type is indeterminate and may cause SPARQL errors",
+                        token,
+                    )
                 )
-            )
+                current_type = None
+            elif left_type == ScalarType.NUMERIC and right_type == ScalarType.NUMERIC:
+                current_type = ScalarType.NUMERIC
+            else:
+                op_name = (
+                    "multiplication"
+                    if operator == MultiplyOperator.MULTIPLY
+                    else "division"
+                )
+                self.warnings.append(
+                    QueryWarning(
+                        f"Operand types are incompatible with {op_name}: "
+                        f"( {left_type.value} / {right_type.value} )",
+                        right_operand.token,
+                    )
+                )
+                current_type = None
 
         return MultiplyEvaluator(
-            left_operand=left_operand,
-            operator=operator,
-            right_operand=right_operand,
-            output_type=output_type,
-            token=children[0].token,
+            operands=operands,
+            operators=operators,
+            output_type=current_type,
+            token=operands[0].token,
         )
 
     def unary_expr(self, children: list[Any]) -> UnaryEvaluator:

@@ -76,6 +76,7 @@ from qloverleaf.transformer import (
     RecurseFilter,
     RecurseFilterType,
     RecurseStatement,
+    ScalarType,
     SetFilter,
     SetReference,
     Statement,
@@ -2896,20 +2897,61 @@ def test_compare_expr_operands() -> None:
 def test_add_expr_add() -> None:
     expr = _evaluator("1 + 2")
     assert isinstance(expr, AddEvaluator)
-    assert expr.operator == AddOperator.ADD
+    assert expr.operators == [AddOperator.ADD]
+    assert len(expr.operands) == 2
+    assert all(isinstance(op, Evaluator) for op in expr.operands)
+    assert expr.output_type == ScalarType.NUMERIC
 
 
 def test_add_expr_subtract() -> None:
     expr = _evaluator("1 - 2")
     assert isinstance(expr, AddEvaluator)
-    assert expr.operator == AddOperator.SUBTRACT
+    assert expr.operators == [AddOperator.SUBTRACT]
+    assert len(expr.operands) == 2
+    assert all(isinstance(op, Evaluator) for op in expr.operands)
+    assert expr.output_type == ScalarType.NUMERIC
 
 
-def test_add_expr_operands() -> None:
-    expr = _evaluator("1 + 2")
+def test_add_expr_add_multiple() -> None:
+    expr = _evaluator("1 + 2 + 3")
     assert isinstance(expr, AddEvaluator)
-    assert isinstance(expr.left_operand, Evaluator)
-    assert isinstance(expr.right_operand, Evaluator)
+    assert len(expr.operands) == 3
+    assert all(isinstance(op, Evaluator) for op in expr.operands)
+    assert expr.operators == [AddOperator.ADD, AddOperator.ADD]
+    assert expr.output_type == ScalarType.NUMERIC
+
+
+def test_add_expr_add_subtract() -> None:
+    expr = _evaluator("1 + 2 - 3")
+    assert isinstance(expr, AddEvaluator)
+    assert len(expr.operands) == 3
+    assert all(isinstance(op, Evaluator) for op in expr.operands)
+    assert expr.operators == [AddOperator.ADD, AddOperator.SUBTRACT]
+    assert expr.output_type == ScalarType.NUMERIC
+
+
+def test_add_expr_string_concat() -> None:
+    expr = _evaluator('"a" + "b"')
+    assert isinstance(expr, AddEvaluator)
+    assert expr.operators == [AddOperator.ADD]
+    assert expr.output_type == ScalarType.LITERAL
+
+
+def test_add_expr_string_concat_multiple() -> None:
+    expr = _evaluator('"a" + "b" + "c"')
+    assert isinstance(expr, AddEvaluator)
+    assert expr.operators == [AddOperator.ADD, AddOperator.ADD]
+    assert len(expr.operands) == 3
+    assert expr.output_type == ScalarType.LITERAL
+
+
+def test_add_expr_string_subtract() -> None:
+    # Overpass allows string subtraction but returns "NaN"; we emit a warning and
+    # pass output_type=None so QLever's own behavior passes through.
+    expr = _evaluator('"a" - "b"')
+    assert isinstance(expr, AddEvaluator)
+    assert expr.operators == [AddOperator.SUBTRACT]
+    assert expr.output_type is None
 
 
 # ---------------------------------------------------------------------------
@@ -2920,20 +2962,37 @@ def test_add_expr_operands() -> None:
 def test_mul_expr_multiply() -> None:
     expr = _evaluator("2 * 3")
     assert isinstance(expr, MultiplyEvaluator)
-    assert expr.operator == MultiplyOperator.MULTIPLY
+    assert expr.operators == [MultiplyOperator.MULTIPLY]
+    assert len(expr.operands) == 2
+    assert all(isinstance(op, Evaluator) for op in expr.operands)
+    assert expr.output_type == ScalarType.NUMERIC
 
 
 def test_mul_expr_divide() -> None:
     expr = _evaluator("6 / 2")
     assert isinstance(expr, MultiplyEvaluator)
-    assert expr.operator == MultiplyOperator.DIVIDE
+    assert expr.operators == [MultiplyOperator.DIVIDE]
+    assert len(expr.operands) == 2
+    assert all(isinstance(op, Evaluator) for op in expr.operands)
+    assert expr.output_type == ScalarType.NUMERIC
 
 
-def test_mul_expr_operands() -> None:
-    expr = _evaluator("2 * 3")
+def test_mul_expr_multiply_multiple() -> None:
+    expr = _evaluator("2 * 3 * 4")
     assert isinstance(expr, MultiplyEvaluator)
-    assert isinstance(expr.left_operand, Evaluator)
-    assert isinstance(expr.right_operand, Evaluator)
+    assert len(expr.operands) == 3
+    assert all(isinstance(op, Evaluator) for op in expr.operands)
+    assert expr.operators == [MultiplyOperator.MULTIPLY, MultiplyOperator.MULTIPLY]
+    assert expr.output_type == ScalarType.NUMERIC
+
+
+def test_mul_expr_multiply_divide() -> None:
+    expr = _evaluator("12 * 3 / 4")
+    assert isinstance(expr, MultiplyEvaluator)
+    assert len(expr.operands) == 3
+    assert all(isinstance(op, Evaluator) for op in expr.operands)
+    assert expr.operators == [MultiplyOperator.MULTIPLY, MultiplyOperator.DIVIDE]
+    assert expr.output_type == ScalarType.NUMERIC
 
 
 # ---------------------------------------------------------------------------
@@ -2998,9 +3057,10 @@ def test_tag_value_expr() -> None:
     assert isinstance(expr.evaluator, LiteralEvaluator)
 
 
-def test_tag_value_expr_dynamic_raises() -> None:
-    with pytest.raises(UnsupportedFeatureError):
-        _evaluator('t["prefix" + "suffix"]')
+def test_tag_value_expr_dynamic() -> None:
+    expr = _evaluator('t["prefix" + "suffix"]')
+    assert isinstance(expr, TagValueEvaluator)
+    assert isinstance(expr.evaluator, AddEvaluator)
 
 
 # ---------------------------------------------------------------------------
@@ -3735,11 +3795,11 @@ def test_aggregator_context_does_not_bleed_out() -> None:
     stmt = _for_stmt2("node -> .a; for(id() + a.sum(id())) { node; }")
     add_expr = stmt.evaluator
     assert isinstance(add_expr, AddEvaluator)
-    outer_id = add_expr.left_operand
+    outer_id = add_expr.operands[0]
     assert isinstance(outer_id, MetadataEvaluator)
     assert outer_id.target_set is not None
     assert outer_id.target_set.name == "_"
-    sum_expr = add_expr.right_operand
+    sum_expr = add_expr.operands[1]
     assert isinstance(sum_expr, SumEvaluator)
     inner_id = sum_expr.evaluator
     assert isinstance(inner_id, MetadataEvaluator)

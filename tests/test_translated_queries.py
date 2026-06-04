@@ -251,8 +251,28 @@ def test_translated_uid() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_translated_area_id() -> None:
+def test_translated_area_id_node() -> None:
     statement = "node[geological=meteor_crater](area:3602978650);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_area_id_way() -> None:
+    statement = "way[highway=track](area:3618375211);"
+    pattern = _translate(statement)[0]
+    overpass_ids = _execute_overpass(statement)
+    set_state: SetState = {}
+    qlever_query = render_query(pattern, set_state)
+    qlever_ids = _execute_qlever(qlever_query)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_area_id_rel() -> None:
+    statement = "rel[type=route](area:3600112201);"
     pattern = _translate(statement)[0]
     overpass_ids = _execute_overpass(statement)
     set_state: SetState = {}

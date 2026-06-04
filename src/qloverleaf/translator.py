@@ -557,11 +557,7 @@ def _translate_polygon_filter(
     pattern.where_clauses.append(
         f"{result_variable} geo:hasGeometry/geo:asWKT {wkt_var} ."
     )
-    if f.output_types == {ElementType.NODE}:
-        spatial_fn = "geof:sfWithin"
-    else:
-        spatial_fn = "geof:sfIntersects"
-    pattern.where_clauses.append(f"FILTER({spatial_fn}({wkt_var}, {poly_var}))")
+    pattern.where_clauses.append(f"FILTER(geof:sfIntersects({wkt_var}, {poly_var}))")
 
 
 def _translate_newer_filter(
@@ -643,12 +639,7 @@ def _translate_area_id_filter(
         area_uri = f"osmway:{way_id}"
     else:
         raise ValueError(f"Invalid area_id {f.area_id}: must be >= {AREA_WAY_OFFSET}")
-    # sfIntersects for ways (matches Overpass semantics); sfContains for nodes/relations
-    if f.output_types and ElementType.WAY in f.output_types:
-        predicate = "ogc:sfIntersects"
-    else:
-        predicate = "ogc:sfContains"
-    pattern.where_clauses.append(f"{area_uri} {predicate} {result_variable} .")
+    pattern.where_clauses.append(f"{area_uri} ogc:sfIntersects {result_variable} .")
 
 
 def _translate_area_set_filter(
@@ -670,13 +661,7 @@ def _translate_area_set_filter(
             required_types=f.set_reference.required_types,
         )
     )
-    # sfIntersects for ways (matches Overpass semantics); sfContains for nodes/relations
-    if f.output_types and ElementType.WAY in f.output_types:
-        # TODO: Maybe this should always be sfIntersects
-        predicate = "ogc:sfIntersects"
-    else:
-        predicate = "ogc:sfContains"
-    pattern.where_clauses.append(f"{area_var} {predicate} {result_variable} .")
+    pattern.where_clauses.append(f"{area_var} ogc:sfIntersects {result_variable} .")
 
 
 def _translate_recurse_filter(

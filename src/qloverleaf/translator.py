@@ -1682,7 +1682,8 @@ def _translate_is_in(stmt: IsInStatement) -> list[SparqlPattern]:
     pattern.prefixes |= {"ogc", "osm2rdf"}
     input_var = _variable_name(stmt.output_set, filter_index=0, intermediate="input")
     area_var = _variable_name(stmt.output_set, filter_index=0, intermediate="area")
-    # result_var is an area that intersects the input element
+    # sfIntersects finds candidates; osm2rdf:area confirms result_var is a tagged
+    # closed way or relation, ruling out open ways that merely cross the input element
     pattern.where_clauses.append(f"{result_var} ogc:sfIntersects {input_var} .")
     pattern.where_clauses.append(f"{result_var} osm2rdf:area {area_var} .")
     pattern.injections = [
@@ -1701,6 +1702,7 @@ def _translate_map_to_area(stmt: MapToAreaStatement) -> list[SparqlPattern]:
     assert result_var is not None
     pattern.prefixes |= {"osm2rdf"}
     area_var = _variable_name(stmt.output_set, filter_index=0, intermediate="area")
+    # osm2rdf:area confirms result_var is a tagged closed way or relation
     pattern.where_clauses.append(f"{result_var} osm2rdf:area {area_var} .")
 
     # Inject the input set and assign to the output set variable

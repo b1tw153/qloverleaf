@@ -3090,22 +3090,22 @@ def test_translated_recurse_up_node_direct_relation_member() -> None:
 # ---------------------------------------------------------------------------
 # Overpass is_in returns relation-areas as area/<3600000000 + rel_id>; ways
 # are returned as way/<id>. QLever returns way/<id> and relation/<id>.
-# _normalize_is_in_ids converts Overpass area IDs to their underlying
+# _normalize_area_ids converts Overpass area IDs to their underlying
 # way/relation form for comparison.
 
-_IS_IN_RELATION_OFFSET = 3_600_000_000
-_IS_IN_WAY_OFFSET = 2_400_000_000
+_AREA_RELATION_OFFSET = 3_600_000_000
+_AREA_WAY_OFFSET = 2_400_000_000
 
 
-def _normalize_is_in_ids(ids: list[str]) -> list[str]:
+def _normalize_area_ids(ids: list[str]) -> list[str]:
     result = []
     for elem_id in ids:
         if elem_id.startswith("area/"):
             n = int(elem_id[5:])
-            if n >= _IS_IN_RELATION_OFFSET:
-                result.append(f"relation/{n - _IS_IN_RELATION_OFFSET}")
-            elif n >= _IS_IN_WAY_OFFSET:
-                result.append(f"way/{n - _IS_IN_WAY_OFFSET}")
+            if n >= _AREA_RELATION_OFFSET:
+                result.append(f"relation/{n - _AREA_RELATION_OFFSET}")
+            elif n >= _AREA_WAY_OFFSET:
+                result.append(f"way/{n - _AREA_WAY_OFFSET}")
         else:
             result.append(elem_id)
     return result
@@ -3114,9 +3114,8 @@ def _normalize_is_in_ids(ids: list[str]) -> list[str]:
 @pytest.mark.xfail(
     reason=(
         "Overpass returns way/33178232 and way/1456428828 as containing areas — "
-        "both are closed, untagged ways that Overpass treats as potential areas "
-        "regardless of tags. osm2rdf only computes osm2rdf:area for area-tagged "
-        "closed ways, so QLever does not index them and returns fewer results."
+        "both are closed, untagged ways. osm2rdf does not compute osm2rdf:area "
+        "for untagged ways, so QLever does not index them and returns fewer results."
     ),
     strict=True,
 )
@@ -3126,7 +3125,7 @@ def test_translated_is_in_node_in_ways_and_relations() -> None:
     query = "node(150935187); is_in;"
     qlever_sparql, overpass_ids = _compose_union_query(query)
     qlever_ids = _execute_qlever(qlever_sparql)
-    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+    assert sorted(_normalize_area_ids(overpass_ids)) == sorted(qlever_ids)
 
 
 @pytest.mark.xfail(
@@ -3143,7 +3142,7 @@ def test_translated_is_in_way_fully_contained() -> None:
     query = "way(1095053416); is_in;"
     qlever_sparql, overpass_ids = _compose_union_query(query)
     qlever_ids = _execute_qlever(qlever_sparql)
-    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+    assert sorted(_normalize_area_ids(overpass_ids)) == sorted(qlever_ids)
 
 
 @pytest.mark.xfail(
@@ -3161,7 +3160,7 @@ def test_translated_is_in_way_partially_contained() -> None:
     query = "way(1456428840); is_in;"
     qlever_sparql, overpass_ids = _compose_union_query(query)
     qlever_ids = _execute_qlever(qlever_sparql)
-    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+    assert sorted(_normalize_area_ids(overpass_ids)) == sorted(qlever_ids)
 
 
 @pytest.mark.xfail(
@@ -3178,7 +3177,7 @@ def test_translated_is_in_relation_fully_contained() -> None:
     query = "rel(18375544); is_in;"
     qlever_sparql, overpass_ids = _compose_union_query(query)
     qlever_ids = _execute_qlever(qlever_sparql)
-    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+    assert sorted(_normalize_area_ids(overpass_ids)) == sorted(qlever_ids)
 
 
 @pytest.mark.xfail(
@@ -3196,7 +3195,7 @@ def test_translated_is_in_relation_partially_contained() -> None:
     query = "rel(9712655); is_in;"
     qlever_sparql, overpass_ids = _compose_union_query(query)
     qlever_ids = _execute_qlever(qlever_sparql)
-    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+    assert sorted(_normalize_area_ids(overpass_ids)) == sorted(qlever_ids)
 
 
 @pytest.mark.xfail(
@@ -3222,4 +3221,49 @@ def test_translated_is_in_node_boundary_vertex_of_area() -> None:
     query = "node(9172478886); is_in;"
     qlever_sparql, overpass_ids = _compose_union_query(query)
     qlever_ids = _execute_qlever(qlever_sparql)
-    assert sorted(_normalize_is_in_ids(overpass_ids)) == sorted(qlever_ids)
+    assert sorted(_normalize_area_ids(overpass_ids)) == sorted(qlever_ids)
+
+
+# ---------------------------------------------------------------------------
+# MapToAreaStatement
+# ---------------------------------------------------------------------------
+
+
+def test_translated_map_to_area_node() -> None:
+    # node/150935187: nodes cannot be areas; both backends return nothing
+    query = "node(150935187); map_to_area;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_map_to_area_tagged_closed_way() -> None:
+    # way/1122139427: tagged closed way; both backends should return it as an area
+    query = "way(1122139427); map_to_area;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)
+
+
+def test_translated_map_to_area_relation() -> None:
+    # relation/18375211: area relation; both backends should return it as an area
+    query = "rel(18375211); map_to_area;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(_normalize_area_ids(overpass_ids)) == sorted(qlever_ids)
+
+
+@pytest.mark.xfail(
+    reason=(
+        "way/33178232 is a closed, untagged way. Overpass returns it as an area; "
+        "osm2rdf does not compute osm2rdf:area for untagged ways, so QLever "
+        "returns nothing."
+    ),
+    strict=True,
+)
+def test_translated_map_to_area_untagged_closed_way() -> None:
+    # way/33178232: untagged closed way; Overpass returns it, QLever does not
+    query = "way(33178232); map_to_area;"
+    qlever_sparql, overpass_ids = _compose_union_query(query)
+    qlever_ids = _execute_qlever(qlever_sparql)
+    assert sorted(overpass_ids) == sorted(qlever_ids)

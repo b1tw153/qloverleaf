@@ -4,7 +4,7 @@
 
 ## Overpass QL to QLever Interpreter
 
-Qloverleaf is a proof-of-concept interpreter that translates Overpass QL queries to
+Qloverleaf is a proof-of-concept interpreter that translates [Overpass QL](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL) queries to
 QLever queries, executes the queries at [Qlever](https://qlever.dev), and formats the
 results as Overpass GeoJSON or OSM XML output.
 

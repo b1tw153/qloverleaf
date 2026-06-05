@@ -281,7 +281,16 @@ def _finalize(elem: dict[str, Any], stmt: OutStatement) -> dict[str, Any]:
 
     # Structural members
     if "_members" in elem:
-        members_sorted = sorted(elem["_members"], key=lambda x: x[0])
+        # Deduplicate by pos: if multiple areas matched the same way, the SPARQL
+        # cross-product produces one row per (member, area), so the same pos can
+        # appear multiple times with identical data.
+        seen_pos: set[int] = set()
+        deduped = []
+        for e in elem["_members"]:
+            if e[0] not in seen_pos:
+                seen_pos.add(e[0])
+                deduped.append(e)
+        members_sorted = sorted(deduped, key=lambda x: x[0])
         geom = elem.get("_geom", {})
 
         if elem_type == "way":

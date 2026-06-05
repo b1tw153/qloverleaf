@@ -65,7 +65,6 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
     # Start with current pattern's where clauses
     composed_where_clauses = list(pattern.where_clauses)
     composed_prefixes = set(pattern.prefixes)
-    composed_distinct = pattern.distinct
     composed_statements: list[Statement] = []
     remaining_injections = []
 
@@ -111,9 +110,6 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
         # merge prefixes
         composed_prefixes = composed_prefixes | input_pattern.prefixes
 
-        # carry distinct forward
-        composed_distinct = composed_distinct | input_pattern.distinct
-
         # accumulate source statements
         composed_statements.extend(input_pattern.statements)
 
@@ -140,7 +136,6 @@ def compose(pattern: SparqlPattern, set_state: SetState) -> SparqlPattern | None
         pattern.materialize,  # false
         composed_prefixes,
         pattern.select_clause,  # None
-        composed_distinct,
         pattern.group_by,
         pattern.order_by,
         composed_where_clauses,

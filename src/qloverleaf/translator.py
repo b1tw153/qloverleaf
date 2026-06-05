@@ -66,7 +66,6 @@ def _dump_sparql_pattern(pattern: SparqlPattern) -> str:
     lines = [
         f"output_set: {output_set_str}",
         f"result_variable: {pattern.result_variable}",
-        f"distinct: {pattern.distinct}",
         f"materialize: {pattern.materialize}",
         f"prefixes: {sorted(pattern.prefixes)}",
         "where_clauses:",
@@ -112,17 +111,12 @@ def render_query(pattern: SparqlPattern, set_state: "SetState") -> str:
     # SELECT clause
     if pattern.select_clause:
         clause = pattern.select_clause
-        if pattern.distinct and "DISTINCT" not in clause:
-            distinct = "DISTINCT "
-        else:
-            distinct = ""
-        lines.append(f"SELECT {distinct}{clause} WHERE {{")
+        lines.append(f"SELECT DISTINCT {clause} WHERE {{")
     else:
         assert pattern.result_variable is not None, (
             "Pattern must have output_set or explicit select_clause"
         )
-        distinct = "DISTINCT " if pattern.distinct else ""
-        lines.append(f"SELECT {distinct}{pattern.result_variable} WHERE {{")
+        lines.append(f"SELECT DISTINCT {pattern.result_variable} WHERE {{")
 
     # VALUES injections
     # site_substitutions maps placeholder strings to their filled VALUES clauses;
@@ -471,7 +465,6 @@ def _translate_around_set_filter(
     result_variable: str,
     pattern: SparqlPattern,
 ) -> None:
-    pattern.distinct = True  # Cross-join may produce duplicates
     pattern.prefixes |= {"geo", "geof"}
 
     # Reference set geometry variables
@@ -679,7 +672,6 @@ def _translate_recurse_filter(
     result_variable: str,
     pattern: SparqlPattern,
 ) -> None:
-    pattern.distinct = True
     input_var = _variable_name(
         output_set, filter_index=filter_index, intermediate="input"
     )
@@ -777,7 +769,6 @@ def _translate_way_count_filter(
     result_variable: str,
     pattern: SparqlPattern,
 ) -> None:
-    pattern.distinct = True
     pattern.prefixes.add("osmway")
 
     way_var = _variable_name(output_set, filter_index=filter_index, intermediate="way")
@@ -881,7 +872,7 @@ def _translate_if_filter(
 def _translate_union(stmt: UnionStatement) -> list[SparqlPattern]:
     output_set = stmt.output_set
     result_variable = f"?{output_set.identifier}"
-    pattern = SparqlPattern(output_set=output_set, distinct=True)
+    pattern = SparqlPattern(output_set=output_set)
 
     leaves: list[str] = []
     # In OverpassQL, ._ propagates sequentially between union members, so a later
@@ -1499,7 +1490,6 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
         pattern.where_clauses.append(f"{result_variable} rdf:type ?type .")
         # ORDER BY / LIMIT don't apply to count
     elif stmt.verbosity == OutVerbosity.IDS:
-        pattern.distinct = True
         if stmt.bb or stmt.center:
             # ids + bb: emit element URIs plus the element's own WKT so the formatter
             # can derive bounds (ways/relations) or lat/lon (nodes). Use a
@@ -1594,7 +1584,7 @@ def _translate_out(stmt: OutStatement) -> list[SparqlPattern]:
 
 
 def _translate_recurse(stmt: RecurseStatement) -> list[SparqlPattern]:
-    pattern = SparqlPattern(output_set=stmt.output_set, distinct=True)
+    pattern = SparqlPattern(output_set=stmt.output_set)
     result_var = f"?{stmt.output_set.identifier}"
     input_set = stmt.input_set
     assert input_set.content_types is not None

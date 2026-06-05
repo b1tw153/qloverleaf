@@ -154,7 +154,6 @@ def test_out_debug_one_stmt() -> None:
     print(output)
     assert "output_set:" in output
     assert "result_variable:" in output
-    assert "distinct:" in output
     assert "materialize:" in output
     assert "prefixes:" in output
     assert "where_clauses:" in output

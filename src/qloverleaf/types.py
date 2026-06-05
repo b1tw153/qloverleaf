@@ -25,7 +25,6 @@ class SparqlPattern:
     materialize: bool = False
     prefixes: set[str] = field(default_factory=set)
     select_clause: str | None = None
-    distinct: bool = False
     group_by: str | None = None
     order_by: str | None = None
     where_clauses: list[str] = field(default_factory=list)

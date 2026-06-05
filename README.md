@@ -35,7 +35,7 @@ resolved.
 
 ### Sample Queries
 
-- [`[out:json]; node(id:1,2,3); out meta;`](htts://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20node%28id%3A1%2C2%2C3%29%3B%20out%20meta%3B)
+- [`[out:json]; node(id:1,2,3); out meta;`](https://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20node%28id%3A1%2C2%2C3%29%3B%20out%20meta%3B)
 
 - [`[out:json]; nwr[leisure=golf_course]; nwr(around:0)[office=yes]; out ids;`](https://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20nwr%5Bleisure%3Dgolf_course%5D%3B%20nwr%28around%3A0%29%5Boffice%3Dyes%5D%3B%20out%20ids%3B)
 

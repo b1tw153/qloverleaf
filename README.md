@@ -160,7 +160,6 @@ These features are unsupported with no implementation plans at this time:
 - The way_cnt filter does not work inside a union statement
 - Output is sorted by ID in lexical order rather than numerical order
 - Some execution errors are not properly reported in response messages
-- The logo on this page is not rendering correctly
 - ... and certainly many more that are unknown
 
 If you find behavior that looks like a bug, please report it as an issue in the

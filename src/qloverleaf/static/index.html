@@ -13,12 +13,9 @@
 QLever queries, executes the queries at <a href="https://qlever.dev">Qlever</a>, and formats the
 results as Overpass GeoJSON or OSM XML output.</p>
 <h2>How to Use the Interpreter</h2>
-<p>Qloverleaf provides the same HTTP query interface as Overpass. Use the <a href="https://qloverleaf.fly.dev/api/">https://qloverleaf.fly.dev/api/</a> or
-<a href="https://qloverleaf.fly.dev/api/interpreter">https://qloverleaf.fly.dev/api/interpreter</a> URL anywhere that you would normally use the
-URL for Overpass such as Overpass Turbo or JOSM.</p>
-<p>You can also make direct queries to the Qloverleaf interpreter:</p>
-<pre><code class="language-bash">curl -i 'https://qloverleaf.fly.dev/api/interpreter' --data-urlencode 'data=[out:json]; node(1); out;'
-</code></pre>
+<p>Qloverleaf provides the same HTTP query interface as Overpass. You can use a
+Qloverleaf server URL anywhere that you would normally use the URL for
+Overpass such as Overpass Turbo or JOSM.</p>
 <h3>Query Tips</h3>
 <ul>
 <li>Single type queries are simpler more likely to run well.</li>
@@ -34,13 +31,13 @@ resolved.</p>
 <h3>Sample Queries</h3>
 <ul>
 <li>
-<p><a href="https://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20node%28id%3A1%2C2%2C3%29%3B%20out%20meta%3B"><code>[out:json]; node(id:1,2,3); out meta;</code></a></p>
+<p><a href="/api/interpreter?data=%5Bout%3Ajson%5D%3B%20node%28id%3A1%2C2%2C3%29%3B%20out%20meta%3B"><code>[out:json]; node(id:1,2,3); out meta;</code></a></p>
 </li>
 <li>
-<p><a href="https://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20nwr%5Bleisure%3Dgolf_course%5D%3B%20nwr%28around%3A0%29%5Boffice%3Dyes%5D%3B%20out%20ids%3B"><code>[out:json]; nwr[leisure=golf_course]; nwr(around:0)[office=yes]; out ids;</code></a></p>
+<p><a href="/api/interpreter?data=%5Bout%3Ajson%5D%3B%20nwr%5Bleisure%3Dgolf_course%5D%3B%20nwr%28around%3A0%29%5Boffice%3Dyes%5D%3B%20out%20ids%3B"><code>[out:json]; nwr[leisure=golf_course]; nwr(around:0)[office=yes]; out ids;</code></a></p>
 </li>
 <li>
-<p><a href="https://qloverleaf.fly.dev/api/interpreter?data=%5Bout%3Ajson%5D%3B%20rel%2818375544%29%3B%20out%20geom%3B"><code>[out:json]; rel(18375544); out geom;</code></a></p>
+<p><a href="/api/interpreter?data=%5Bout%3Ajson%5D%3B%20rel%2818375544%29%3B%20out%20geom%3B"><code>[out:json]; rel(18375544); out geom;</code></a></p>
 </li>
 </ul>
 <h2>Proof-of-Concept</h2>

@@ -15,6 +15,8 @@ from qloverleaf.types import SetState, SetStateEntry, SparqlPattern
 
 pytestmark = pytest.mark.live
 
+# If you are running Qloverleaf, please use your own local instance of QLever. See
+# https://docs.qlever.dev/ for setup instructions.
 OVERPASS_URL = "http://localhost/api/interpreter"
 QLEVER_URL = os.environ.get("QLEVER_ENDPOINT", "https://localhost:7007/api/osm-planet")
 

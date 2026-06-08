@@ -7,7 +7,10 @@ from qloverleaf.exceptions import BackendError, NetworkError, TimeoutError
 from qloverleaf.transformer import ElementType
 
 QLEVER_ENDPOINT = os.environ.get(
-    "QLEVER_ENDPOINT", "https://localhost:7007/api/osm-planet"
+    # If you are running Qloverleaf, please use your own local instance of QLever. See
+    # https://docs.qlever.dev/ for setup instructions.
+    "QLEVER_ENDPOINT",
+    "https://localhost:7007/api/osm-planet",
 )
 
 _URI_PREFIXES: list[tuple[str, ElementType]] = [

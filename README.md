@@ -85,8 +85,6 @@ not implemented yet:
 - CSV output
 - popup output
 - custom output
-- (if: ) filter evaluators that require SPARQL subqueries (the if filter is supported
-  in other cases)
 
 The unimplemented features are generally "possible" to implement using QLever and the
 Qloverleaf interpreter, but simply have not been implemented yet. And the relative
@@ -153,13 +151,11 @@ These features are unsupported with no implementation plans at this time:
 - Node coordinates in QLever are rounded to six decimal places instead of retaining
   the original seven decimal places -
   [osm2rdf issue \#135](https://github.com/ad-freiburg/osm2rdf/issues/135)
-- [bbox: ] global setting is not applied
 - [maxsize: ] global setting is not applied
 - Output limit restricts the number of rows returned from QLever instead of limiting
   the number of OSM elements returned in the result set
 - The way_cnt filter does not work inside a union statement
 - Output is sorted by ID in lexical order rather than numerical order
-- Some execution errors are not properly reported in response messages
 - ... and certainly many more that are unknown
 
 If you find behavior that looks like a bug, please report it as an issue in the

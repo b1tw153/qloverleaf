@@ -27,14 +27,6 @@ Some of these issues are mismatches between the QLever and Overpass data models.
 issues are query composition and optimization challenges that have not yet been
 resolved.
 
-### Sample Queries
-
-- [`[out:json]; node(id:1,2,3); out meta;`](/api/interpreter?data=%5Bout%3Ajson%5D%3B%20node%28id%3A1%2C2%2C3%29%3B%20out%20meta%3B)
-
-- [`[out:json]; nwr[leisure=golf_course]; nwr(around:0)[office=yes]; out ids;`](/api/interpreter?data=%5Bout%3Ajson%5D%3B%20nwr%5Bleisure%3Dgolf_course%5D%3B%20nwr%28around%3A0%29%5Boffice%3Dyes%5D%3B%20out%20ids%3B)
-
-- [`[out:json]; rel(18375544); out geom;`](/api/interpreter?data=%5Bout%3Ajson%5D%3B%20rel%2818375544%29%3B%20out%20geom%3B)
-
 ## Proof-of-Concept
 
 The current implementation is an incomplete proof-of-concept that demonstrates the

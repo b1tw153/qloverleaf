@@ -6,7 +6,9 @@ import httpx
 from qloverleaf.exceptions import BackendError, NetworkError, TimeoutError
 from qloverleaf.transformer import ElementType
 
-QLEVER_ENDPOINT = os.environ.get("QLEVER_ENDPOINT", "https://qlever.dev/api/osm-planet")
+QLEVER_ENDPOINT = os.environ.get(
+    "QLEVER_ENDPOINT", "https://localhost:7007/api/osm-planet"
+)
 
 _URI_PREFIXES: list[tuple[str, ElementType]] = [
     ("https://www.openstreetmap.org/node/", ElementType.NODE),
